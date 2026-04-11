@@ -1,0 +1,18 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <channel>
+    <title>AIUsage</title>
+    <item>
+      <title>Version 0.2.1</title>
+      <sparkle:version>0.2.1</sparkle:version>
+      <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+      <pubDate>Sat, 11 Apr 2026 08:19:28 +0000</pubDate>
+      <enclosure
+        url="https://github.com/sylearn/AIUsage/releases/download/v0.2.1/AIUsage-0.2.1-macOS.zip"
+        type="application/octet-stream"
+        sparkle:edSignature="6MPRaK0LUtylooRR0uDSi1CB5dyvX3zNrwp4Wd2DZ7iYfEmmsVYlJ0qg2P7TJ7GQ0enmGvqYLla6r1TMAhcpBg=="
+        length="3301150"
+      />
+    </item>
+  </channel>
+</rss>

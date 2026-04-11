@@ -88,14 +88,10 @@ struct ProviderCard: View {
                 Spacer(minLength: 0)
                 MultiWindowQuotaView(windows: provider.windows, accentColor: accentColor)
             } else {
-                if let nextResetAt = provider.nextResetAt {
-                    ResetCountdownView(resetAt: nextResetAt, accentColor: accentColor)
-                }
-
                 Spacer(minLength: 0)
 
                 if let remaining = provider.remainingPercent {
-                    QuotaIndicatorView(remainingPercent: remaining, accentColor: accentColor)
+                    QuotaIndicatorView(remainingPercent: remaining, accentColor: accentColor, resetAt: provider.nextResetAt)
                 } else {
                     Color.clear.frame(height: quotaIndicatorPlaceholderHeight)
                 }
@@ -667,7 +663,44 @@ private struct MultiWindowRingItem: View {
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+
+            if let resetText = compactResetText {
+                Text(resetText)
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(resetHighlightColor)
+            }
         }
+    }
+
+    private var compactResetText: String? {
+        guard let resetAt = window.resetAt,
+              let date = parseISO8601(resetAt) else { return nil }
+        let remaining = max(0, Int(date.timeIntervalSinceNow))
+        if remaining == 0 { return appState.language == "zh" ? "即将刷新" : "soon" }
+        let days = remaining / 86_400
+        let hours = (remaining % 86_400) / 3_600
+        let minutes = (remaining % 3_600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(max(1, minutes))m"
+    }
+
+    private var resetHighlightColor: Color {
+        guard let resetAt = window.resetAt,
+              let date = parseISO8601(resetAt) else { return .secondary }
+        let remaining = Int(date.timeIntervalSinceNow)
+        if remaining < 3_600 { return .red }
+        if remaining < 21_600 { return .orange }
+        return .secondary
+    }
+
+    private func parseISO8601(_ value: String) -> Date? {
+        let f1 = ISO8601DateFormatter()
+        f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f1.date(from: value) { return d }
+        let f2 = ISO8601DateFormatter()
+        f2.formatOptions = [.withInternetDateTime]
+        return f2.date(from: value)
     }
 }
 
@@ -733,6 +766,14 @@ private struct MultiWindowSegmentsRow: View {
                 Text(displayText)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(LinearGradient(colors: gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                if let resetText = compactResetText {
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(resetText)
+                        .font(.caption2)
+                        .foregroundStyle(resetHighlightColor)
+                }
             }
 
             HStack(alignment: .bottom, spacing: 3) {
@@ -742,6 +783,37 @@ private struct MultiWindowSegmentsRow: View {
             }
             .frame(height: 36)
         }
+    }
+
+    private var compactResetText: String? {
+        guard let resetAt = window.resetAt,
+              let date = parseISO8601(resetAt) else { return nil }
+        let remaining = max(0, Int(date.timeIntervalSinceNow))
+        if remaining == 0 { return appState.language == "zh" ? "即将刷新" : "soon" }
+        let days = remaining / 86_400
+        let hours = (remaining % 86_400) / 3_600
+        let minutes = (remaining % 3_600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(max(1, minutes))m"
+    }
+
+    private var resetHighlightColor: Color {
+        guard let resetAt = window.resetAt,
+              let date = parseISO8601(resetAt) else { return .secondary }
+        let remaining = Int(date.timeIntervalSinceNow)
+        if remaining < 3_600 { return .red }
+        if remaining < 21_600 { return .orange }
+        return .secondary
+    }
+
+    private func parseISO8601(_ value: String) -> Date? {
+        let f1 = ISO8601DateFormatter()
+        f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f1.date(from: value) { return d }
+        let f2 = ISO8601DateFormatter()
+        f2.formatOptions = [.withInternetDateTime]
+        return f2.date(from: value)
     }
 
     private func segmentView(at index: Int, height: CGFloat) -> some View {
@@ -772,6 +844,7 @@ private struct MultiWindowSegmentsRow: View {
 struct QuotaIndicatorView: View {
     let remainingPercent: Double
     let accentColor: Color
+    var resetAt: String?
 
     @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) private var colorScheme
@@ -792,6 +865,35 @@ struct QuotaIndicatorView: View {
 
     private var metricLabel: String {
         appState.quotaIndicatorMetric == .remaining ? t("Remaining", "剩余") : t("Used", "已用")
+    }
+
+    private var inlineResetText: String? {
+        guard let resetAt, let date = parseResetDate(resetAt) else { return nil }
+        let remaining = max(0, Int(date.timeIntervalSinceNow))
+        if remaining == 0 { return appState.language == "zh" ? "即将刷新" : "soon" }
+        let days = remaining / 86_400
+        let hours = (remaining % 86_400) / 3_600
+        let minutes = (remaining % 3_600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(max(1, minutes))m"
+    }
+
+    private var inlineResetColor: Color {
+        guard let resetAt, let date = parseResetDate(resetAt) else { return .secondary }
+        let remaining = Int(date.timeIntervalSinceNow)
+        if remaining < 3_600 { return .red }
+        if remaining < 21_600 { return .orange }
+        return .secondary
+    }
+
+    private func parseResetDate(_ value: String) -> Date? {
+        let f1 = ISO8601DateFormatter()
+        f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f1.date(from: value) { return d }
+        let f2 = ISO8601DateFormatter()
+        f2.formatOptions = [.withInternetDateTime]
+        return f2.date(from: value)
     }
 
     private var riskColor: Color {
@@ -892,6 +994,15 @@ struct QuotaIndicatorView: View {
                 Text(displayText)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(valueGradient)
+
+                if let resetText = inlineResetText {
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(resetText)
+                        .font(.caption2)
+                        .foregroundStyle(inlineResetColor)
+                }
             }
 
             GeometryReader { geometry in
@@ -919,29 +1030,37 @@ struct QuotaIndicatorView: View {
     }
 
     private var ringStyle: some View {
-        ZStack {
-            Circle()
-                .fill(accentColor.opacity(colorScheme == .dark ? 0.08 : 0.06))
+        VStack(spacing: 4) {
+            ZStack {
+                Circle()
+                    .fill(accentColor.opacity(colorScheme == .dark ? 0.08 : 0.06))
 
-            Circle()
-                .stroke(trackColor, lineWidth: 10)
+                Circle()
+                    .stroke(trackColor, lineWidth: 10)
 
-            Circle()
-                .trim(from: 0, to: displayPercent / 100)
-                .stroke(ringGradient, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .shadow(color: riskColor.opacity(colorScheme == .dark ? 0.32 : 0.15), radius: 8, x: 0, y: 4)
+                Circle()
+                    .trim(from: 0, to: displayPercent / 100)
+                    .stroke(ringGradient, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: riskColor.opacity(colorScheme == .dark ? 0.32 : 0.15), radius: 8, x: 0, y: 4)
 
-            VStack(spacing: 2) {
-                Text(displayText)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(valueGradient)
-                Text(metricLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                VStack(spacing: 2) {
+                    Text(displayText)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(valueGradient)
+                    Text(metricLabel)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 86, height: 86)
+
+            if let resetText = inlineResetText {
+                Text(resetText)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(inlineResetColor)
             }
         }
-        .frame(width: 86, height: 86)
         .frame(maxWidth: .infinity)
     }
 
@@ -957,6 +1076,15 @@ struct QuotaIndicatorView: View {
                 Text(displayText)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(valueGradient)
+
+                if let resetText = inlineResetText {
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(resetText)
+                        .font(.caption2)
+                        .foregroundStyle(inlineResetColor)
+                }
             }
 
             HStack(alignment: .bottom, spacing: 4) {

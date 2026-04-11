@@ -38,7 +38,7 @@ jobs:
         run: |
           PLIST_SHORT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' AIUsage/Info.plist)"
           PLIST_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' AIUsage/Info.plist)"
-          PBXPROJ_VERSION="$(grep 'MARKETING_VERSION' AIUsage.xcodeproj/project.pbxproj | head -1 | sed 's/.*= *//;s/ *;.*//')"
+          PBXPROJ_VERSION="$(grep 'MARKETING_VERSION = ' AIUsage.xcodeproj/project.pbxproj | head -1 | sed 's/.*= *//;s/ *;.*//')"
           TAG_VERSION="${{ steps.version.outputs.version }}"
 
           echo "Tag:                     $TAG_VERSION"

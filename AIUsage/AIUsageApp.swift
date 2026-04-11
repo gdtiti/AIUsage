@@ -1,15 +1,38 @@
 import SwiftUI
+import Combine
+import Sparkle
+
+final class SparkleController: ObservableObject {
+    @Published var canCheckForUpdates = false
+    
+    let updaterController: SPUStandardUpdaterController
+    
+    init() {
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+        updaterController.updater.publisher(for: \.canCheckForUpdates)
+            .assign(to: &$canCheckForUpdates)
+    }
+    
+    func checkForUpdates() {
+        updaterController.updater.checkForUpdates()
+    }
+}
 
 @main
 struct AIUsageApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState.shared
+    @StateObject private var sparkle = SparkleController()
     
     var body: some Scene {
-        // 主窗口（可选显示）
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
+                .environmentObject(sparkle)
                 .frame(minWidth: 900, idealWidth: 1100, minHeight: 600, idealHeight: 700)
                 .preferredColorScheme(appState.isDarkMode ? .dark : .light)
         }
@@ -19,8 +42,9 @@ struct AIUsageApp: App {
             CommandGroup(replacing: .newItem) { }
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {
-                    // TODO: 实现自动更新
+                    sparkle.checkForUpdates()
                 }
+                .disabled(!sparkle.canCheckForUpdates)
                 Divider()
                 Button("Preferences...") {
                     appState.showSettings = true
@@ -29,10 +53,10 @@ struct AIUsageApp: App {
             }
         }
         
-        // 设置窗口
         Settings {
             SettingsView()
                 .environmentObject(appState)
+                .environmentObject(sparkle)
         }
     }
 }

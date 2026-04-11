@@ -1,7 +1,9 @@
 import SwiftUI
+import Sparkle
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var sparkle: SparkleController
     @State private var hideDockIcon = UserDefaults.standard.bool(forKey: "hideDockIcon")
     @State private var launchAtLogin = false
     @State private var showNotifications = UserDefaults.standard.bool(forKey: "showNotifications")
@@ -11,10 +13,6 @@ struct SettingsView: View {
     @State private var isTestingRemoteConnection = false
     @State private var remoteConnectionState: RemoteConnectionState = .idle
     @State private var remoteConnectionMessage: String?
-    @State private var isCheckingForUpdates = false
-    @State private var updateCheckState: UpdateCheckState = .idle
-    @State private var updateCheckMessage: String?
-    @State private var latestRelease: GitHubRelease?
 
     init() {
         if _lowQuotaThreshold.wrappedValue == 0 {
@@ -54,12 +52,6 @@ struct SettingsView: View {
         case failure
     }
 
-    private enum UpdateCheckState {
-        case idle
-        case upToDate
-        case updateAvailable
-        case failure
-    }
     
     var body: some View {
         GeometryReader { proxy in
@@ -402,32 +394,36 @@ struct SettingsView: View {
             Divider()
             settingsValueRow(title: t("Build", "构建号"), value: appBuild)
 
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
-                    if let repositoryURL {
-                        Link(destination: repositoryURL) {
-                            Label("GitHub", systemImage: "link")
-                        }
-                    }
+            Divider()
 
-                    Button {
-                        Task { await checkForUpdates() }
-                    } label: {
-                        HStack(spacing: 6) {
-                            if isCheckingForUpdates {
-                                SmallProgressView()
-                                    .frame(width: 12, height: 12)
-                            } else {
-                                Image(systemName: "arrow.triangle.2.circlepath.circle")
-                            }
-                            Text(t("Check for Updates", "检查更新"))
-                        }
+            settingsToggleRow(
+                title: t("Automatic Updates", "自动检查更新"),
+                subtitle: t("Periodically check for new versions in the background.", "后台定期检查是否有新版本。"),
+                isOn: Binding(
+                    get: { sparkle.updaterController.updater.automaticallyChecksForUpdates },
+                    set: { sparkle.updaterController.updater.automaticallyChecksForUpdates = $0 }
+                )
+            )
+
+            Divider()
+
+            HStack(spacing: 10) {
+                if let repositoryURL {
+                    Link(destination: repositoryURL) {
+                        Label("GitHub", systemImage: "link")
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(isCheckingForUpdates)
                 }
 
-                updateStatusView
+                Button {
+                    sparkle.checkForUpdates()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.triangle.2.circlepath.circle")
+                        Text(t("Check for Updates", "检查更新"))
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(!sparkle.canCheckForUpdates)
             }
         }
     }
@@ -667,51 +663,6 @@ struct SettingsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    private var updateStatusView: some View {
-        let icon: String
-        let tint: Color
-        let title: String
-
-        switch updateCheckState {
-        case .idle:
-            icon = "shippingbox"
-            tint = .secondary
-            title = t("GitHub Releases not checked yet", "尚未检查 GitHub Releases")
-        case .upToDate:
-            icon = "checkmark.circle.fill"
-            tint = .green
-            title = t("Current version is up to date", "当前版本已是最新")
-        case .updateAvailable:
-            icon = "arrow.down.circle.fill"
-            tint = .blue
-            title = t("A newer release is available", "发现新版本")
-        case .failure:
-            icon = "xmark.octagon.fill"
-            tint = .red
-            title = t("Update check failed", "检查更新失败")
-        }
-
-        return HStack(spacing: 8) {
-            Image(systemName: icon)
-                .foregroundStyle(tint)
-            Text(updateCheckMessage?.nilIfBlank ?? title)
-                .font(.caption)
-                .foregroundStyle(tint)
-            Spacer()
-            if updateCheckState == .updateAvailable,
-               let releaseURL = latestRelease?.preferredAssetURL ?? latestRelease?.htmlURL {
-                Button(t("Download", "下载")) {
-                    NSWorkspace.shared.open(releaseURL)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(tint)
-            }
-        }
-        .padding(8)
-        .background(tint.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
     private func applyRemoteSettings(refreshDashboard: Bool = true) {
         let host = remoteHostInput.trimmingCharacters(in: .whitespaces)
         let port = Int(remotePortInput.trimmingCharacters(in: .whitespaces)) ?? 4318
@@ -748,191 +699,11 @@ struct SettingsView: View {
         }
     }
 
-    @MainActor
-    private func checkForUpdates() async {
-        guard let owner = gitHubOwner, let repository = gitHubRepository else {
-            updateCheckState = .failure
-            updateCheckMessage = t(
-                "GitHub repository is not configured",
-                "GitHub 仓库尚未配置"
-            )
-            latestRelease = nil
-            return
-        }
-
-        isCheckingForUpdates = true
-        defer { isCheckingForUpdates = false }
-
-        do {
-            let release = try await GitHubReleaseClient.fetchLatestRelease(owner: owner, repository: repository)
-            latestRelease = release
-
-            let currentVersion = normalizedVersion(appVersion)
-            let latestVersion = normalizedVersion(release.versionString)
-
-            switch compareVersionStrings(currentVersion, latestVersion) {
-            case .orderedAscending:
-                updateCheckState = .updateAvailable
-                updateCheckMessage = t(
-                    "Latest release: \(latestVersion) · published \(release.displayPublishedAt)",
-                    "最新版本：\(latestVersion) · 发布时间 \(release.displayPublishedAt)"
-                )
-            default:
-                updateCheckState = .upToDate
-                updateCheckMessage = t(
-                    "Current: \(currentVersion) · latest: \(latestVersion)",
-                    "当前版本：\(currentVersion) · 最新版本：\(latestVersion)"
-                )
-            }
-        } catch {
-            updateCheckState = .failure
-            updateCheckMessage = error.localizedDescription
-        }
-    }
-
-    private func normalizedVersion(_ version: String) -> String {
-        version.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: #"^[vV]\s*"#, with: "", options: .regularExpression)
-    }
-
-    private func compareVersionStrings(_ lhs: String, _ rhs: String) -> ComparisonResult {
-        let left = versionComponents(from: lhs)
-        let right = versionComponents(from: rhs)
-        let count = max(left.count, right.count)
-
-        for index in 0..<count {
-            let leftValue = index < left.count ? left[index] : 0
-            let rightValue = index < right.count ? right[index] : 0
-            if leftValue < rightValue { return .orderedAscending }
-            if leftValue > rightValue { return .orderedDescending }
-        }
-
-        return .orderedSame
-    }
-
-    private func versionComponents(from version: String) -> [Int] {
-        version
-            .split(whereSeparator: { !$0.isNumber })
-            .compactMap { Int($0) }
-    }
-
     private func updateDockIconVisibility(hidden: Bool) {
         if hidden {
             NSApp.setActivationPolicy(.accessory)
         } else {
             NSApp.setActivationPolicy(.regular)
-        }
-    }
-}
-
-private struct GitHubRelease: Decodable {
-    let tagName: String
-    let name: String?
-    let htmlURL: URL
-    let publishedAt: String?
-    let assets: [GitHubReleaseAsset]
-
-    private enum CodingKeys: String, CodingKey {
-        case tagName = "tag_name"
-        case name
-        case htmlURL = "html_url"
-        case publishedAt = "published_at"
-        case assets
-    }
-
-    var versionString: String {
-        tagName.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank ?? tagName
-    }
-
-    var preferredAssetURL: URL? {
-        let dmg = assets.first { $0.name.lowercased().hasSuffix(".dmg") }
-        let zip = assets.first { $0.name.lowercased().hasSuffix(".zip") }
-        return dmg?.downloadURL ?? zip?.downloadURL
-    }
-
-    var displayPublishedAt: String {
-        guard
-            let publishedAt,
-            let date = ISO8601DateFormatter().date(from: publishedAt)
-        else {
-            return "unknown"
-        }
-
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
-    }
-}
-
-private struct GitHubReleaseAsset: Decodable {
-    let name: String
-    let downloadURL: URL
-
-    private enum CodingKeys: String, CodingKey {
-        case name
-        case downloadURL = "browser_download_url"
-    }
-}
-
-private enum GitHubReleaseClient {
-    static func fetchLatestRelease(owner: String, repository: String) async throws -> GitHubRelease {
-        guard
-            let escapedOwner = owner.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-            let escapedRepository = repository.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-            let url = URL(string: "https://api.github.com/repos/\(escapedOwner)/\(escapedRepository)/releases/latest")
-        else {
-            throw GitHubReleaseError.invalidRepository
-        }
-
-        var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("AIUsage", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw GitHubReleaseError.invalidResponse
-        }
-
-        switch httpResponse.statusCode {
-        case 200:
-            do {
-                return try JSONDecoder().decode(GitHubRelease.self, from: data)
-            } catch {
-                throw GitHubReleaseError.decodingFailed
-            }
-        case 404:
-            throw GitHubReleaseError.notFound
-        case 403:
-            throw GitHubReleaseError.rateLimited
-        default:
-            throw GitHubReleaseError.httpError(httpResponse.statusCode)
-        }
-    }
-}
-
-private enum GitHubReleaseError: LocalizedError {
-    case invalidRepository
-    case invalidResponse
-    case notFound
-    case rateLimited
-    case decodingFailed
-    case httpError(Int)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidRepository:
-            return "Invalid GitHub repository"
-        case .invalidResponse:
-            return "Invalid GitHub response"
-        case .notFound:
-            return "GitHub repository or release not found"
-        case .rateLimited:
-            return "GitHub API rate limit reached"
-        case .decodingFailed:
-            return "Failed to parse GitHub release data"
-        case .httpError(let code):
-            return "GitHub API returned HTTP \(code)"
         }
     }
 }

@@ -69,6 +69,7 @@
 
 /* Begin PBXBuildFile section (QuotaBackend) */
 		A1B2C3D4E5F60001 /* QuotaBackend in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60002 /* QuotaBackend */; };
+		F1A2B3C4D5E60001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = F1A2B3C4D5E60002 /* Sparkle */; };
 /* End PBXBuildFile section (QuotaBackend) */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,6 +78,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4E5F60001 /* QuotaBackend in Frameworks */,
+				F1A2B3C4D5E60001 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -190,9 +192,10 @@
 			dependencies = (
 			);
 			name = "AIUsage";
-			packageProductDependencies = (
-				A1B2C3D4E5F60002 /* QuotaBackend */,
-			);
+		packageProductDependencies = (
+			A1B2C3D4E5F60002 /* QuotaBackend */,
+			F1A2B3C4D5E60002 /* Sparkle */,
+		);
 			productName = "AIUsage";
 			productReference = 5EFAD72F2F87AC3300A15674 /* AIUsage.app */;
 			productType = "com.apple.product-type.application";
@@ -228,9 +231,10 @@
 			targets = (
 				5EFAD72E2F87AC3300A15674 /* AIUsage */,
 			);
-			packageReferences = (
-				A1B2C3D4E5F60003 /* XCLocalSwiftPackageReference "../../QuotaBackend" */,
-			);
+		packageReferences = (
+			A1B2C3D4E5F60003 /* XCLocalSwiftPackageReference "../../QuotaBackend" */,
+			F1A2B3C4D5E60003 /* XCRemoteSwiftPackageReference "Sparkle" */,
+		);
 		};
 /* End PBXProject section */
 
@@ -241,11 +245,27 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		F1A2B3C4D5E60003 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		A1B2C3D4E5F60002 /* QuotaBackend */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D4E5F60003 /* XCLocalSwiftPackageReference "../../QuotaBackend" */;
 			productName = QuotaBackend;
+		};
+		F1A2B3C4D5E60002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F1A2B3C4D5E60003 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 

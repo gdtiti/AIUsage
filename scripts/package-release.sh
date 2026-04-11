@@ -41,6 +41,7 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 
 echo "Ad-hoc signing ${APP_NAME}.app..."
+xattr -cr "$APP_PATH"
 codesign --force --deep -s - "$APP_PATH"
 codesign --verify --verbose "$APP_PATH" || true
 
@@ -71,7 +72,7 @@ MOUNT_DIR=$(hdiutil attach -readwrite -noverify -noautoopen "$DMG_RW_PATH" \
   | grep "/Volumes/$APP_NAME" | awk -F'\t' '{print $NF}')
 
 echo "Configuring DMG window layout..."
-osascript <<APPLESCRIPT
+osascript <<APPLESCRIPT || true
 tell application "Finder"
   tell disk "$APP_NAME"
     open
@@ -102,3 +103,47 @@ rm -rf "$DMG_STAGING_DIR"
 echo "Created release artifacts:"
 echo "  $ZIP_PATH"
 echo "  $DMG_PATH"
+
+# --- Sparkle appcast generation ---
+SPARKLE_SIGN="${SPARKLE_SIGN_TOOL:-}"
+SPARKLE_KEY="${SPARKLE_EDDSA_PRIVATE_KEY:-}"
+
+if [[ -n "$SPARKLE_SIGN" && -n "$SPARKLE_KEY" ]]; then
+  echo "Signing .zip for Sparkle..."
+  TMPKEY=$(mktemp)
+  printf '%s' "$SPARKLE_KEY" > "$TMPKEY"
+  SIGN_OUTPUT=$("$SPARKLE_SIGN" "$ZIP_PATH" --ed-key-file "$TMPKEY" 2>&1)
+  rm -f "$TMPKEY"
+  EDDSA_SIG=$(echo "$SIGN_OUTPUT" | grep -oE 'sparkle:edSignature="[^"]+"' | cut -d'"' -f2)
+  ZIP_LENGTH=$(stat -f%z "$ZIP_PATH" 2>/dev/null || stat --printf="%s" "$ZIP_PATH" 2>/dev/null)
+
+  DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://github.com/sylearn/AIUsage/releases/download/v${VERSION}}"
+  APPCAST_PATH="$OUTPUT_DIR/appcast.xml"
+
+  PUB_DATE=$(date -u '+%a, %d %b %Y %H:%M:%S +0000')
+
+  cat > "$APPCAST_PATH" <<APPCAST_EOF
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <channel>
+    <title>AIUsage</title>
+    <item>
+      <title>Version ${VERSION}</title>
+      <sparkle:version>${VERSION}</sparkle:version>
+      <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+      <pubDate>${PUB_DATE}</pubDate>
+      <enclosure
+        url="${DOWNLOAD_URL_PREFIX}/${APP_NAME}-${VERSION}-macOS.zip"
+        type="application/octet-stream"
+        sparkle:edSignature="${EDDSA_SIG}"
+        length="${ZIP_LENGTH}"
+      />
+    </item>
+  </channel>
+</rss>
+APPCAST_EOF
+
+  echo "  $APPCAST_PATH"
+else
+  echo "Skipping Sparkle signing (SPARKLE_SIGN_TOOL or SPARKLE_EDDSA_PRIVATE_KEY not set)"
+fi

@@ -15,15 +15,21 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.2.0</string>
+	<string>0.2.1</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>ProjectGitHubOwner</key>
 	<string>sylearn</string>
 	<key>ProjectGitHubRepository</key>
 	<string>AIUsage</string>
 	<key>ProjectRepositoryURL</key>
 	<string>https://github.com/sylearn/AIUsage</string>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/sylearn/AIUsage/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>f5UoF4I5VmGyR0qdyj/hBdkX8tsTuiqR3uIbWG9yAdU=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>

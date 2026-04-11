@@ -64,16 +64,12 @@ AIUsage is a macOS app for monitoring AI subscription quotas, account status, re
     <td align="center"><strong>Detailed account view</strong></td>
   </tr>
   <tr>
-    <td width="50%">
+    <td colspan="2" align="center">
       <img src="docs/images/menu_bar.png" alt="Menu bar quick view">
-    </td>
-    <td width="50%">
-      <img src="docs/images/cost-tracking.png" alt="Cost tracking charts">
     </td>
   </tr>
   <tr>
-    <td align="center"><strong>Menu bar quick view</strong></td>
-    <td align="center"><strong>Spend and token trends</strong></td>
+    <td colspan="2" align="center"><strong>Menu bar quick view</strong></td>
   </tr>
 </table>
 

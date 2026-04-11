@@ -30,15 +30,19 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Resolved version: ${VERSION}"
 
-      - name: Validate version matches Info.plist
+      - name: Validate version matches project
         shell: bash
         run: |
-          PROJECT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' AIUsage/Info.plist)"
+          PLIST_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' AIUsage/Info.plist)"
+          PBXPROJ_VERSION="$(grep 'MARKETING_VERSION' AIUsage.xcodeproj/project.pbxproj | head -1 | sed 's/.*= *//;s/ *;.*//')"
+          TAG_VERSION="${{ steps.version.outputs.version }}"
 
-          if [[ "$PROJECT_VERSION" != "${{ steps.version.outputs.version }}" ]]; then
-            echo "Tag version does not match AIUsage/Info.plist"
-            echo "Tag/version: ${{ steps.version.outputs.version }}"
-            echo "Info.plist:  $PROJECT_VERSION"
+          echo "Tag:          $TAG_VERSION"
+          echo "Info.plist:   $PLIST_VERSION"
+          echo "pbxproj:      $PBXPROJ_VERSION"
+
+          if [[ "$PLIST_VERSION" != "$TAG_VERSION" || "$PBXPROJ_VERSION" != "$TAG_VERSION" ]]; then
+            echo "Version mismatch detected!"
             exit 1
           fi
 

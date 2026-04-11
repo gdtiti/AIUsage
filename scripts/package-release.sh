@@ -20,6 +20,8 @@ mkdir -p "$OUTPUT_DIR"
 
 echo "Building ${APP_NAME} ${VERSION}..."
 
+BUILD_NUMBER="${BUILD_NUMBER:-$(echo "$VERSION" | tr -dc '0-9' | cut -c1-3)}"
+
 xcodebuild \
   -project "$PROJECT_PATH" \
   -scheme "$SCHEME" \
@@ -28,6 +30,8 @@ xcodebuild \
   -derivedDataPath "$DERIVED_DATA_PATH" \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
+  MARKETING_VERSION="$VERSION" \
+  CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   build
 
 APP_PATH="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/$APP_NAME.app"

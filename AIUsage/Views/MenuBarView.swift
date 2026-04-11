@@ -103,7 +103,7 @@ struct MenuBarView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                 }
-                .frame(maxHeight: 400)
+                .frame(maxHeight: 600)
                 .overlay(alignment: .bottom) {
                     if let message = activationMessage {
                         activationToast(message: message, success: activationSuccess)
@@ -194,7 +194,7 @@ struct MenuBarView: View {
     }
 
     private func openSettings() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        openMainWindow(section: .settings)
     }
 }
 
@@ -310,21 +310,13 @@ struct MenuBarAccountRow: View {
     }
 
     private var primaryLabel: String {
-        if let note = entry.accountNote { return note }
-        if let name = entry.accountDisplayName { return name }
-        if let email = entry.accountEmail {
-            if let at = email.firstIndex(of: "@") {
-                return String(email[email.startIndex..<at])
-            }
-            return email
-        }
+        if let email = entry.accountEmail, !email.isEmpty { return email }
+        if let name = entry.accountDisplayName, !name.isEmpty { return name }
         return entry.providerTitle
     }
 
     private var secondaryLabel: String? {
-        if entry.accountNote != nil || entry.accountDisplayName != nil {
-            return entry.accountEmail
-        }
+        if let note = entry.accountNote, !note.isEmpty { return note }
         return nil
     }
 
@@ -333,7 +325,8 @@ struct MenuBarAccountRow: View {
             if let percent = remainingPercent {
                 MiniQuotaRing(remainingPercent: percent, accentColor: accentColor)
             } else if entry.isConnected {
-                statusDot(color: .green)
+                let dotColor: Color = entry.liveProvider?.status == .error ? .orange : .green
+                statusDot(color: dotColor)
             } else {
                 statusDot(color: .gray)
             }

@@ -68,6 +68,15 @@ class AppState: ObservableObject {
     
     // UI 状态
     @Published var isDarkMode = UserDefaults.standard.bool(forKey: "isDarkMode")
+    @Published var themeMode: String = UserDefaults.standard.string(forKey: "themeMode") ?? "system"
+
+    var resolvedColorScheme: ColorScheme? {
+        switch themeMode {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
     @Published var showSettings = false
     @Published var selectedProviderId: String?
     @Published var selectedSection: AppSection = .dashboard
@@ -153,6 +162,7 @@ class AppState: ObservableObject {
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
         defaults.set(autoRefreshInterval, forKey: "autoRefreshInterval")
         defaults.set(isDarkMode, forKey: "isDarkMode")
+        defaults.set(themeMode, forKey: "themeMode")
         defaults.set(language, forKey: "appLanguage")
         defaults.set(quotaIndicatorStyle.rawValue, forKey: "quotaIndicatorStyle")
         defaults.set(quotaIndicatorMetric.rawValue, forKey: "quotaIndicatorMetric")

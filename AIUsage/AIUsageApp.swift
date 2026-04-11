@@ -34,7 +34,7 @@ struct AIUsageApp: App {
                 .environmentObject(appState)
                 .environmentObject(sparkle)
                 .frame(minWidth: 900, idealWidth: 1100, minHeight: 600, idealHeight: 700)
-                .preferredColorScheme(appState.isDarkMode ? .dark : .light)
+                .preferredColorScheme(appState.resolvedColorScheme)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)

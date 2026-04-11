@@ -89,6 +89,14 @@ Available release assets:
 
 - [Architecture Overview](docs/ARCHITECTURE.md)
 
+## Acknowledgements
+
+Inspired by [`CodexBar`](https://github.com/steipete/CodexBar) and [`Quotio`](https://github.com/nguyenphutrong/quotio).
+
+## Friendly Links
+
+- [Linux.do Community](https://linux.do)
+
 ## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).

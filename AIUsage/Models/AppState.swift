@@ -1974,7 +1974,7 @@ class AppState: ObservableObject {
 
     // MARK: - Provider Account Activation
 
-    static let activatableProviders: Set<String> = ["codex", "gemini", "antigravity"]
+    static let activatableProviders: Set<String> = ["codex", "gemini"]
 
     @Published var activeProviderAccountIds: [String: String] = {
         guard let data = UserDefaults.standard.data(forKey: "activeProviderAccountIds"),
@@ -2021,7 +2021,7 @@ class AppState: ObservableObject {
         switch entry.providerId {
         case "codex":
             try activateCodexAccount(entry: entry)
-        case "gemini", "antigravity":
+        case "gemini":
             try activateGeminiAccount(entry: entry)
         default:
             break
@@ -2105,13 +2105,7 @@ class AppState: ObservableObject {
             try updateGeminiActiveAccount(googleAccountsPath: googleAccountsPath, email: email, fm: fm)
         }
 
-        let providerId = entry.providerId
-        activeProviderAccountIds[providerId] = email
-        if providerId == "gemini" {
-            activeProviderAccountIds["antigravity"] = email
-        } else {
-            activeProviderAccountIds["gemini"] = email
-        }
+        activeProviderAccountIds["gemini"] = email
         persistActiveIds()
 
         let label = email ?? "Account"
@@ -2313,7 +2307,6 @@ class AppState: ObservableObject {
         }
         if active != activeProviderAccountIds["gemini"] {
             activeProviderAccountIds["gemini"] = active
-            activeProviderAccountIds["antigravity"] = active
             persistActiveIds()
         }
     }

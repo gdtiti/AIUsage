@@ -319,16 +319,19 @@ class AppState: ObservableObject {
     ) throws {
         let providerId = credential.providerId
         let providerTitle = providerCatalogItem(for: providerId)?.title(for: language) ?? providerId
-        let accountHandle = usage.accountEmail?.nilIfBlank
-            ?? usage.accountLogin?.nilIfBlank
-            ?? usage.accountName?.nilIfBlank
+        let accountHandle: String = {
+            if let v = usage.accountEmail?.nilIfBlank { return v }
+            if let v = usage.accountLogin?.nilIfBlank { return v }
+            if let v = usage.accountName?.nilIfBlank { return v }
+            if let v = credential.accountLabel?.nilIfBlank { return v }
+            if let v = usage.usageAccountId?.nilIfBlank { return v }
+            return "\(providerTitle) Account"
+        }()
+        let displayName: String? = usage.accountName?.nilIfBlank
             ?? credential.accountLabel?.nilIfBlank
-            ?? usage.usageAccountId?.nilIfBlank
-            ?? "\(providerTitle) Account"
-        let displayName = usage.accountName?.nilIfBlank
-            ?? credential.accountLabel?.nilIfBlank
             ?? usage.accountLogin?.nilIfBlank
-        let accountId = usage.usageAccountId?.nilIfBlank ?? usage.accountLogin?.nilIfBlank
+        let accountId: String? = usage.usageAccountId?.nilIfBlank
+            ?? usage.accountLogin?.nilIfBlank
 
         var enrichedCredential = credential
         let validatedAt = ISO8601DateFormatter().string(from: Date())

@@ -1974,29 +1974,29 @@ class AppState: ObservableObject {
     // MARK: - Codex Account Activation
 
     @Published var activeCodexAccountId: String? = UserDefaults.standard.string(forKey: "activeCodexAccountId")
+    @Published var codexActivationResult: CodexActivationResult?
+
+    enum CodexActivationResult: Equatable {
+        case success(String)
+        case failure(String)
+    }
 
     func activateCodexAccount(entry: ProviderAccountEntry) throws {
         let fm = FileManager.default
         let codexDir = NSString(string: "~/.codex").expandingTildeInPath
         let targetPath = "\(codexDir)/auth.json"
 
-        let credentials = matchingCredentials(for: entry)
-        guard let credential = credentials.first else {
-            throw ProviderError("no_credential", "No credential found for this account.")
-        }
+        let email = entry.accountEmail
+            ?? entry.storedAccount?.email
+            ?? entry.liveProvider?.accountLabel
+        let accountId = entry.storedAccount?.accountId
+            ?? entry.liveProvider?.accountId
 
-        let sourcePath: String
-        if credential.authMethod == .authFile {
-            sourcePath = credential.credential
-        } else if let metaPath = credential.metadata["sourcePath"]?.nilIfBlank {
-            sourcePath = metaPath
-        } else {
-            throw ProviderError("no_source_path", "Cannot determine auth file path for this credential.")
-        }
-
-        let resolved = NSString(string: sourcePath).expandingTildeInPath
-        guard fm.fileExists(atPath: resolved) else {
-            throw ProviderError("source_not_found", "Auth file not found at \(resolved).")
+        let resolved = resolveCodexAuthSource(email: email, accountId: accountId, entry: entry)
+        guard let resolved, fm.fileExists(atPath: resolved) else {
+            let msg = language == "zh" ? "找不到该账号的认证文件" : "Auth file not found for this account."
+            codexActivationResult = .failure(msg)
+            throw ProviderError("source_not_found", msg)
         }
 
         if !fm.fileExists(atPath: codexDir) {
@@ -2019,14 +2019,63 @@ class AppState: ObservableObject {
                 try? fm.removeItem(atPath: targetPath)
                 try? fm.copyItem(atPath: backupPath, toPath: targetPath)
             }
+            let msg = language == "zh" ? "切换失败：\(error.localizedDescription)" : "Switch failed: \(error.localizedDescription)"
+            codexActivationResult = .failure(msg)
             throw error
         }
 
-        let accountId = entry.storedAccount?.accountId
-            ?? entry.liveProvider?.accountId
-            ?? entry.accountEmail
-        activeCodexAccountId = accountId
-        UserDefaults.standard.set(accountId, forKey: "activeCodexAccountId")
+        let newActiveId = accountId ?? email
+        activeCodexAccountId = newActiveId
+        UserDefaults.standard.set(newActiveId, forKey: "activeCodexAccountId")
+
+        let label = email ?? accountId ?? "Codex"
+        let msg = language == "zh" ? "已切换到 \(label)" : "Switched to \(label)"
+        codexActivationResult = .success(msg)
+    }
+
+    private func resolveCodexAuthSource(email: String?, accountId: String?, entry: ProviderAccountEntry) -> String? {
+        let fm = FileManager.default
+        let proxyDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+
+        if let email {
+            if let freshPath = freshestCliProxyFile(dir: proxyDir, email: email, fm: fm) {
+                return freshPath
+            }
+        }
+
+        let credentials = matchingCredentials(for: entry)
+        if let credential = credentials.first {
+            let candidatePaths: [String?] = [
+                credential.authMethod == .authFile ? credential.credential : nil,
+                credential.metadata["sourcePath"]
+            ]
+            for p in candidatePaths.compactMap({ $0?.nilIfBlank }) {
+                let expanded = NSString(string: p).expandingTildeInPath
+                if fm.fileExists(atPath: expanded) { return expanded }
+            }
+        }
+
+        return nil
+    }
+
+    private func freshestCliProxyFile(dir: String, email: String, fm: FileManager) -> String? {
+        guard let files = try? fm.contentsOfDirectory(atPath: dir) else { return nil }
+        let emailLower = email.lowercased()
+        let matching = files.filter {
+            $0.hasPrefix("codex-") && $0.hasSuffix(".json") && $0.lowercased().contains(emailLower)
+        }
+        guard !matching.isEmpty else { return nil }
+
+        var best: (path: String, date: Date)?
+        for file in matching {
+            let fullPath = "\(dir)/\(file)"
+            guard let attrs = try? fm.attributesOfItem(atPath: fullPath),
+                  let modDate = attrs[.modificationDate] as? Date else { continue }
+            if best == nil || modDate > best!.date {
+                best = (fullPath, modDate)
+            }
+        }
+        return best?.path
     }
 
     func detectActiveCodexAccount() {

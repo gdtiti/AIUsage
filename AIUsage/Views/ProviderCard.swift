@@ -12,6 +12,8 @@ struct ProviderCard: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
     @State private var showingDetail = false
+    @State private var activationMessage: String?
+    @State private var showActivationAlert = false
 
     init(
         provider: ProviderData,
@@ -231,6 +233,11 @@ struct ProviderCard: View {
                 accountEntry: accountEntry
             )
         }
+        .alert(t("Account Switch", "账号切换"), isPresented: $showActivationAlert) {
+            Button("OK") { activationMessage = nil }
+        } message: {
+            Text(activationMessage ?? "")
+        }
     }
     
     // MARK: - Components
@@ -319,6 +326,14 @@ struct ProviderCard: View {
             try appState.activateCodexAccount(entry: entry)
         } catch {
             print("[CodexActivate] Failed: \(error.localizedDescription)")
+        }
+        if let result = appState.codexActivationResult {
+            switch result {
+            case .success(let msg), .failure(let msg):
+                activationMessage = msg
+                showActivationAlert = true
+            }
+            appState.codexActivationResult = nil
         }
     }
 

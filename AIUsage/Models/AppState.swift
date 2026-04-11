@@ -2032,11 +2032,15 @@ class AppState: ObservableObject {
         guard let activeId = activeProviderAccountIds[entry.providerId]?.lowercased() else { return false }
         let candidates = [
             entry.storedAccount?.accountId,
+            entry.storedAccount?.providerResultId,
+            entry.storedAccount?.normalizedAccountId,
             entry.liveProvider?.accountId,
+            entry.liveProvider?.accountLabel,
             entry.accountEmail,
             entry.storedAccount?.email
         ].compactMap { $0?.lowercased().nilIfBlank }
-        return candidates.contains(activeId)
+        if candidates.contains(activeId) { return true }
+        return candidates.contains(where: { activeId.contains($0) || $0.contains(activeId) })
     }
 
     // MARK: Codex activation

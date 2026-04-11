@@ -203,7 +203,7 @@ public struct AmpProvider: ProviderFetcher, CredentialAcceptingProvider {
         let remainingPercent = quota > 0 ? max(0.0, 100.0 - usedPercent) : 0
 
         let estimatedFullResetAt: String?
-        if quota > 0, usage.hourlyReplenishment > 0 {
+        if used > 0, quota > 0, usage.hourlyReplenishment > 0 {
             let resetDate = Date(timeIntervalSinceNow: Double(used) / usage.hourlyReplenishment * 3600)
             estimatedFullResetAt = ISO8601DateFormatter().string(from: resetDate)
         } else {

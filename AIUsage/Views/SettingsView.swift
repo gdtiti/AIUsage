@@ -164,20 +164,38 @@ struct SettingsView: View {
     }
 
     private var settingsHero: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(t("Settings", "设置"))
-                .font(.system(size: 30, weight: .bold, design: .rounded))
+        VStack(spacing: 16) {
+            if let icon = NSImage(named: "AppIcon") {
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 88, height: 88)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: Color.accentColor.opacity(0.3), radius: 16, y: 6)
+            } else {
+                Image(systemName: "chart.bar.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 88, height: 88)
+            }
 
-            Text(
-                t(
-                    "Tune refresh, appearance, notifications, and backend behavior in one place.",
-                    "把刷新、外观、通知和后端模式放到一个地方统一调整。"
-                )
-            )
-            .font(.body)
-            .foregroundStyle(.secondary)
+            Text("AIUsage")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
 
-            HStack(spacing: 12) {
+            Text(t("Your AI Quota Command Center", "您的 AI 额度指挥中心"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                Label(t("Version", "版本") + " " + appVersion, systemImage: "tag")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+            }
+
+            HStack(spacing: 10) {
                 heroPill(
                     title: t("Backend", "后端"),
                     value: appState.backendMode == "remote" ? t("Remote", "远程") : t("Local", "本地"),
@@ -200,9 +218,11 @@ struct SettingsView: View {
                     tint: .orange
                 )
             }
+            .padding(.top, 4)
         }
-        .padding(28)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 28)
+        .padding(.horizontal, 28)
+        .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 28)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.9))

@@ -109,7 +109,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         AppState.shared.detectActiveGeminiAccount()
 
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 380, height: 520)
+        popover.contentSize = NSSize(width: 400, height: 700)
         popover.behavior = .transient
         popover.animates = true
         popover.contentViewController = NSHostingController(

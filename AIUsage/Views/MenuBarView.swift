@@ -19,7 +19,7 @@ struct MenuBarView: View {
             Divider()
             menuBarFooter
         }
-        .frame(width: 380)
+        .frame(width: 400)
         .background(VisualEffectBlur())
     }
 
@@ -103,7 +103,7 @@ struct MenuBarView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                 }
-                .frame(maxHeight: 600)
+                .frame(maxHeight: 800)
                 .overlay(alignment: .bottom) {
                     if let message = activationMessage {
                         activationToast(message: message, success: activationSuccess)
@@ -309,6 +309,14 @@ struct MenuBarAccountRow: View {
         entry.liveProvider?.remainingPercent
     }
 
+    private var isCostProvider: Bool {
+        entry.liveProvider?.category == "local-cost"
+    }
+
+    private var costMonthUsd: Double? {
+        entry.liveProvider?.costSummary?.month?.usd
+    }
+
     private var primaryLabel: String {
         if let email = entry.accountEmail, !email.isEmpty { return email }
         if let name = entry.accountDisplayName, !name.isEmpty { return name }
@@ -322,7 +330,9 @@ struct MenuBarAccountRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            if let percent = remainingPercent {
+            if isCostProvider {
+                statusDot(color: entry.isConnected ? .orange : .gray)
+            } else if let percent = remainingPercent {
                 MiniQuotaRing(remainingPercent: percent, accentColor: accentColor)
             } else if entry.isConnected {
                 let dotColor: Color = entry.liveProvider?.status == .error ? .orange : .green
@@ -346,7 +356,11 @@ struct MenuBarAccountRow: View {
 
             Spacer(minLength: 4)
 
-            if let percent = remainingPercent {
+            if isCostProvider, let usd = costMonthUsd {
+                Text(formatCostCompact(usd))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.orange)
+            } else if let percent = remainingPercent {
                 Text("\(Int(percent))%")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(percentColor(percent))
@@ -428,6 +442,13 @@ struct MenuBarAccountRow: View {
         if percent >= 70 { return Color(red: 0.15, green: 0.78, blue: 0.40) }
         if percent >= 35 { return Color(red: 0.96, green: 0.64, blue: 0.18) }
         return Color(red: 0.92, green: 0.25, blue: 0.28)
+    }
+
+    private func formatCostCompact(_ usd: Double) -> String {
+        if usd == 0 { return "$0" }
+        if usd < 1 { return String(format: "$%.2f", usd) }
+        if usd < 100 { return String(format: "$%.1f", usd) }
+        return String(format: "$%.0f", usd)
     }
 }
 

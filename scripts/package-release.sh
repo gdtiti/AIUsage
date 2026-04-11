@@ -20,7 +20,7 @@ mkdir -p "$OUTPUT_DIR"
 
 echo "Building ${APP_NAME} ${VERSION}..."
 
-BUILD_NUMBER="${BUILD_NUMBER:-$(echo "$VERSION" | tr -dc '0-9' | cut -c1-3)}"
+BUILD_NUMBER="${BUILD_NUMBER:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST_PATH" 2>/dev/null || echo 1)}"
 
 xcodebuild \
   -project "$PROJECT_PATH" \

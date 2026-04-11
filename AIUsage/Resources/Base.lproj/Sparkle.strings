@@ -1,0 +1,44 @@
+/* Already up to date (same version) */
+"%@ %@ is currently the newest version available." = "You're up to date — %1$@ %2$@.";
+
+/* Already up to date (different running version shown) */
+"%@ %@ is currently the newest version available.\n(You are currently running version %@.)" = "You're up to date — %1$@ %2$@.";
+
+/* New version available */
+"A new version of %@ is available!" = "Update Available";
+
+/* New version prompt */
+"%@ %@ is now available—you have %@. Would you like to download it now?" = "%1$@ %2$@ is available. Update now?";
+
+/* Important update prompt */
+"%@ %@ is now available—you have %@. This is an important update; would you like to download it now?" = "%1$@ %2$@ (important update) is available. Update now?";
+
+/* Ready to install */
+"%1$@ %2$@ has been downloaded and is ready to use! Would you like to install it and relaunch %1$@ now?" = "%1$@ %2$@ is ready. Install and restart?";
+
+/* Important ready to install */
+"%1$@ %2$@ has been downloaded and is ready to use! This is an important update; would you like to install it and relaunch %1$@ now?" = "%1$@ %2$@ (important) is ready. Install and restart?";
+
+/* Update complete */
+"%@ is now updated to version %@!" = "Updated to %1$@ %2$@.";
+
+/* Update complete (no version) */
+"%@ is now updated!" = "%@ is up to date.";
+
+/* Install on Quit */
+"Install on Quit" = "Install on Quit";
+
+/* Install Update */
+"Install Update" = "Update";
+
+/* Remind Me Later */
+"Remind Me Later" = "Later";
+
+/* Skip This Version */
+"Skip This Version" = "Skip";
+
+/* OK */
+"OK" = "OK";
+
+/* Cancel */
+"Cancel" = "Cancel";

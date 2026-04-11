@@ -33,44 +33,41 @@
 		5EFAD78B2F87B10400A15674 /* SavedAccountViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD78C2F87B10400A15674 /* SavedAccountViews.swift */; };
 		5EFAD78D2F87B10500A15674 /* AccountNoteEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD78E2F87B10500A15674 /* AccountNoteEditorView.swift */; };
 		5EFAD78F2F87B10600A15674 /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7902F87B10600A15674 /* Utilities.swift */; };
+		A1B2C3D4E5F60001 /* QuotaBackend in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60002 /* QuotaBackend */; };
+		F1A2B3C4D5E60001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = F1A2B3C4D5E60002 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		5EFAD72F2F87AC3300A15674 /* AIUsage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AIUsage.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5EFAD72F2F87AC3300A15674 /* AIUsage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIUsage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5EFAD73D2F87AC7100A15674 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		5EFAD73E2F87AC7100A15674 /* ProviderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderModels.swift; sourceTree = "<group>"; };
 		5EFAD7402F87AC7100A15674 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		5EFAD7422F87AC7100A15674 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5EFAD7442F87AC7100A15674 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
-		5EFAD7572F87AC7200A15674 /* SecureAccountVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureAccountVault.swift; sourceTree = "<group>"; };
-		5EFAD7592F87B10100A15674 /* ProviderAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderAuthManager.swift; sourceTree = "<group>"; };
 		5EFAD7462F87AC7100A15674 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5EFAD7472F87AC7100A15674 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		5EFAD7482F87AC7100A15674 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		5EFAD7492F87AC7100A15674 /* ProviderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCard.swift; sourceTree = "<group>"; };
 		5EFAD74A2F87AC7100A15674 /* ProvidersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersView.swift; sourceTree = "<group>"; };
 		5EFAD74B2F87AC7100A15674 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		5EFAD74D2F87AC7100A15674 /* AIUsage.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AIUsage.entitlements; sourceTree = "<group>"; };
+		5EFAD74E2F87AC7100A15674 /* AIUsageApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageApp.swift; sourceTree = "<group>"; };
+		5EFAD74F2F87AC7100A15674 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5EFAD7512F87AC7200A15674 /* ProviderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderDetailView.swift; sourceTree = "<group>"; };
 		5EFAD7522F87AC7200A15674 /* ProviderIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderIconView.swift; sourceTree = "<group>"; };
 		5EFAD7532F87AC7200A15674 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
 		5EFAD7542F87AC7200A15674 /* SmallProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmallProgressView.swift; sourceTree = "<group>"; };
 		5EFAD7552F87AC7200A15674 /* CostTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CostTrackingView.swift; sourceTree = "<group>"; };
 		5EFAD7562F87AC7200A15674 /* ProviderPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderPickerView.swift; sourceTree = "<group>"; };
-		5EFAD74D2F87AC7100A15674 /* AIUsage.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AIUsage.entitlements; sourceTree = "<group>"; };
-		5EFAD74E2F87AC7100A15674 /* AIUsageApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageApp.swift; sourceTree = "<group>"; };
-		5EFAD74F2F87AC7100A15674 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5EFAD7572F87AC7200A15674 /* SecureAccountVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureAccountVault.swift; sourceTree = "<group>"; };
 		5EFAD7582F87B00100A15674 /* WebLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebLoginView.swift; sourceTree = "<group>"; };
+		5EFAD7592F87B10100A15674 /* ProviderAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderAuthManager.swift; sourceTree = "<group>"; };
 		5EFAD7882F87B10200A15674 /* ProviderAccountEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderAccountEditorView.swift; sourceTree = "<group>"; };
 		5EFAD78A2F87B10300A15674 /* ProviderAccountGroupSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderAccountGroupSection.swift; sourceTree = "<group>"; };
 		5EFAD78C2F87B10400A15674 /* SavedAccountViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedAccountViews.swift; sourceTree = "<group>"; };
 		5EFAD78E2F87B10500A15674 /* AccountNoteEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountNoteEditorView.swift; sourceTree = "<group>"; };
 		5EFAD7902F87B10600A15674 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXBuildFile section (QuotaBackend) */
-		A1B2C3D4E5F60001 /* QuotaBackend in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60002 /* QuotaBackend */; };
-		F1A2B3C4D5E60001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = F1A2B3C4D5E60002 /* Sparkle */; };
-/* End PBXBuildFile section (QuotaBackend) */
 
 /* Begin PBXFrameworksBuildPhase section */
 		5EFAD72C2F87AC3300A15674 /* Frameworks */ = {
@@ -173,7 +170,7 @@
 				5EFAD74E2F87AC7100A15674 /* AIUsageApp.swift */,
 				5EFAD74F2F87AC7100A15674 /* Info.plist */,
 			);
-			path = "AIUsage";
+			path = AIUsage;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -191,12 +188,12 @@
 			);
 			dependencies = (
 			);
-			name = "AIUsage";
-		packageProductDependencies = (
-			A1B2C3D4E5F60002 /* QuotaBackend */,
-			F1A2B3C4D5E60002 /* Sparkle */,
-		);
-			productName = "AIUsage";
+			name = AIUsage;
+			packageProductDependencies = (
+				A1B2C3D4E5F60002 /* QuotaBackend */,
+				F1A2B3C4D5E60002 /* Sparkle */,
+			);
+			productName = AIUsage;
 			productReference = 5EFAD72F2F87AC3300A15674 /* AIUsage.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -221,9 +218,15 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
+				zh_CN,
 			);
 			mainGroup = 5EFAD7262F87AC3300A15674;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1B2C3D4E5F60003 /* XCLocalSwiftPackageReference "QuotaBackend" */,
+				F1A2B3C4D5E60003 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5EFAD7302F87AC3300A15674 /* Products */;
 			projectDirPath = "";
@@ -231,43 +234,8 @@
 			targets = (
 				5EFAD72E2F87AC3300A15674 /* AIUsage */,
 			);
-		packageReferences = (
-			A1B2C3D4E5F60003 /* XCLocalSwiftPackageReference "../../QuotaBackend" */,
-			F1A2B3C4D5E60003 /* XCRemoteSwiftPackageReference "Sparkle" */,
-		);
 		};
 /* End PBXProject section */
-
-/* Begin XCLocalSwiftPackageReference section */
-		A1B2C3D4E5F60003 /* XCLocalSwiftPackageReference "../../QuotaBackend" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = QuotaBackend;
-		};
-/* End XCLocalSwiftPackageReference section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		F1A2B3C4D5E60003 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.6.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		A1B2C3D4E5F60002 /* QuotaBackend */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A1B2C3D4E5F60003 /* XCLocalSwiftPackageReference "../../QuotaBackend" */;
-			productName = QuotaBackend;
-		};
-		F1A2B3C4D5E60002 /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A2B3C4D5E60003 /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
 		5EFAD72D2F87AC3300A15674 /* Resources */ = {
@@ -280,6 +248,7 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
 
 /* Begin PBXSourcesBuildPhase section */
 		5EFAD72B2F87AC3300A15674 /* Sources */ = {
@@ -441,7 +410,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -452,8 +421,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.2;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.aiusage.desktop";
+				MARKETING_VERSION = 0.2.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -472,7 +441,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -483,8 +452,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.2;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.aiusage.desktop";
+				MARKETING_VERSION = 0.2.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -518,6 +487,37 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A1B2C3D4E5F60003 /* XCLocalSwiftPackageReference "QuotaBackend" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = QuotaBackend;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F1A2B3C4D5E60003 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1B2C3D4E5F60002 /* QuotaBackend */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F60003 /* XCLocalSwiftPackageReference "QuotaBackend" */;
+			productName = QuotaBackend;
+		};
+		F1A2B3C4D5E60002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F1A2B3C4D5E60003 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 5EFAD7272F87AC3300A15674 /* Project object */;
 }

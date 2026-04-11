@@ -44,6 +44,20 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
+echo "Injecting custom Sparkle localization strings..."
+SPARKLE_RES="$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Resources"
+STRINGS_SRC="$ROOT_DIR/AIUsage/Resources"
+if [[ -d "$SPARKLE_RES" ]]; then
+  for LOCALE in Base.lproj zh_CN.lproj; do
+    SRC_FILE="$STRINGS_SRC/$LOCALE/Sparkle.strings"
+    DST_FILE="$SPARKLE_RES/$LOCALE/Sparkle.strings"
+    if [[ -f "$SRC_FILE" && -d "$SPARKLE_RES/$LOCALE" ]]; then
+      cp -f "$SRC_FILE" "$DST_FILE"
+      echo "  Injected $LOCALE/Sparkle.strings"
+    fi
+  done
+fi
+
 echo "Ad-hoc signing ${APP_NAME}.app..."
 xattr -cr "$APP_PATH"
 codesign --force --deep -s - "$APP_PATH"

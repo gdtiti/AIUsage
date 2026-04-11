@@ -1,0 +1,71 @@
+/* Already up to date (same version) */
+"%@ %@ is currently the newest version available." = "已是最新版 — %1$@ %2$@";
+
+/* Already up to date (different running version shown) */
+"%@ %@ is currently the newest version available.\n(You are currently running version %@.)" = "已是最新版 — %1$@ %2$@";
+
+/* New version available */
+"A new version of %@ is available!" = "发现新版本";
+
+/* New version prompt */
+"%@ %@ is now available—you have %@. Would you like to download it now?" = "%1$@ %2$@ 已发布，是否立即更新？";
+
+/* Important update prompt */
+"%@ %@ is now available—you have %@. This is an important update; would you like to download it now?" = "%1$@ %2$@（重要更新）已发布，是否立即更新？";
+
+/* Ready to install */
+"%1$@ %2$@ has been downloaded and is ready to use! Would you like to install it and relaunch %1$@ now?" = "%1$@ %2$@ 已下载完成，是否安装并重启？";
+
+/* Important ready to install */
+"%1$@ %2$@ has been downloaded and is ready to use! This is an important update; would you like to install it and relaunch %1$@ now?" = "%1$@ %2$@（重要更新）已下载完成，是否安装并重启？";
+
+/* Update complete */
+"%@ is now updated to version %@!" = "%1$@ 已更新至 %2$@";
+
+/* Update complete (no version) */
+"%@ is now updated!" = "%@ 已是最新版";
+
+/* Install on Quit */
+"Install on Quit" = "退出时安装";
+
+/* Install Update */
+"Install Update" = "更新";
+
+/* Remind Me Later */
+"Remind Me Later" = "稍后提醒";
+
+/* Skip This Version */
+"Skip This Version" = "跳过";
+
+/* OK */
+"OK" = "好";
+
+/* Cancel */
+"Cancel" = "取消";
+
+/* Checking for Updates... */
+"Checking for Updates…" = "正在检查更新…";
+
+/* Downloading update... */
+"Downloading update…" = "正在下载更新…";
+
+/* Extracting update... */
+"Extracting update…" = "正在解压更新…";
+
+/* Installing update... */
+"Installing update…" = "正在安装更新…";
+
+/* Update Error! */
+"Update Error!" = "更新出错";
+
+/* An error occurred in retrieving update information. Please try again later. */
+"An error occurred in retrieving update information. Please try again later." = "获取更新信息失败，请稍后再试。";
+
+/* An error occurred while downloading the update. Please try again later. */
+"An error occurred while downloading the update. Please try again later." = "下载更新时出错，请稍后再试。";
+
+/* An error occurred while extracting the archive. Please try again later. */
+"An error occurred while extracting the archive. Please try again later." = "解压更新时出错，请稍后再试。";
+
+/* An error occurred while parsing the update feed. */
+"An error occurred while parsing the update feed." = "解析更新源时出错。";

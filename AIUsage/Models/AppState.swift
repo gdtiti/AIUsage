@@ -2032,15 +2032,12 @@ class AppState: ObservableObject {
         guard let activeId = activeProviderAccountIds[entry.providerId]?.lowercased() else { return false }
         let candidates = [
             entry.storedAccount?.accountId,
-            entry.storedAccount?.providerResultId,
-            entry.storedAccount?.normalizedAccountId,
+            entry.storedAccount?.email,
             entry.liveProvider?.accountId,
             entry.liveProvider?.accountLabel,
-            entry.accountEmail,
-            entry.storedAccount?.email
+            entry.accountEmail
         ].compactMap { $0?.lowercased().nilIfBlank }
-        if candidates.contains(activeId) { return true }
-        return candidates.contains(where: { activeId.contains($0) || $0.contains(activeId) })
+        return candidates.contains(activeId)
     }
 
     // MARK: Codex activation
@@ -2069,7 +2066,7 @@ class AppState: ObservableObject {
 
         try writeAuthFileWithBackup(targetDir: codexDir, targetPath: targetPath, data: nativeData, fm: fm)
 
-        let newActiveId = accountId ?? email
+        let newActiveId = email ?? accountId
         activeProviderAccountIds["codex"] = newActiveId
         persistActiveIds()
 
@@ -2295,7 +2292,7 @@ class AppState: ObservableObject {
             ?? (json["account_id"] as? String)
             ?? (json["accountId"] as? String)
 
-        let detectedId = accountId ?? email
+        let detectedId = email ?? accountId
         if let detectedId, detectedId != activeProviderAccountIds["codex"] {
             activeProviderAccountIds["codex"] = detectedId
             persistActiveIds()

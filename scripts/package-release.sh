@@ -40,6 +40,10 @@ if [[ ! -d "$APP_PATH" ]]; then
   exit 1
 fi
 
+echo "Ad-hoc signing ${APP_NAME}.app..."
+codesign --force --deep -s - "$APP_PATH"
+codesign --verify --verbose "$APP_PATH" || true
+
 rm -f "$ZIP_PATH" "$DMG_PATH"
 rm -rf "$DMG_STAGING_DIR"
 mkdir -p "$DMG_STAGING_DIR"

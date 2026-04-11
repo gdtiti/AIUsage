@@ -15,7 +15,7 @@
 <p align="center">
   <img alt="macOS" src="https://img.shields.io/badge/macOS-14%2B-111827?style=flat-square&logo=apple&logoColor=white">
   <img alt="SwiftUI" src="https://img.shields.io/badge/SwiftUI-Native%20App-f97316?style=flat-square&logo=swift&logoColor=white">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-22c55e?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-22c55e?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-0ea5e9?style=flat-square">
 </p>
 
@@ -31,6 +31,8 @@ AIUsage is a macOS app for monitoring AI subscription quotas, account status, re
 | --- | --- |
 | `Provider dashboard` | View quota status for Codex, Copilot, Cursor, Antigravity, Kiro, Warp, Gemini CLI, Amp, Droid, and local Claude Code spend in one app |
 | `Multi-account management` | Keep multiple accounts under one provider and refresh them independently |
+| `Account activation` | Switch the active CLI account for Codex and Gemini CLI with one click — auth files are converted and replaced automatically |
+| `Dual quota windows` | Codex cards display both the 5-hour and weekly remaining quota as separate progress bars, each with its own reset countdown |
 | `Refresh scopes` | Refresh a single card, all accounts for one provider, or the full app |
 | `Cost tracking` | View hourly and daily cost and token trends from local usage data |
 | `Source management` | Add, hide, restore, pause, or remove monitored sources |

@@ -64,7 +64,7 @@ struct ProviderCard: View {
                 
                 VStack(alignment: .trailing, spacing: 6) {
                     HStack(spacing: 6) {
-                        if isCodexActiveAccount {
+                        if isActiveProviderAccount {
                             badge(text: t("Active", "当前"), tint: .green)
                         }
 
@@ -110,9 +110,9 @@ struct ProviderCard: View {
 
                 Spacer()
 
-                if canActivateCodex && !isCodexActiveAccount {
+                if canActivateProvider && !isActiveProviderAccount {
                     Button {
-                        activateThisCodexAccount()
+                        activateThisAccount()
                     } label: {
                         Label(t("Activate", "激活"), systemImage: "bolt.fill")
                             .font(.caption.weight(.medium))
@@ -121,7 +121,7 @@ struct ProviderCard: View {
                     .buttonStyle(.plain)
                     .opacity(isHovered ? 1 : 0)
                     .animation(.easeInOut(duration: 0.15), value: isHovered)
-                    .help(t("Set as active Codex CLI account", "设为当前 Codex CLI 账号"))
+                    .help(t("Set as active CLI account", "设为当前 CLI 账号"))
                 }
 
                 Button {
@@ -204,15 +204,15 @@ struct ProviderCard: View {
                 Label(t("Refresh This Account", "刷新此账号"), systemImage: "arrow.clockwise")
             }
 
-            if canActivateCodex {
+            if canActivateProvider {
                 Divider()
-                if isCodexActiveAccount {
-                    Label(t("Active Codex Account", "当前 Codex 账号"), systemImage: "checkmark.circle.fill")
+                if isActiveProviderAccount {
+                    Label(t("Active Account", "当前账号"), systemImage: "checkmark.circle.fill")
                 } else {
                     Button {
-                        activateThisCodexAccount()
+                        activateThisAccount()
                     } label: {
-                        Label(t("Set as Active Codex Account", "设为当前 Codex 账号"), systemImage: "bolt.fill")
+                        Label(t("Set as Active Account", "设为当前账号"), systemImage: "bolt.fill")
                     }
                 }
             }
@@ -312,31 +312,36 @@ struct ProviderCard: View {
         }
     }
 
-    private var canActivateCodex: Bool {
-        provider.providerId == "codex" && accountEntry != nil
+    private var canActivateProvider: Bool {
+        appState.canActivateProvider(provider.providerId) && accountEntry != nil
     }
 
-    private var isCodexActiveAccount: Bool {
+    private var isActiveProviderAccount: Bool {
         guard let entry = accountEntry else { return false }
-        return appState.isActiveCodexAccount(entry)
+        return appState.isActiveAccount(entry)
     }
 
-    private func activateThisCodexAccount() {
+    private var canActivateCodex: Bool { canActivateProvider }
+    private var isCodexActiveAccount: Bool { isActiveProviderAccount }
+
+    private func activateThisAccount() {
         guard let entry = accountEntry else { return }
         do {
-            try appState.activateCodexAccount(entry: entry)
+            try appState.activateAccount(entry: entry)
         } catch {
-            print("[CodexActivate] Failed: \(error.localizedDescription)")
+            print("[Activate] \(entry.providerId) failed: \(error.localizedDescription)")
         }
-        if let result = appState.codexActivationResult {
+        if let result = appState.activationResult {
             switch result {
             case .success(let msg), .failure(let msg):
                 activationMessage = msg
                 showActivationAlert = true
             }
-            appState.codexActivationResult = nil
+            appState.activationResult = nil
         }
     }
+
+    private func activateThisCodexAccount() { activateThisAccount() }
 
     private var useMultiWindowLayout: Bool {
         provider.providerId == "codex"

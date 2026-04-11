@@ -125,6 +125,7 @@ class AppState: ObservableObject {
         normalizePersistedState()
         setupAutoRefresh()
         detectActiveCodexAccount()
+        detectActiveGeminiAccount()
     }
 
     static func normalizedAutoRefreshInterval(_ value: Int) -> Int {
@@ -1971,15 +1972,74 @@ class AppState: ObservableObject {
         ProviderManagedImportStore.cleanupOrphanedManagedImports(referencedBy: credentials)
     }
 
-    // MARK: - Codex Account Activation
+    // MARK: - Provider Account Activation
 
-    @Published var activeCodexAccountId: String? = UserDefaults.standard.string(forKey: "activeCodexAccountId")
+    static let activatableProviders: Set<String> = ["codex", "gemini", "antigravity"]
+
+    @Published var activeProviderAccountIds: [String: String] = {
+        guard let data = UserDefaults.standard.data(forKey: "activeProviderAccountIds"),
+              let dict = try? JSONDecoder().decode([String: String].self, from: data) else {
+            if let legacyCodex = UserDefaults.standard.string(forKey: "activeCodexAccountId") {
+                return ["codex": legacyCodex]
+            }
+            return [:]
+        }
+        return dict
+    }()
+    @Published var activationResult: ActivationResult?
+
+    var activeCodexAccountId: String? {
+        get { activeProviderAccountIds["codex"] }
+        set {
+            activeProviderAccountIds["codex"] = newValue
+            persistActiveIds()
+        }
+    }
     @Published var codexActivationResult: CodexActivationResult?
 
     enum CodexActivationResult: Equatable {
         case success(String)
         case failure(String)
     }
+
+    enum ActivationResult: Equatable {
+        case success(String)
+        case failure(String)
+    }
+
+    private func persistActiveIds() {
+        if let data = try? JSONEncoder().encode(activeProviderAccountIds) {
+            UserDefaults.standard.set(data, forKey: "activeProviderAccountIds")
+        }
+    }
+
+    func canActivateProvider(_ providerId: String) -> Bool {
+        Self.activatableProviders.contains(providerId)
+    }
+
+    func activateAccount(entry: ProviderAccountEntry) throws {
+        switch entry.providerId {
+        case "codex":
+            try activateCodexAccount(entry: entry)
+        case "gemini", "antigravity":
+            try activateGeminiAccount(entry: entry)
+        default:
+            break
+        }
+    }
+
+    func isActiveAccount(_ entry: ProviderAccountEntry) -> Bool {
+        guard let activeId = activeProviderAccountIds[entry.providerId]?.lowercased() else { return false }
+        let candidates = [
+            entry.storedAccount?.accountId,
+            entry.liveProvider?.accountId,
+            entry.accountEmail,
+            entry.storedAccount?.email
+        ].compactMap { $0?.lowercased().nilIfBlank }
+        return candidates.contains(activeId)
+    }
+
+    // MARK: Codex activation
 
     func activateCodexAccount(entry: ProviderAccountEntry) throws {
         let fm = FileManager.default
@@ -1992,9 +2052,10 @@ class AppState: ObservableObject {
         let accountId = entry.storedAccount?.accountId
             ?? entry.liveProvider?.accountId
 
-        let resolved = resolveCodexAuthSource(email: email, accountId: accountId, entry: entry)
+        let resolved = resolveCliProxyOrManagedSource(prefix: "codex", email: email, entry: entry)
         guard let resolved, fm.fileExists(atPath: resolved) else {
             let msg = language == "zh" ? "找不到该账号的认证文件" : "Auth file not found for this account."
+            activationResult = .failure(msg)
             codexActivationResult = .failure(msg)
             throw ProviderError("source_not_found", msg)
         }
@@ -2002,39 +2063,123 @@ class AppState: ObservableObject {
         let sourceData = try Data(contentsOf: URL(fileURLWithPath: resolved))
         let nativeData = try convertToCodexNativeFormat(sourceData)
 
-        if !fm.fileExists(atPath: codexDir) {
-            try fm.createDirectory(atPath: codexDir, withIntermediateDirectories: true)
-        }
-
-        let backupPath = "\(targetPath).bak"
-        if fm.fileExists(atPath: targetPath) {
-            try? fm.removeItem(atPath: backupPath)
-            try fm.copyItem(atPath: targetPath, toPath: backupPath)
-        }
-
-        do {
-            if fm.fileExists(atPath: targetPath) {
-                try fm.removeItem(atPath: targetPath)
-            }
-            try nativeData.write(to: URL(fileURLWithPath: targetPath), options: .atomic)
-        } catch {
-            if fm.fileExists(atPath: backupPath) {
-                try? fm.removeItem(atPath: targetPath)
-                try? fm.copyItem(atPath: backupPath, toPath: targetPath)
-            }
-            let msg = language == "zh" ? "切换失败：\(error.localizedDescription)" : "Switch failed: \(error.localizedDescription)"
-            codexActivationResult = .failure(msg)
-            throw error
-        }
+        try writeAuthFileWithBackup(targetDir: codexDir, targetPath: targetPath, data: nativeData, fm: fm)
 
         let newActiveId = accountId ?? email
-        activeCodexAccountId = newActiveId
-        UserDefaults.standard.set(newActiveId, forKey: "activeCodexAccountId")
+        activeProviderAccountIds["codex"] = newActiveId
+        persistActiveIds()
 
         let label = email ?? accountId ?? "Codex"
         let msg = language == "zh" ? "已切换到 \(label)" : "Switched to \(label)"
+        activationResult = .success(msg)
         codexActivationResult = .success(msg)
     }
+
+    // MARK: Gemini / Antigravity activation
+
+    func activateGeminiAccount(entry: ProviderAccountEntry) throws {
+        let fm = FileManager.default
+        let geminiDir = NSString(string: "~/.gemini").expandingTildeInPath
+        let oauthCredsPath = "\(geminiDir)/oauth_creds.json"
+        let googleAccountsPath = "\(geminiDir)/google_accounts.json"
+
+        let email = entry.accountEmail
+            ?? entry.storedAccount?.email
+            ?? entry.liveProvider?.accountLabel
+
+        let proxyPrefix = entry.providerId == "antigravity" ? "antigravity" : "gemini"
+        let resolved = resolveCliProxyOrManagedSource(prefix: proxyPrefix, email: email, entry: entry)
+
+        guard let resolved, fm.fileExists(atPath: resolved) else {
+            let msg = language == "zh" ? "找不到该账号的认证文件" : "Auth file not found for this account."
+            activationResult = .failure(msg)
+            throw ProviderError("source_not_found", msg)
+        }
+
+        let sourceData = try Data(contentsOf: URL(fileURLWithPath: resolved))
+        let nativeData = try convertToGeminiNativeFormat(sourceData)
+
+        try writeAuthFileWithBackup(targetDir: geminiDir, targetPath: oauthCredsPath, data: nativeData, fm: fm)
+
+        if let email {
+            try updateGeminiActiveAccount(googleAccountsPath: googleAccountsPath, email: email, fm: fm)
+        }
+
+        let providerId = entry.providerId
+        activeProviderAccountIds[providerId] = email
+        if providerId == "gemini" {
+            activeProviderAccountIds["antigravity"] = email
+        } else {
+            activeProviderAccountIds["gemini"] = email
+        }
+        persistActiveIds()
+
+        let label = email ?? "Account"
+        let msg = language == "zh" ? "已切换到 \(label)" : "Switched to \(label)"
+        activationResult = .success(msg)
+    }
+
+    private func convertToGeminiNativeFormat(_ data: Data) throws -> Data {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return data
+        }
+
+        if json["refresh_token"] != nil, json["scope"] != nil {
+            return data
+        }
+
+        if let tokenDict = json["token"] as? [String: Any], let refreshToken = tokenDict["refresh_token"] as? String {
+            var native: [String: Any] = [
+                "refresh_token": refreshToken,
+                "token_type": "Bearer",
+                "scope": "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/cloud-platform"
+            ]
+            if let accessToken = tokenDict["access_token"] as? String { native["access_token"] = accessToken }
+            if let idToken = tokenDict["id_token"] as? String { native["id_token"] = idToken }
+            if let expiryDate = tokenDict["expiry_date"] as? Int { native["expiry_date"] = expiryDate }
+            return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
+        }
+
+        if let refreshToken = json["refresh_token"] as? String {
+            var native: [String: Any] = [
+                "refresh_token": refreshToken,
+                "token_type": "Bearer",
+                "scope": "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/cloud-platform"
+            ]
+            if let accessToken = json["access_token"] as? String { native["access_token"] = accessToken }
+            if let idToken = json["id_token"] as? String { native["id_token"] = idToken }
+            if let expiryDate = json["expiry_date"] as? Int { native["expiry_date"] = expiryDate }
+            return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
+        }
+
+        return data
+    }
+
+    private func updateGeminiActiveAccount(googleAccountsPath: String, email: String, fm: FileManager) throws {
+        var accounts: [String: Any]
+        if let data = fm.contents(atPath: googleAccountsPath),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            accounts = json
+        } else {
+            accounts = [:]
+        }
+
+        let previousActive = accounts["active"] as? String
+        var oldList = (accounts["old"] as? [String]) ?? []
+
+        if let previousActive, previousActive != email, !oldList.contains(previousActive) {
+            oldList.append(previousActive)
+        }
+        oldList.removeAll { $0 == email }
+
+        accounts["active"] = email
+        accounts["old"] = oldList
+
+        let data = try JSONSerialization.data(withJSONObject: accounts, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: URL(fileURLWithPath: googleAccountsPath), options: .atomic)
+    }
+
+    // MARK: Codex format conversion
 
     private func convertToCodexNativeFormat(_ data: Data) throws -> Data {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -2065,12 +2210,38 @@ class AppState: ObservableObject {
         return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
     }
 
-    private func resolveCodexAuthSource(email: String?, accountId: String?, entry: ProviderAccountEntry) -> String? {
+    // MARK: Shared helpers
+
+    private func writeAuthFileWithBackup(targetDir: String, targetPath: String, data: Data, fm: FileManager) throws {
+        if !fm.fileExists(atPath: targetDir) {
+            try fm.createDirectory(atPath: targetDir, withIntermediateDirectories: true)
+        }
+
+        let backupPath = "\(targetPath).bak"
+        if fm.fileExists(atPath: targetPath) {
+            try? fm.removeItem(atPath: backupPath)
+            try fm.copyItem(atPath: targetPath, toPath: backupPath)
+        }
+
+        do {
+            try data.write(to: URL(fileURLWithPath: targetPath), options: .atomic)
+        } catch {
+            if fm.fileExists(atPath: backupPath) {
+                try? fm.removeItem(atPath: targetPath)
+                try? fm.copyItem(atPath: backupPath, toPath: targetPath)
+            }
+            let msg = language == "zh" ? "切换失败：\(error.localizedDescription)" : "Switch failed: \(error.localizedDescription)"
+            activationResult = .failure(msg)
+            throw error
+        }
+    }
+
+    private func resolveCliProxyOrManagedSource(prefix: String, email: String?, entry: ProviderAccountEntry) -> String? {
         let fm = FileManager.default
         let proxyDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
 
         if let email {
-            if let freshPath = freshestCliProxyFile(dir: proxyDir, email: email, fm: fm) {
+            if let freshPath = freshestCliProxyFile(dir: proxyDir, prefix: prefix, email: email, fm: fm) {
                 return freshPath
             }
         }
@@ -2090,11 +2261,11 @@ class AppState: ObservableObject {
         return nil
     }
 
-    private func freshestCliProxyFile(dir: String, email: String, fm: FileManager) -> String? {
+    private func freshestCliProxyFile(dir: String, prefix: String, email: String, fm: FileManager) -> String? {
         guard let files = try? fm.contentsOfDirectory(atPath: dir) else { return nil }
         let emailLower = email.lowercased()
         let matching = files.filter {
-            $0.hasPrefix("codex-") && $0.hasSuffix(".json") && $0.lowercased().contains(emailLower)
+            $0.hasPrefix("\(prefix)-") && $0.hasSuffix(".json") && $0.lowercased().contains(emailLower)
         }
         guard !matching.isEmpty else { return nil }
 
@@ -2109,6 +2280,8 @@ class AppState: ObservableObject {
         }
         return best?.path
     }
+
+    // MARK: Detection
 
     func detectActiveCodexAccount() {
         let authPath = NSString(string: "~/.codex/auth.json").expandingTildeInPath
@@ -2125,21 +2298,28 @@ class AppState: ObservableObject {
             ?? (json["accountId"] as? String)
 
         let detectedId = accountId ?? email
-        if let detectedId, detectedId != activeCodexAccountId {
-            activeCodexAccountId = detectedId
-            UserDefaults.standard.set(detectedId, forKey: "activeCodexAccountId")
+        if let detectedId, detectedId != activeProviderAccountIds["codex"] {
+            activeProviderAccountIds["codex"] = detectedId
+            persistActiveIds()
+        }
+    }
+
+    func detectActiveGeminiAccount() {
+        let googleAccountsPath = NSString(string: "~/.gemini/google_accounts.json").expandingTildeInPath
+        guard let data = FileManager.default.contents(atPath: googleAccountsPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let active = json["active"] as? String else {
+            return
+        }
+        if active != activeProviderAccountIds["gemini"] {
+            activeProviderAccountIds["gemini"] = active
+            activeProviderAccountIds["antigravity"] = active
+            persistActiveIds()
         }
     }
 
     func isActiveCodexAccount(_ entry: ProviderAccountEntry) -> Bool {
-        guard entry.providerId == "codex", let activeId = activeCodexAccountId?.lowercased() else { return false }
-        let candidates = [
-            entry.storedAccount?.accountId,
-            entry.liveProvider?.accountId,
-            entry.accountEmail,
-            entry.storedAccount?.email
-        ].compactMap { $0?.lowercased().nilIfBlank }
-        return candidates.contains(activeId)
+        isActiveAccount(entry)
     }
 
     // MARK: - QuotaBackend → ProviderData conversion

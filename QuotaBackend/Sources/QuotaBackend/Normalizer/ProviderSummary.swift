@@ -57,6 +57,7 @@ public struct WindowInfo: Codable, Sendable {
     public var usedPercent: Double?
     public let value: String
     public let note: String
+    public var resetAt: String?
 }
 
 public struct CostSummaryInfo: Codable, Sendable {

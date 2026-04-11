@@ -124,6 +124,7 @@ class AppState: ObservableObject {
         bootstrapCredentialIndexFromRegistry()
         normalizePersistedState()
         setupAutoRefresh()
+        detectActiveCodexAccount()
     }
 
     static func normalizedAutoRefreshInterval(_ value: Int) -> Int {
@@ -1970,6 +1971,96 @@ class AppState: ObservableObject {
         ProviderManagedImportStore.cleanupOrphanedManagedImports(referencedBy: credentials)
     }
 
+    // MARK: - Codex Account Activation
+
+    @Published var activeCodexAccountId: String? = UserDefaults.standard.string(forKey: "activeCodexAccountId")
+
+    func activateCodexAccount(entry: ProviderAccountEntry) throws {
+        let fm = FileManager.default
+        let codexDir = NSString(string: "~/.codex").expandingTildeInPath
+        let targetPath = "\(codexDir)/auth.json"
+
+        let credentials = matchingCredentials(for: entry)
+        guard let credential = credentials.first else {
+            throw ProviderError("no_credential", "No credential found for this account.")
+        }
+
+        let sourcePath: String
+        if credential.authMethod == .authFile {
+            sourcePath = credential.credential
+        } else if let metaPath = credential.metadata["sourcePath"]?.nilIfBlank {
+            sourcePath = metaPath
+        } else {
+            throw ProviderError("no_source_path", "Cannot determine auth file path for this credential.")
+        }
+
+        let resolved = NSString(string: sourcePath).expandingTildeInPath
+        guard fm.fileExists(atPath: resolved) else {
+            throw ProviderError("source_not_found", "Auth file not found at \(resolved).")
+        }
+
+        if !fm.fileExists(atPath: codexDir) {
+            try fm.createDirectory(atPath: codexDir, withIntermediateDirectories: true)
+        }
+
+        let backupPath = "\(targetPath).bak"
+        if fm.fileExists(atPath: targetPath) {
+            try? fm.removeItem(atPath: backupPath)
+            try fm.copyItem(atPath: targetPath, toPath: backupPath)
+        }
+
+        do {
+            if fm.fileExists(atPath: targetPath) {
+                try fm.removeItem(atPath: targetPath)
+            }
+            try fm.copyItem(atPath: resolved, toPath: targetPath)
+        } catch {
+            if fm.fileExists(atPath: backupPath) {
+                try? fm.removeItem(atPath: targetPath)
+                try? fm.copyItem(atPath: backupPath, toPath: targetPath)
+            }
+            throw error
+        }
+
+        let accountId = entry.storedAccount?.accountId
+            ?? entry.liveProvider?.accountId
+            ?? entry.accountEmail
+        activeCodexAccountId = accountId
+        UserDefaults.standard.set(accountId, forKey: "activeCodexAccountId")
+    }
+
+    func detectActiveCodexAccount() {
+        let authPath = NSString(string: "~/.codex/auth.json").expandingTildeInPath
+        guard let data = FileManager.default.contents(atPath: authPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+
+        let email = json["email"] as? String
+        let tokens = json["tokens"] as? [String: Any]
+        let accountId = (tokens?["account_id"] as? String)
+            ?? (tokens?["accountId"] as? String)
+            ?? (json["account_id"] as? String)
+            ?? (json["accountId"] as? String)
+
+        let detectedId = accountId ?? email
+        if let detectedId, detectedId != activeCodexAccountId {
+            activeCodexAccountId = detectedId
+            UserDefaults.standard.set(detectedId, forKey: "activeCodexAccountId")
+        }
+    }
+
+    func isActiveCodexAccount(_ entry: ProviderAccountEntry) -> Bool {
+        guard entry.providerId == "codex", let activeId = activeCodexAccountId?.lowercased() else { return false }
+        let candidates = [
+            entry.storedAccount?.accountId,
+            entry.liveProvider?.accountId,
+            entry.accountEmail,
+            entry.storedAccount?.email
+        ].compactMap { $0?.lowercased().nilIfBlank }
+        return candidates.contains(activeId)
+    }
+
     // MARK: - QuotaBackend → ProviderData conversion
 
     private func convertSummary(_ s: QuotaBackend.ProviderSummary) -> ProviderData {
@@ -1992,7 +2083,7 @@ class AppState: ObservableObject {
             membershipLabel: s.membershipLabel,
             headline: Headline(eyebrow: s.headline.eyebrow, primary: s.headline.primary, secondary: s.headline.secondary, supporting: s.headline.supporting),
             metrics: s.metrics.map { Metric(label: $0.label, value: $0.value, note: $0.note) },
-            windows: s.windows.map { QuotaWindow(label: $0.label, remainingPercent: $0.remainingPercent, usedPercent: $0.usedPercent, value: $0.value, note: $0.note) },
+            windows: s.windows.map { QuotaWindow(label: $0.label, remainingPercent: $0.remainingPercent, usedPercent: $0.usedPercent, value: $0.value, note: $0.note, resetAt: $0.resetAt) },
             remainingPercent: s.remainingPercent,
             nextResetAt: s.nextResetAt,
             nextResetLabel: s.nextResetLabel,
@@ -2071,7 +2162,8 @@ class AppState: ObservableObject {
                     remainingPercent: $0.remainingPercent,
                     usedPercent: $0.usedPercent,
                     value: localizedDynamicText($0.value),
-                    note: localizedDynamicText($0.note)
+                    note: localizedDynamicText($0.note),
+                    resetAt: $0.resetAt
                 )
             },
             remainingPercent: provider.remainingPercent,

@@ -2200,6 +2200,9 @@ class AppState: ObservableObject {
             ] as [String: Any],
             "last_refresh": json["last_refresh"] ?? ISO8601DateFormatter().string(from: Date())
         ]
+        if let email = json["email"] as? String, !email.isEmpty {
+            native["email"] = email
+        }
         native["OPENAI_API_KEY"] = NSNull()
 
         return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
@@ -2285,18 +2288,37 @@ class AppState: ObservableObject {
             return
         }
 
-        let email = json["email"] as? String
+        var email = json["email"] as? String
         let tokens = json["tokens"] as? [String: Any]
         let accountId = (tokens?["account_id"] as? String)
             ?? (tokens?["accountId"] as? String)
             ?? (json["account_id"] as? String)
             ?? (json["accountId"] as? String)
 
+        if email == nil, let uuid = accountId {
+            email = resolveCodexEmailFromProxy(accountId: uuid)
+        }
+
         let detectedId = email ?? accountId
         if let detectedId, detectedId != activeProviderAccountIds["codex"] {
             activeProviderAccountIds["codex"] = detectedId
             persistActiveIds()
         }
+    }
+
+    private func resolveCodexEmailFromProxy(accountId: String) -> String? {
+        let proxyDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: proxyDir) else { return nil }
+        for file in files where file.hasPrefix("codex-") && file.hasSuffix(".json") {
+            let path = "\(proxyDir)/\(file)"
+            guard let data = FileManager.default.contents(atPath: path),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let fileAccountId = json["account_id"] as? String,
+                  fileAccountId == accountId,
+                  let email = json["email"] as? String else { continue }
+            return email
+        }
+        return nil
     }
 
     func detectActiveGeminiAccount() {

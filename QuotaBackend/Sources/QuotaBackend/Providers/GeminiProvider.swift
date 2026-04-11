@@ -59,7 +59,7 @@ public struct GeminiProvider: ProviderFetcher, CredentialAcceptingProvider {
             return parseQuotaResponse(quotaResponse, creds: creds, projectId: projectId, tierId: codeAssist.tierId, source: source)
         } catch let error as ProviderError where error.code == "not_logged_in" && !didRefresh {
             guard let refreshToken = creds.refreshToken, !refreshToken.isEmpty else { throw error }
-            let result = try await refreshAndPersist(refreshToken: refreshToken, credentialPath: credentialPath)
+            let result = try await refreshAndPersist(refreshToken: refreshToken, creds: creds, credentialPath: credentialPath)
             let retryCodeAssist = await loadCodeAssist(accessToken: result.accessToken)
             let retryProjectId: String?
             if let p = retryCodeAssist.projectId {
@@ -82,6 +82,8 @@ public struct GeminiProvider: ProviderFetcher, CredentialAcceptingProvider {
         let refreshToken: String?
         let expiryDate: Date?
         let directEmail: String?
+        let clientId: String?
+        let clientSecret: String?
 
         var accountEmail: String? {
             if let jwtEmail = jwtEmail() { return jwtEmail }
@@ -129,7 +131,9 @@ public struct GeminiProvider: ProviderFetcher, CredentialAcceptingProvider {
             idToken: json["id_token"] as? String,
             refreshToken: json["refresh_token"] as? String,
             expiryDate: expiryDate,
-            directEmail: json["email"] as? String
+            directEmail: json["email"] as? String,
+            clientId: json["client_id"] as? String,
+            clientSecret: json["client_secret"] as? String
         )
     }
 
@@ -146,7 +150,7 @@ public struct GeminiProvider: ProviderFetcher, CredentialAcceptingProvider {
         }
 
         if shouldRefresh, let refreshToken = creds.refreshToken, !refreshToken.isEmpty {
-            if let result = try? await refreshAndPersist(refreshToken: refreshToken, credentialPath: credentialPath) {
+            if let result = try? await refreshAndPersist(refreshToken: refreshToken, creds: creds, credentialPath: credentialPath) {
                 return (result.accessToken, true)
             }
         }
@@ -159,26 +163,28 @@ public struct GeminiProvider: ProviderFetcher, CredentialAcceptingProvider {
         let expiresIn: Int?
     }
 
-    private func refreshAndPersist(refreshToken: String, credentialPath: String) async throws -> RefreshResult {
-        let result = try await performTokenRefresh(refreshToken: refreshToken)
+    private func refreshAndPersist(refreshToken: String, creds: GeminiCredentials, credentialPath: String) async throws -> RefreshResult {
+        let result = try await performTokenRefresh(refreshToken: refreshToken, creds: creds)
         persistRefreshedCredentials(result: result, refreshToken: refreshToken, to: credentialPath)
         return result
     }
 
-    private func performTokenRefresh(refreshToken: String) async throws -> RefreshResult {
-        let primaryCreds = await Task.detached(priority: .userInitiated) {
+    private func performTokenRefresh(refreshToken: String, creds: GeminiCredentials) async throws -> RefreshResult {
+        if let embeddedId = creds.clientId, !embeddedId.isEmpty,
+           let embeddedSecret = creds.clientSecret, !embeddedSecret.isEmpty {
+            if let result = try? await attemptTokenRefresh(refreshToken: refreshToken, clientId: embeddedId, clientSecret: embeddedSecret) {
+                return result
+            }
+        }
+
+        let discoveredCreds = await Task.detached(priority: .userInitiated) {
             self.findOAuthCredentials()
         }.value
 
-        guard let (clientId, clientSecret) = primaryCreds else {
-            throw ProviderError(
-                "oauth_config_missing",
-                "Could not find Gemini CLI OAuth client credentials. Install Gemini CLI locally or set AIUSAGE_GEMINI_OAUTH_CLIENT_ID / AIUSAGE_GEMINI_OAUTH_CLIENT_SECRET."
-            )
-        }
-
-        if let result = try? await attemptTokenRefresh(refreshToken: refreshToken, clientId: clientId, clientSecret: clientSecret) {
-            return result
+        if let (clientId, clientSecret) = discoveredCreds {
+            if let result = try? await attemptTokenRefresh(refreshToken: refreshToken, clientId: clientId, clientSecret: clientSecret) {
+                return result
+            }
         }
 
         throw ProviderError("refresh_failed", "Failed to refresh Gemini OAuth token.")

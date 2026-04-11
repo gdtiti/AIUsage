@@ -2132,6 +2132,9 @@ class AppState: ObservableObject {
             if let accessToken = tokenDict["access_token"] as? String { native["access_token"] = accessToken }
             if let idToken = tokenDict["id_token"] as? String { native["id_token"] = idToken }
             if let expiryDate = tokenDict["expiry_date"] as? Int { native["expiry_date"] = expiryDate }
+            if let clientId = tokenDict["client_id"] as? String { native["client_id"] = clientId }
+            if let clientSecret = tokenDict["client_secret"] as? String { native["client_secret"] = clientSecret }
+            if let email = json["email"] as? String { native["email"] = email }
             return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
         }
 
@@ -2144,6 +2147,9 @@ class AppState: ObservableObject {
             if let accessToken = json["access_token"] as? String { native["access_token"] = accessToken }
             if let idToken = json["id_token"] as? String { native["id_token"] = idToken }
             if let expiryDate = json["expiry_date"] as? Int { native["expiry_date"] = expiryDate }
+            if let clientId = json["client_id"] as? String { native["client_id"] = clientId }
+            if let clientSecret = json["client_secret"] as? String { native["client_secret"] = clientSecret }
+            if let email = json["email"] as? String { native["email"] = email }
             return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
         }
 

@@ -1,0 +1,457 @@
+import Foundation
+
+// MARK: - Provider Data Models
+
+enum ProviderCatalogKind: String, CaseIterable, Hashable, Identifiable {
+    case official
+    case costTracking
+
+    var id: String { rawValue }
+}
+
+struct ProviderCatalogItem: Identifiable, Hashable {
+    let id: String
+    let titleEn: String
+    let titleZh: String
+    let summaryEn: String
+    let summaryZh: String
+    let channel: String?
+    let kind: ProviderCatalogKind
+}
+
+enum ProviderPickerMode: String, Identifiable {
+    case initialSetup
+    case add
+    case manage
+
+    var id: String { rawValue }
+}
+
+struct StoredProviderAccount: Identifiable, Codable, Hashable {
+    let id: String
+    let providerId: String
+    var email: String
+    var displayName: String?
+    var note: String?
+    var accountId: String?
+    var providerResultId: String?
+    var credentialId: String?
+    let createdAt: String
+    var lastSeenAt: String?
+    var isHidden: Bool
+
+    init(
+        id: String,
+        providerId: String,
+        email: String,
+        displayName: String?,
+        note: String?,
+        accountId: String?,
+        providerResultId: String? = nil,
+        credentialId: String?,
+        createdAt: String,
+        lastSeenAt: String?,
+        isHidden: Bool = false
+    ) {
+        self.id = id
+        self.providerId = providerId
+        self.email = email
+        self.displayName = displayName
+        self.note = note
+        self.accountId = accountId
+        self.providerResultId = providerResultId
+        self.credentialId = credentialId
+        self.createdAt = createdAt
+        self.lastSeenAt = lastSeenAt
+        self.isHidden = isHidden
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        providerId = try container.decode(String.self, forKey: .providerId)
+        email = try container.decode(String.self, forKey: .email)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        accountId = try container.decodeIfPresent(String.self, forKey: .accountId)
+        providerResultId = try container.decodeIfPresent(String.self, forKey: .providerResultId)
+        credentialId = try container.decodeIfPresent(String.self, forKey: .credentialId)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        lastSeenAt = try container.decodeIfPresent(String.self, forKey: .lastSeenAt)
+        isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
+    }
+
+    var normalizedEmail: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var normalizedAccountId: String? {
+        accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+    }
+
+    var normalizedProviderResultId: String? {
+        providerResultId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+    }
+
+    var preferredLabel: String {
+        displayName?.nilIfBlank ?? email.nilIfBlank ?? accountId ?? providerId
+    }
+}
+
+struct ProviderAccountEntry: Identifiable {
+    let id: String
+    let providerId: String
+    let providerTitle: String
+    let providerSubtitle: String?
+    let liveProvider: ProviderData?
+    let storedAccount: StoredProviderAccount?
+
+    var accountEmail: String? {
+        liveProvider?.accountLabel ?? storedAccount?.email
+    }
+
+    var accountDisplayName: String? {
+        storedAccount?.displayName
+    }
+
+    var accountNote: String? {
+        storedAccount?.note?.nilIfBlank
+    }
+
+    var isConnected: Bool {
+        liveProvider != nil
+    }
+
+    var canDelete: Bool {
+        true
+    }
+
+    var canEditNote: Bool {
+        true
+    }
+
+    var accountPrimaryLabel: String {
+        accountDisplayName?.nilIfBlank
+            ?? accountEmail?.nilIfBlank
+            ?? liveProvider?.accountId?.nilIfBlank
+            ?? storedAccount?.accountId?.nilIfBlank
+            ?? providerTitle
+    }
+
+    var cardTitle: String {
+        accountNote?.nilIfBlank ?? accountPrimaryLabel
+    }
+
+    var cardSubtitle: String {
+        providerTitle
+    }
+
+    var footerAccountLabel: String? {
+        preferredAccountIdentityLabel(
+            [
+                liveProvider?.accountLabel,
+                storedAccount?.email,
+                liveProvider?.accountId,
+                storedAccount?.accountId,
+                accountDisplayName
+            ],
+            excluding: cardTitle
+        )
+    }
+}
+
+struct ProviderAccountGroup: Identifiable {
+    let id: String
+    let providerId: String
+    let title: String
+    let subtitle: String
+    let channel: String?
+    let isScanningEnabled: Bool
+    let accounts: [ProviderAccountEntry]
+
+    var connectedCount: Int {
+        accounts.filter(\.isConnected).count
+    }
+}
+
+extension ProviderCatalogItem {
+    func title(for language: String) -> String {
+        language == "zh" ? titleZh : titleEn
+    }
+
+    func summary(for language: String) -> String {
+        language == "zh" ? summaryZh : summaryEn
+    }
+}
+
+extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+extension Optional where Wrapped == String {
+    var nilIfBlank: String? {
+        switch self {
+        case .some(let value):
+            return value.nilIfBlank
+        case .none:
+            return nil
+        }
+    }
+}
+
+struct ProviderData: Identifiable, Codable {
+    let id: String
+    let providerId: String
+    let accountId: String?
+    let name: String
+    let label: String
+    let description: String
+    let category: String
+    let channel: String?
+    let status: ProviderStatus
+    let statusLabel: String
+    let theme: ProviderTheme
+    let sourceLabel: String
+    let sourceType: String
+    let fetchedAt: String?
+    let accountLabel: String?
+    let membershipLabel: String?
+    let headline: Headline
+    let metrics: [Metric]
+    let windows: [QuotaWindow]
+    let remainingPercent: Double?
+    let nextResetAt: String?
+    let nextResetLabel: String?
+    let spotlight: String?
+    let models: [ModelInfo]?
+    let costSummary: CostSummary?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        providerId = try container.decodeIfPresent(String.self, forKey: .providerId) ?? id
+        accountId = try container.decodeIfPresent(String.self, forKey: .accountId)
+        name = try container.decode(String.self, forKey: .name)
+        label = try container.decode(String.self, forKey: .label)
+        description = try container.decode(String.self, forKey: .description)
+        category = try container.decode(String.self, forKey: .category)
+        channel = try container.decodeIfPresent(String.self, forKey: .channel)
+        status = try container.decode(ProviderStatus.self, forKey: .status)
+        statusLabel = try container.decode(String.self, forKey: .statusLabel)
+        theme = try container.decode(ProviderTheme.self, forKey: .theme)
+        sourceLabel = try container.decode(String.self, forKey: .sourceLabel)
+        sourceType = try container.decode(String.self, forKey: .sourceType)
+        fetchedAt = try container.decodeIfPresent(String.self, forKey: .fetchedAt)
+        accountLabel = try container.decodeIfPresent(String.self, forKey: .accountLabel)
+        membershipLabel = try container.decodeIfPresent(String.self, forKey: .membershipLabel)
+        headline = try container.decode(Headline.self, forKey: .headline)
+        metrics = try container.decode([Metric].self, forKey: .metrics)
+        windows = try container.decode([QuotaWindow].self, forKey: .windows)
+        remainingPercent = try container.decodeIfPresent(Double.self, forKey: .remainingPercent)
+        nextResetAt = try container.decodeIfPresent(String.self, forKey: .nextResetAt)
+        nextResetLabel = try container.decodeIfPresent(String.self, forKey: .nextResetLabel)
+        spotlight = try container.decodeIfPresent(String.self, forKey: .spotlight)
+        models = try container.decodeIfPresent([ModelInfo].self, forKey: .models)
+        costSummary = try container.decodeIfPresent(CostSummary.self, forKey: .costSummary)
+    }
+
+    init(id: String, providerId: String, accountId: String?, name: String, label: String, description: String, category: String, channel: String?, status: ProviderStatus, statusLabel: String, theme: ProviderTheme, sourceLabel: String, sourceType: String, fetchedAt: String?, accountLabel: String?, membershipLabel: String?, headline: Headline, metrics: [Metric], windows: [QuotaWindow], remainingPercent: Double?, nextResetAt: String?, nextResetLabel: String?, spotlight: String?, models: [ModelInfo]?, costSummary: CostSummary?) {
+        self.id = id
+        self.providerId = providerId
+        self.accountId = accountId
+        self.name = name
+        self.label = label
+        self.description = description
+        self.category = category
+        self.channel = channel
+        self.status = status
+        self.statusLabel = statusLabel
+        self.theme = theme
+        self.sourceLabel = sourceLabel
+        self.sourceType = sourceType
+        self.fetchedAt = fetchedAt
+        self.accountLabel = accountLabel
+        self.membershipLabel = membershipLabel
+        self.headline = headline
+        self.metrics = metrics
+        self.windows = windows
+        self.remainingPercent = remainingPercent
+        self.nextResetAt = nextResetAt
+        self.nextResetLabel = nextResetLabel
+        self.spotlight = spotlight
+        self.models = models
+        self.costSummary = costSummary
+    }
+    
+    var remainingPercentValue: Double {
+        remainingPercent ?? 100.0
+    }
+    
+    var statusColor: String {
+        switch status {
+        case .healthy: return "green"
+        case .watch: return "orange"
+        case .critical: return "red"
+        case .error: return "gray"
+        case .idle, .tracking: return "blue"
+        }
+    }
+
+    /// Base provider ID for grouping (strips account suffix)
+    var baseProviderId: String {
+        providerId
+    }
+
+    var isMultiAccount: Bool {
+        accountId != nil
+    }
+}
+
+enum ProviderStatus: String, Codable {
+    case healthy
+    case watch
+    case critical
+    case error
+    case idle
+    case tracking
+}
+
+struct ProviderTheme: Codable {
+    let accent: String
+    let glow: String
+}
+
+struct Headline: Codable {
+    let eyebrow: String
+    let primary: String
+    let secondary: String
+    let supporting: String?
+}
+
+struct Metric: Identifiable, Codable {
+    let label: String
+    let value: String
+    let note: String?
+    
+    var id: String { label }
+}
+
+struct QuotaWindow: Identifiable, Codable {
+    let label: String
+    let remainingPercent: Double?
+    let usedPercent: Double?
+    let value: String
+    let note: String
+    
+    var id: String { label }
+    
+    var displayRemainingPercent: Double {
+        remainingPercent ?? 0.0
+    }
+    
+    var displayUsedPercent: Double {
+        usedPercent ?? 0.0
+    }
+}
+
+struct ModelInfo: Identifiable, Codable {
+    let label: String
+    let value: String
+    let note: String?
+    
+    var id: String { label }
+}
+
+struct CostSummary: Codable {
+    let today: CostPeriod?
+    let week: CostPeriod?
+    let month: CostPeriod?
+    let timeline: CostTimeline?
+}
+
+struct CostPeriod: Codable {
+    let usd: Double
+    let tokens: Int?
+    let rangeLabel: String?
+}
+
+struct CostTimeline: Codable {
+    let hourly: [CostTimelinePoint]
+    let daily: [CostTimelinePoint]
+}
+
+struct CostTimelinePoint: Codable, Identifiable {
+    let bucket: String
+    let label: String
+    let usd: Double
+    let tokens: Int
+
+    var id: String { bucket }
+}
+
+// MARK: - Dashboard Response
+
+struct DashboardResponse: Codable {
+    let generatedAt: String
+    let overview: DashboardOverview
+    let providers: [ProviderWrapper]
+}
+
+struct ProviderWrapper: Codable {
+    let id: String
+    let providerId: String
+    let accountId: String?
+    let ok: Bool
+    let error: String?
+    let summary: ProviderData
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        providerId = try container.decodeIfPresent(String.self, forKey: .providerId) ?? id
+        accountId = try container.decodeIfPresent(String.self, forKey: .accountId)
+        ok = try container.decode(Bool.self, forKey: .ok)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+        summary = try container.decode(ProviderData.self, forKey: .summary)
+    }
+}
+
+struct DashboardOverview: Codable {
+    let generatedAt: String
+    let activeProviders: Int
+    let attentionProviders: Int
+    let criticalProviders: Int
+    let resetSoonProviders: Int
+    let localCostMonthUsd: Double
+    let localWeekTokens: Int
+    let stats: [OverviewStat]
+    let alerts: [Alert]
+}
+
+struct OverviewStat: Identifiable, Codable {
+    let label: String
+    let value: String
+    let note: String
+    
+    var id: String { label }
+}
+
+struct Alert: Identifiable, Codable {
+    let tone: String
+    let providerId: String
+    let title: String
+    let body: String
+    
+    var id: String { "\(providerId)-\(title)" }
+    
+    var color: String {
+        switch tone {
+        case "critical": return "red"
+        case "watch": return "orange"
+        default: return "blue"
+        }
+    }
+}

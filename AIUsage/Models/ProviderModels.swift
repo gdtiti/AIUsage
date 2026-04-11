@@ -131,32 +131,28 @@ struct ProviderAccountEntry: Identifiable {
     }
 
     var accountPrimaryLabel: String {
-        accountDisplayName?.nilIfBlank
-            ?? accountEmail?.nilIfBlank
+        accountEmail?.nilIfBlank
+            ?? accountDisplayName?.nilIfBlank
             ?? liveProvider?.accountId?.nilIfBlank
             ?? storedAccount?.accountId?.nilIfBlank
             ?? providerTitle
     }
 
     var cardTitle: String {
-        accountNote?.nilIfBlank ?? accountPrimaryLabel
+        accountNote?.nilIfBlank ?? providerTitle
     }
 
     var cardSubtitle: String {
-        providerTitle
+        accountEmail?.nilIfBlank ?? providerTitle
     }
 
     var footerAccountLabel: String? {
-        preferredAccountIdentityLabel(
-            [
-                liveProvider?.accountLabel,
-                storedAccount?.email,
-                liveProvider?.accountId,
-                storedAccount?.accountId,
-                accountDisplayName
-            ],
-            excluding: cardTitle
-        )
+        let email = accountEmail?.nilIfBlank
+            ?? storedAccount?.email.nilIfBlank
+            ?? liveProvider?.accountLabel?.nilIfBlank
+        let title = cardTitle
+        if let email, email != title { return email }
+        return nil
     }
 }
 

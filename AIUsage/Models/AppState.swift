@@ -68,6 +68,15 @@ class AppState: ObservableObject {
     
     // UI 状态
     @Published var isDarkMode = UserDefaults.standard.bool(forKey: "isDarkMode")
+    @Published var themeMode: String = UserDefaults.standard.string(forKey: "themeMode") ?? "system"
+
+    var resolvedColorScheme: ColorScheme? {
+        switch themeMode {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
     @Published var showSettings = false
     @Published var selectedProviderId: String?
     @Published var selectedSection: AppSection = .dashboard
@@ -153,6 +162,7 @@ class AppState: ObservableObject {
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
         defaults.set(autoRefreshInterval, forKey: "autoRefreshInterval")
         defaults.set(isDarkMode, forKey: "isDarkMode")
+        defaults.set(themeMode, forKey: "themeMode")
         defaults.set(language, forKey: "appLanguage")
         defaults.set(quotaIndicatorStyle.rawValue, forKey: "quotaIndicatorStyle")
         defaults.set(quotaIndicatorMetric.rawValue, forKey: "quotaIndicatorMetric")
@@ -2032,9 +2042,10 @@ class AppState: ObservableObject {
         guard let activeId = activeProviderAccountIds[entry.providerId]?.lowercased() else { return false }
         let candidates = [
             entry.storedAccount?.accountId,
+            entry.storedAccount?.email,
             entry.liveProvider?.accountId,
-            entry.accountEmail,
-            entry.storedAccount?.email
+            entry.liveProvider?.accountLabel,
+            entry.accountEmail
         ].compactMap { $0?.lowercased().nilIfBlank }
         return candidates.contains(activeId)
     }
@@ -2065,7 +2076,7 @@ class AppState: ObservableObject {
 
         try writeAuthFileWithBackup(targetDir: codexDir, targetPath: targetPath, data: nativeData, fm: fm)
 
-        let newActiveId = accountId ?? email
+        let newActiveId = email ?? accountId
         activeProviderAccountIds["codex"] = newActiveId
         persistActiveIds()
 
@@ -2131,6 +2142,9 @@ class AppState: ObservableObject {
             if let accessToken = tokenDict["access_token"] as? String { native["access_token"] = accessToken }
             if let idToken = tokenDict["id_token"] as? String { native["id_token"] = idToken }
             if let expiryDate = tokenDict["expiry_date"] as? Int { native["expiry_date"] = expiryDate }
+            if let clientId = tokenDict["client_id"] as? String { native["client_id"] = clientId }
+            if let clientSecret = tokenDict["client_secret"] as? String { native["client_secret"] = clientSecret }
+            if let email = json["email"] as? String { native["email"] = email }
             return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
         }
 
@@ -2143,6 +2157,9 @@ class AppState: ObservableObject {
             if let accessToken = json["access_token"] as? String { native["access_token"] = accessToken }
             if let idToken = json["id_token"] as? String { native["id_token"] = idToken }
             if let expiryDate = json["expiry_date"] as? Int { native["expiry_date"] = expiryDate }
+            if let clientId = json["client_id"] as? String { native["client_id"] = clientId }
+            if let clientSecret = json["client_secret"] as? String { native["client_secret"] = clientSecret }
+            if let email = json["email"] as? String { native["email"] = email }
             return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
         }
 
@@ -2199,6 +2216,9 @@ class AppState: ObservableObject {
             ] as [String: Any],
             "last_refresh": json["last_refresh"] ?? ISO8601DateFormatter().string(from: Date())
         ]
+        if let email = json["email"] as? String, !email.isEmpty {
+            native["email"] = email
+        }
         native["OPENAI_API_KEY"] = NSNull()
 
         return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
@@ -2284,18 +2304,37 @@ class AppState: ObservableObject {
             return
         }
 
-        let email = json["email"] as? String
+        var email = json["email"] as? String
         let tokens = json["tokens"] as? [String: Any]
         let accountId = (tokens?["account_id"] as? String)
             ?? (tokens?["accountId"] as? String)
             ?? (json["account_id"] as? String)
             ?? (json["accountId"] as? String)
 
-        let detectedId = accountId ?? email
+        if email == nil, let uuid = accountId {
+            email = resolveCodexEmailFromProxy(accountId: uuid)
+        }
+
+        let detectedId = email ?? accountId
         if let detectedId, detectedId != activeProviderAccountIds["codex"] {
             activeProviderAccountIds["codex"] = detectedId
             persistActiveIds()
         }
+    }
+
+    private func resolveCodexEmailFromProxy(accountId: String) -> String? {
+        let proxyDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: proxyDir) else { return nil }
+        for file in files where file.hasPrefix("codex-") && file.hasSuffix(".json") {
+            let path = "\(proxyDir)/\(file)"
+            guard let data = FileManager.default.contents(atPath: path),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let fileAccountId = json["account_id"] as? String,
+                  fileAccountId == accountId,
+                  let email = json["email"] as? String else { continue }
+            return email
+        }
+        return nil
     }
 
     func detectActiveGeminiAccount() {

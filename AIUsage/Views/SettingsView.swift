@@ -1,11 +1,17 @@
 import SwiftUI
 import Sparkle
+import ServiceManagement
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var sparkle: SparkleController
     @State private var hideDockIcon = UserDefaults.standard.bool(forKey: "hideDockIcon")
-    @State private var launchAtLogin = false
+    @State private var launchAtLogin: Bool = {
+        if #available(macOS 13.0, *) {
+            return SMAppService.mainApp.status == .enabled
+        }
+        return false
+    }()
     @State private var showNotifications = UserDefaults.standard.bool(forKey: "showNotifications")
     @State private var lowQuotaThreshold: Double = UserDefaults.standard.double(forKey: "lowQuotaThreshold")
     @State private var remoteHostInput: String = ""
@@ -76,6 +82,19 @@ struct SettingsView: View {
             UserDefaults.standard.set(newValue, forKey: "hideDockIcon")
             updateDockIconVisibility(hidden: newValue)
         }
+        .onChange(of: launchAtLogin) { _, newValue in
+            if #available(macOS 13.0, *) {
+                do {
+                    if newValue {
+                        try SMAppService.mainApp.register()
+                    } else {
+                        try SMAppService.mainApp.unregister()
+                    }
+                } catch {
+                    launchAtLogin = SMAppService.mainApp.status == .enabled
+                }
+            }
+        }
         .onChange(of: showNotifications) { _, newValue in
             UserDefaults.standard.set(newValue, forKey: "showNotifications")
         }
@@ -87,6 +106,9 @@ struct SettingsView: View {
             appState.setupAutoRefresh()
         }
         .onChange(of: appState.isDarkMode) { _, _ in
+            appState.saveSettings()
+        }
+        .onChange(of: appState.themeMode) { _, _ in
             appState.saveSettings()
         }
         .onChange(of: appState.quotaIndicatorStyle) { _, _ in
@@ -168,7 +190,13 @@ struct SettingsView: View {
                 )
                 heroPill(
                     title: t("Theme", "主题"),
-                    value: appState.isDarkMode ? t("Dark", "深色") : t("Light", "浅色"),
+                    value: {
+                        switch appState.themeMode {
+                        case "light": return t("Light", "浅色")
+                        case "dark": return t("Dark", "深色")
+                        default: return t("System", "系统")
+                        }
+                    }(),
                     tint: .orange
                 )
             }
@@ -277,11 +305,18 @@ struct SettingsView: View {
 
             Divider()
 
-            settingsToggleRow(
-                title: t("Dark Mode", "深色模式"),
-                subtitle: t("Use a darker app appearance for low-light work.", "使用更适合低光环境的界面风格。"),
-                isOn: $appState.isDarkMode
-            )
+            settingsBlock(
+                title: t("Theme", "主题"),
+                subtitle: t("Choose app appearance: follow system, light, or dark.", "选择外观模式：跟随系统、浅色或深色。")
+            ) {
+                Picker("", selection: $appState.themeMode) {
+                    Text(t("System", "系统")).tag("system")
+                    Text(t("Light", "浅色")).tag("light")
+                    Text(t("Dark", "深色")).tag("dark")
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 280, alignment: .leading)
+            }
 
             Divider()
 

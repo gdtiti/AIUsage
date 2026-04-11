@@ -15,7 +15,7 @@
 <p align="center">
   <img alt="macOS" src="https://img.shields.io/badge/macOS-14%2B-111827?style=flat-square&logo=apple&logoColor=white">
   <img alt="SwiftUI" src="https://img.shields.io/badge/SwiftUI-Native%20App-f97316?style=flat-square&logo=swift&logoColor=white">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.4-22c55e?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.6-22c55e?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-0ea5e9?style=flat-square">
 </p>
 
@@ -29,19 +29,12 @@ AIUsage is a macOS app for monitoring AI subscription quotas, account status, re
 
 | Feature | Description |
 | --- | --- |
-| `Provider dashboard` | View quota status for Codex, Copilot, Cursor, Antigravity, Kiro, Warp, Gemini CLI, Amp, Droid, and local Claude Code spend in one app |
-| `Multi-account management` | Keep multiple accounts under one provider and refresh them independently |
-| `Account activation` | Switch the active CLI account for Codex and Gemini CLI with one click — auth files are converted and replaced automatically |
-| `Dual quota windows` | Codex cards display both the 5-hour and weekly remaining quota as separate progress bars, each with its own reset countdown |
-| `Refresh scopes` | Refresh a single card, all accounts for one provider, or the full app |
-| `Cost tracking` | View hourly and daily cost and token trends from local usage data |
-| `Source management` | Add, hide, restore, pause, or remove monitored sources |
-| `Credential handling` | Store managed credentials in macOS Keychain and keep file-based imports under app-managed storage |
-| `Backend modes` | Support local mode and remote backend mode |
-| `Menu bar quick view` | Click the menu bar icon to see all provider quotas, cost data, and active accounts at a glance — with mini progress rings and one-click account switching |
-| `Theme modes` | Choose between system, light, or dark appearance |
-| `Launch at login` | Optionally start AIUsage when you log in |
-| `Sparkle auto-update` | Automatic background download and silent install for new releases, with localized Chinese/English update prompts |
+| `10+ AI providers` | Codex, Copilot, Cursor, Antigravity, Kiro, Warp, Gemini CLI, Amp, Droid, and Claude Code — all in one dashboard |
+| `Multi-account` | Multiple accounts per provider with independent refresh and one-click CLI switching (Codex, Gemini) |
+| `Codex dual quota` | 5-hour and weekly remaining shown side by side, each with its own reset countdown |
+| `Cost tracking` | Hourly and daily spend and token trends from local usage data |
+| `Menu bar` | Mini progress rings, cost data, active account badges, and account switching without opening the main window |
+| `Credential vault` | Managed credentials stored in macOS Keychain; file-based imports kept under app-managed storage |
 
 ## Preview
 

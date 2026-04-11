@@ -123,7 +123,7 @@ struct DashboardView: View {
 
         let costNote: String
         if costTrackingProviders.isEmpty {
-            costNote = t("No cost tracking source yet", "还没有费用追踪来源")
+            costNote = t("No Claude Code stats source yet", "还没有 Claude Code 统计来源")
         } else {
             costNote = t(
                 "\(costTrackingProviders.count) source tracked this week",
@@ -170,7 +170,7 @@ struct DashboardView: View {
                 color: .green
             ),
             DashboardSummaryCard(
-                title: t("Cost Tracking", "费用追踪"),
+                title: t("Claude Code Stats", "Claude Code 统计"),
                 value: formatCurrency(overview.localCostMonthUsd),
                 note: costNote,
                 icon: "chart.line.uptrend.xyaxis.circle.fill",
@@ -234,7 +234,7 @@ struct DashboardView: View {
 
     private func costTrackingGrid(_ providers: [ProviderData]) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(t("Cost Tracking", "费用追踪"))
+            Text(t("Claude Code Stats", "Claude Code 统计"))
                 .font(.title2)
                 .bold()
 

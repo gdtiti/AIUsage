@@ -83,7 +83,7 @@ struct ProviderPickerView: View {
 
                         if !costTrackingItems.isEmpty {
                             sectionView(
-                                title: t("Cost Tracking", "费用追踪"),
+                                title: t("Claude Code Stats", "Claude Code 统计"),
                                 subtitle: t("Local ledgers derived from usage logs", "基于本地日志推导的费用账本"),
                                 items: costTrackingItems
                             )

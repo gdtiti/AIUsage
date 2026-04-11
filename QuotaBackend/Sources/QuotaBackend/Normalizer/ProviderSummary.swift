@@ -64,7 +64,43 @@ public struct CostSummaryInfo: Codable, Sendable {
     public var today: CostPeriod?
     public var week: CostPeriod?
     public var month: CostPeriod?
+    public var overall: CostPeriod?
     public var timeline: CostTimelineInfo?
+    public var modelBreakdown: [ModelCostInfo]?
+    public var modelBreakdownToday: [ModelCostInfo]?
+    public var modelBreakdownWeek: [ModelCostInfo]?
+    public var modelBreakdownOverall: [ModelCostInfo]?
+    public var modelTimelines: [ModelTimelineSeries]?
+}
+
+public struct ModelCostInfo: Codable, Sendable {
+    public let model: String
+    public let totalTokens: Int
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let cacheReadTokens: Int
+    public let cacheCreateTokens: Int
+    public let estimatedCostUsd: Double
+    public let percentage: Double
+
+    public init(model: String, totalTokens: Int, inputTokens: Int = 0, outputTokens: Int = 0,
+                cacheReadTokens: Int = 0, cacheCreateTokens: Int = 0,
+                estimatedCostUsd: Double, percentage: Double) {
+        self.model = model; self.totalTokens = totalTokens
+        self.inputTokens = inputTokens; self.outputTokens = outputTokens
+        self.cacheReadTokens = cacheReadTokens; self.cacheCreateTokens = cacheCreateTokens
+        self.estimatedCostUsd = estimatedCostUsd; self.percentage = percentage
+    }
+}
+
+public struct ModelTimelineSeries: Codable, Sendable {
+    public let model: String
+    public let hourly: [CostTimelinePoint]
+    public let daily: [CostTimelinePoint]
+
+    public init(model: String, hourly: [CostTimelinePoint], daily: [CostTimelinePoint]) {
+        self.model = model; self.hourly = hourly; self.daily = daily
+    }
 }
 
 public struct CostPeriod: Codable, Sendable {

@@ -2384,6 +2384,7 @@ class AppState: ObservableObject {
                     today: cs.today.map { CostPeriod(usd: $0.usd, tokens: $0.tokens, rangeLabel: $0.rangeLabel) },
                     week:  cs.week.map  { CostPeriod(usd: $0.usd, tokens: $0.tokens, rangeLabel: $0.rangeLabel) },
                     month: cs.month.map { CostPeriod(usd: $0.usd, tokens: $0.tokens, rangeLabel: $0.rangeLabel) },
+                    overall: cs.overall.map { CostPeriod(usd: $0.usd, tokens: $0.tokens, rangeLabel: $0.rangeLabel) },
                     timeline: cs.timeline.map { timeline in
                         CostTimeline(
                             hourly: timeline.hourly.map {
@@ -2392,6 +2393,25 @@ class AppState: ObservableObject {
                             daily: timeline.daily.map {
                                 CostTimelinePoint(bucket: $0.bucket, label: $0.label, usd: $0.usd, tokens: $0.tokens)
                             }
+                        )
+                    },
+                    modelBreakdown: cs.modelBreakdown?.map {
+                        ModelCostBreakdown(model: $0.model, totalTokens: $0.totalTokens, inputTokens: $0.inputTokens, outputTokens: $0.outputTokens, cacheReadTokens: $0.cacheReadTokens, cacheCreateTokens: $0.cacheCreateTokens, estimatedCostUsd: $0.estimatedCostUsd, percentage: $0.percentage)
+                    },
+                    modelBreakdownToday: cs.modelBreakdownToday?.map {
+                        ModelCostBreakdown(model: $0.model, totalTokens: $0.totalTokens, inputTokens: $0.inputTokens, outputTokens: $0.outputTokens, cacheReadTokens: $0.cacheReadTokens, cacheCreateTokens: $0.cacheCreateTokens, estimatedCostUsd: $0.estimatedCostUsd, percentage: $0.percentage)
+                    },
+                    modelBreakdownWeek: cs.modelBreakdownWeek?.map {
+                        ModelCostBreakdown(model: $0.model, totalTokens: $0.totalTokens, inputTokens: $0.inputTokens, outputTokens: $0.outputTokens, cacheReadTokens: $0.cacheReadTokens, cacheCreateTokens: $0.cacheCreateTokens, estimatedCostUsd: $0.estimatedCostUsd, percentage: $0.percentage)
+                    },
+                    modelBreakdownOverall: cs.modelBreakdownOverall?.map {
+                        ModelCostBreakdown(model: $0.model, totalTokens: $0.totalTokens, inputTokens: $0.inputTokens, outputTokens: $0.outputTokens, cacheReadTokens: $0.cacheReadTokens, cacheCreateTokens: $0.cacheCreateTokens, estimatedCostUsd: $0.estimatedCostUsd, percentage: $0.percentage)
+                    },
+                    modelTimelines: cs.modelTimelines?.map {
+                        ModelTimelineSeries(
+                            model: $0.model,
+                            hourly: $0.hourly.map { CostTimelinePoint(bucket: $0.bucket, label: $0.label, usd: $0.usd, tokens: $0.tokens) },
+                            daily: $0.daily.map { CostTimelinePoint(bucket: $0.bucket, label: $0.label, usd: $0.usd, tokens: $0.tokens) }
                         )
                     }
                 )
@@ -2472,12 +2492,18 @@ class AppState: ObservableObject {
                     today: summary.today.map(localizedCostPeriod),
                     week: summary.week.map(localizedCostPeriod),
                     month: summary.month.map(localizedCostPeriod),
+                    overall: summary.overall.map(localizedCostPeriod),
                     timeline: summary.timeline.map { timeline in
                         CostTimeline(
                             hourly: timeline.hourly.map(localizedTimelinePoint),
                             daily: timeline.daily.map(localizedTimelinePoint)
                         )
-                    }
+                    },
+                    modelBreakdown: summary.modelBreakdown,
+                    modelBreakdownToday: summary.modelBreakdownToday,
+                    modelBreakdownWeek: summary.modelBreakdownWeek,
+                    modelBreakdownOverall: summary.modelBreakdownOverall,
+                    modelTimelines: summary.modelTimelines
                 )
             }
         )

@@ -1,33 +1,50 @@
 import SwiftUI
 import Charts
 
+// MARK: - Main View
+
 struct CostTrackingView: View {
     @EnvironmentObject var appState: AppState
-    @State private var searchText = ""
-    @State private var selectedGranularity: CostTimelineGranularity = .hourly
-    @State private var selectedMetric: CostTimelineMetric = .usd
-    @State private var selectedChartStyle: CostTimelineChartStyle = .hybrid
-    @State private var selectedProviderIDs: Set<String> = []
-    @State private var focusedProviderID: String?
+    @State private var selectedGranularity: CostGranularity = .hourly
+    @State private var selectedMetric: CostMetric = .usd
+    @State private var selectedModels: Set<String> = []
+    @State private var distributionMetric: CostMetric = .usd
+    @State private var distributionPeriod: DistributionPeriod = .month
     @State private var detailProvider: ProviderData?
 
     private func t(_ en: String, _ zh: String) -> String {
         appState.language == "zh" ? zh : en
     }
 
+    private var costProviders: [ProviderData] {
+        appState.providers.filter { $0.category == "local-cost" }
+    }
+
+    private var primaryProvider: ProviderData? {
+        costProviders.first
+    }
+
+    private var costSummary: CostSummary? {
+        primaryProvider?.costSummary
+    }
+
+    private var models: [ModelCostBreakdown] {
+        distributionModels
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
-            Divider()
-
-            if filteredProviders.isEmpty {
+            if costProviders.isEmpty {
                 emptyState
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
-                        overviewSection
-                        visualizationSection
-                        sourceLibrarySection
+                    VStack(spacing: 16) {
+                        summaryStrip
+                        chartSection
+                        HStack(alignment: .top, spacing: 16) {
+                            modelDistribution
+                            modelTable
+                        }
                     }
                     .padding(20)
                 }
@@ -37,1073 +54,632 @@ struct CostTrackingView: View {
         .sheet(item: $detailProvider) { provider in
             ProviderDetailView(provider: provider)
         }
-        .onAppear(perform: syncProviderSelection)
-        .onChange(of: filteredProviderKeys) {
-            syncProviderSelection()
+    }
+
+    // MARK: - Summary Strip
+
+    private var summaryStrip: some View {
+        HStack(spacing: 12) {
+            summaryCell(
+                icon: "chart.bar.fill",
+                title: t("Overall", "总计"),
+                value: formatCurrency(costSummary?.overall?.usd ?? 0),
+                tint: .red
+            )
+            summaryCell(
+                icon: "dollarsign.circle.fill",
+                title: t("This Month", "本月"),
+                value: formatCurrency(costSummary?.month?.usd ?? 0),
+                tint: .orange
+            )
+            summaryCell(
+                icon: "calendar",
+                title: t("This Week", "本周"),
+                value: formatCurrency(costSummary?.week?.usd ?? 0),
+                tint: .blue
+            )
+            summaryCell(
+                icon: "sun.max.fill",
+                title: t("Today", "今天"),
+                value: formatCurrency(costSummary?.today?.usd ?? 0),
+                tint: .green
+            )
+            summaryCell(
+                icon: "bolt.fill",
+                title: t("Total Tokens", "总 Tokens"),
+                value: formatCompactNumber(Double(costSummary?.overall?.tokens ?? 0)),
+                tint: .purple
+            )
+            summaryCell(
+                icon: "cpu",
+                title: t("Models", "模型数"),
+                value: "\(models.count)",
+                tint: .pink
+            )
         }
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 16) {
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
+    private func summaryCell(icon: String, title: String, value: String, tint: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(tint.opacity(0.12)))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.secondary)
-
-                TextField(t("Search cost trackers...", "搜索费用追踪..."), text: $searchText)
-                    .textFieldStyle(.plain)
-
-                if !searchText.isEmpty {
-                    Button(action: { searchText = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            )
-
-            Spacer()
-
-            Text(t("Visualize local spend as a shared timeline", "用共享时间线来查看本地费用"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(16)
-    }
-
-    private var costProviders: [ProviderData] {
-        appState.providers.filter { $0.category == "local-cost" }
-    }
-
-    private var filteredProviders: [ProviderData] {
-        costProviders.filter { provider in
-            searchText.isEmpty ||
-            provider.name.localizedCaseInsensitiveContains(searchText) ||
-            provider.label.localizedCaseInsensitiveContains(searchText) ||
-            provider.description.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-
-    private var filteredProviderKeys: [String] {
-        filteredProviders.map(\.id).sorted()
-    }
-
-    private var visibleSeries: [CostDisplaySeries] {
-        filteredProviders.compactMap { provider in
-            let points = timelinePoints(for: provider)
-            guard !points.isEmpty else { return nil }
-            return CostDisplaySeries(
-                provider: provider,
-                color: accentColor(for: provider),
-                points: points
-            )
-        }
-        .filter { selectedProviderIDs.contains($0.id) }
-    }
-
-    private var summary: CostTrackingSummary {
-        CostTrackingSummary(providers: filteredProviders)
-    }
-
-    private var selectedSummary: CostTrackingSummary {
-        CostTrackingSummary(providers: visibleSeries.map(\.provider))
-    }
-
-    private var overviewSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(t("Overview", "概览"))
-                .font(.title2.weight(.bold))
-
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(t("Cost Tracking", "费用追踪"))
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-
-                    Text(summary.monthCost)
-                        .font(.system(size: 38, weight: .bold, design: .rounded))
-
-                    Text(t("Month-to-date across visible local ledgers", "当前可见本地账本的本月累计"))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 126), spacing: 12)], spacing: 12) {
-                        overviewBadge(
-                            title: t("Selected", "已选"),
-                            value: "\(visibleSeries.count)",
-                            tint: .blue,
-                            icon: "checkmark.seal.fill"
-                        )
-                        overviewBadge(
-                            title: t("Sources", "来源"),
-                            value: "\(filteredProviders.count)",
-                            tint: .mint,
-                            icon: "square.stack.3d.up.fill"
-                        )
-                        overviewBadge(
-                            title: t("Month Tokens", "本月 Tokens"),
-                            value: formatCompactNumber(Double(summary.monthTokensValue)),
-                            tint: .orange,
-                            icon: "bolt.fill"
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
-                .background(heroBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
-                    CostOverviewMetricCard(
-                        title: t("Today", "今天"),
-                        value: summary.todayCost,
-                        note: summary.todayTokens,
-                        tint: .orange,
-                        icon: "sun.max.fill"
-                    )
-                    CostOverviewMetricCard(
-                        title: t("This Week", "本周"),
-                        value: summary.weekCost,
-                        note: summary.weekTokens,
-                        tint: .blue,
-                        icon: "calendar"
-                    )
-                    CostOverviewMetricCard(
-                        title: t("This Month", "本月"),
-                        value: summary.monthCost,
-                        note: summary.monthTokens,
-                        tint: .purple,
-                        icon: "banknote.fill"
-                    )
-                    CostOverviewMetricCard(
-                        title: t("Peak Source", "峰值来源"),
-                        value: summary.topSourceName(language: appState.language),
-                        note: summary.topSourceValue,
-                        tint: .pink,
-                        icon: "waveform.path.ecg"
-                    )
-                }
-                .frame(maxWidth: 440)
+                Text(value)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
-    }
-
-    private var visualizationSection: some View {
-        CostVisualizationPanel(
-            title: t("Consumption Timeline", "消耗时间线"),
-            subtitle: t(
-                "One shared chart for every spend source. Toggle or focus a source below to compare cleanly.",
-                "所有费用来源共用一张主图。你可以在下方开关或聚焦某个来源来清晰对比。"
-            ),
-            granularity: $selectedGranularity,
-            metric: $selectedMetric,
-            chartStyle: $selectedChartStyle,
-            focusedProviderID: focusedProviderID,
-            series: visibleSeries,
-            summary: selectedSummary,
-            language: appState.language
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
     }
 
-    private var sourceLibrarySection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(t("Tracked Sources", "跟踪来源"))
-                        .font(.title3.weight(.bold))
-                    Text(t("Compact cards control what the main chart shows.", "轻量卡片只负责控制主图显示。"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+    // MARK: - Chart Section
+
+    private var chartSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(t("Spend Trend", "消费趋势"))
+                    .font(.headline.weight(.bold))
 
                 Spacer()
 
-                Button {
-                    let visibleIDs = Set(filteredProviders.map(\.id))
-                    if selectedProviderIDs == visibleIDs {
-                        selectedProviderIDs = visibleIDs.first.map { [$0] } ?? []
-                    } else {
-                        selectedProviderIDs = visibleIDs
-                        focusedProviderID = nil
+                modelFilterMenu
+
+                Picker("", selection: $selectedMetric) {
+                    Text("USD").tag(CostMetric.usd)
+                    Text("Tokens").tag(CostMetric.tokens)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 140)
+
+                Picker("", selection: $selectedGranularity) {
+                    Text(t("Hourly", "小时")).tag(CostGranularity.hourly)
+                    Text(t("Daily", "每日")).tag(CostGranularity.daily)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 140)
+            }
+
+            spendChart
+                .frame(height: 220)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private var modelFilterMenu: some View {
+        Menu {
+            Button(action: { selectedModels = [] }) {
+                HStack {
+                    Text(t("All Models (Combined)", "全部模型（合计）"))
+                    if selectedModels.isEmpty {
+                        Image(systemName: "checkmark")
                     }
-                } label: {
-                    Text(
-                        selectedProviderIDs == Set(filteredProviders.map(\.id))
-                            ? t("Solo Mode", "单线模式")
-                            : t("Show All", "显示全部")
+                }
+            }
+            Divider()
+            ForEach(models) { model in
+                Button(action: { toggleModelSelection(model.model) }) {
+                    HStack {
+                        Text(shortModelName(model.model))
+                        if selectedModels.contains(model.model) {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+            if !selectedModels.isEmpty {
+                Divider()
+                Button(action: { selectedModels = [] }) {
+                    Text(t("Clear Selection", "清除选择"))
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                Text(modelFilterLabel)
+                    .lineLimit(1)
+            }
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(selectedModels.isEmpty ? Color.primary.opacity(0.07) : Color.accentColor.opacity(0.15)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var modelFilterLabel: String {
+        if selectedModels.isEmpty { return t("All Models", "全部模型") }
+        if selectedModels.count == 1 { return shortModelName(selectedModels.first!) }
+        return "\(selectedModels.count) " + t("models", "个模型")
+    }
+
+    private func toggleModelSelection(_ model: String) {
+        if selectedModels.contains(model) {
+            selectedModels.remove(model)
+        } else {
+            selectedModels.insert(model)
+        }
+    }
+
+    @ViewBuilder
+    private var spendChart: some View {
+        let series = chartModelSeries()
+        if selectedModels.isEmpty {
+            let points = aggregateChartPoints()
+            if points.isEmpty {
+                Text(t("No data", "暂无数据"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if series.count > 1 {
+                multiModelChart
+            } else {
+                singleSeriesChart(points: points)
+            }
+        } else if selectedModels.count == 1 {
+            let points = chartPointsForModel(selectedModels.first!)
+            if points.isEmpty {
+                Text(t("No data", "暂无数据"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                singleSeriesChart(points: points)
+            }
+        } else {
+            multiModelChartFiltered
+        }
+    }
+
+    private var multiModelChart: some View {
+        multiModelChartFor(chartModelSeries())
+    }
+
+    private var multiModelChartFiltered: some View {
+        multiModelChartFor(chartModelSeries().filter { selectedModels.contains($0.model) })
+    }
+
+    private func multiModelChartFor(_ allSeries: [(model: String, points: [CostTimelinePoint])]) -> some View {
+        Chart {
+            ForEach(allSeries, id: \.model) { series in
+                ForEach(series.points, id: \.bucket) { point in
+                    LineMark(
+                        x: .value("Time", point.label),
+                        y: .value("Value", selectedMetric == .usd ? point.usd : Double(point.tokens))
                     )
-                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(by: .value("Model", shortModelName(series.model)))
+                    .interpolationMethod(.catmullRom)
+                    .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round))
+                }
+            }
+        }
+        .chartLegend(position: .bottom, spacing: 8)
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: selectedGranularity == .hourly ? 6 : 7)) { _ in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
+                    .foregroundStyle(.secondary.opacity(0.15))
+                AxisValueLabel()
+                    .font(.caption2)
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
+                    .foregroundStyle(.secondary.opacity(0.15))
+                AxisValueLabel {
+                    if let v = value.as(Double.self) {
+                        Text(selectedMetric == .usd ? chartCurrencyLabel(v) : formatCompactNumber(v))
+                            .font(.caption2)
+                    }
+                }
+            }
+        }
+    }
+
+    private func singleSeriesChart(points: [CostTimelinePoint]) -> some View {
+        let tint: Color = selectedMetric == .usd ? .orange : .purple
+        return Chart {
+            ForEach(points, id: \.bucket) { point in
+                let val = selectedMetric == .usd ? point.usd : Double(point.tokens)
+                AreaMark(
+                    x: .value("Time", point.label),
+                    y: .value("Value", val)
+                )
+                .interpolationMethod(.catmullRom)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [tint.opacity(0.25), tint.opacity(0.02)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+
+                LineMark(
+                    x: .value("Time", point.label),
+                    y: .value("Value", val)
+                )
+                .interpolationMethod(.catmullRom)
+                .foregroundStyle(tint)
+                .lineStyle(StrokeStyle(lineWidth: 2.4, lineCap: .round))
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: selectedGranularity == .hourly ? 6 : 7)) { _ in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
+                    .foregroundStyle(.secondary.opacity(0.15))
+                AxisValueLabel()
+                    .font(.caption2)
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
+                    .foregroundStyle(.secondary.opacity(0.15))
+                AxisValueLabel {
+                    if let v = value.as(Double.self) {
+                        Text(selectedMetric == .usd ? chartCurrencyLabel(v) : formatCompactNumber(v))
+                            .font(.caption2)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Model Distribution
+
+    private var distributionModels: [ModelCostBreakdown] {
+        switch distributionPeriod {
+        case .today: return costSummary?.modelBreakdownToday ?? []
+        case .week: return costSummary?.modelBreakdownWeek ?? []
+        case .month: return costSummary?.modelBreakdown ?? []
+        case .overall: return costSummary?.modelBreakdownOverall ?? []
+        }
+    }
+
+    private var modelDistribution: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(t("Model Distribution", "模型分布"))
+                    .font(.headline.weight(.bold))
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                Picker("", selection: $distributionPeriod) {
+                    Text(t("Today", "今日")).tag(DistributionPeriod.today)
+                    Text(t("Week", "本周")).tag(DistributionPeriod.week)
+                    Text(t("Month", "本月")).tag(DistributionPeriod.month)
+                    Text(t("All", "全部")).tag(DistributionPeriod.overall)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 240)
+
+                Spacer()
+
+                Picker("", selection: $distributionMetric) {
+                    Text("USD").tag(CostMetric.usd)
+                    Text("Tokens").tag(CostMetric.tokens)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 120)
+            }
+
+            let distModels = distributionModels
+            if distModels.isEmpty {
+                Text(t("No data for this period", "该时段暂无数据"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 160)
+            } else {
+                donutChart
+                    .frame(height: 200)
+
+                VStack(spacing: 6) {
+                    ForEach(Array(distModels.prefix(6).enumerated()), id: \.element.id) { index, model in
+                        let color = modelColor(index)
+                        HStack(spacing: 8) {
+                            Circle().fill(color).frame(width: 8, height: 8)
+                            Text(shortModelName(model.model))
+                                .font(.caption.weight(.medium))
+                                .lineLimit(1)
+                            Spacer()
+                            if distributionMetric == .usd {
+                                Text(formatCurrency(model.estimatedCostUsd))
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(color)
+                                Text(String(format: "%.1f%%", model.percentage))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(formatCompactNumber(Double(model.totalTokens)))
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(color)
+                                let totalTokens = distModels.reduce(0) { $0 + $1.totalTokens }
+                                let pct = totalTokens > 0 ? Double(model.totalTokens) / Double(totalTokens) * 100 : 0
+                                Text(String(format: "%.1f%%", pct))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private var donutChart: some View {
+        let items = Array(distributionModels.prefix(6))
+        let totalTokens = distributionModels.reduce(0) { $0 + $1.totalTokens }
+        return Chart(Array(items.enumerated()), id: \.element.id) { index, model in
+            SectorMark(
+                angle: .value("Value", max(donutValue(model), 0.001)),
+                innerRadius: .ratio(0.6),
+                angularInset: 1.5
+            )
+            .foregroundStyle(modelColor(index))
+            .cornerRadius(4)
+            .annotation(position: .overlay) {
+                let pct = distributionMetric == .usd ? model.percentage :
+                    (totalTokens > 0 ? Double(model.totalTokens) / Double(totalTokens) * 100 : 0)
+                if pct >= 10 {
+                    Text(String(format: "%.0f%%", pct))
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+        .chartLegend(.hidden)
+    }
+
+    private func donutValue(_ model: ModelCostBreakdown) -> Double {
+        distributionMetric == .usd ? model.estimatedCostUsd : Double(model.totalTokens)
+    }
+
+    // MARK: - Model Table
+
+    @State private var expandedModel: String?
+
+    private var modelTable: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(t("Model Details", "模型详情"))
+                .font(.headline.weight(.bold))
+
+            if models.isEmpty {
+                Text(t("No model data", "暂无模型数据"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 200)
+            } else {
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        Text(t("Model", "模型")).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(t("Cost", "费用")).frame(width: 80, alignment: .trailing)
+                        Text("Tokens").frame(width: 80, alignment: .trailing)
+                        Text(t("Share", "占比")).frame(width: 60, alignment: .trailing)
+                        Text(t("Trend", "趋势")).frame(width: 70, alignment: .center)
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color.primary.opacity(0.08))
-                    )
-                }
-                .buttonStyle(.plain)
-            }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 16)], spacing: 16) {
-                ForEach(filteredProviders) { provider in
-                    CostSourceCard(
-                        provider: provider,
-                        color: accentColor(for: provider),
-                        isVisible: selectedProviderIDs.contains(provider.id),
-                        isFocused: focusedProviderID == provider.id,
-                        granularity: selectedGranularity,
-                        metric: selectedMetric,
-                        language: appState.language,
-                        onToggleVisibility: {
-                            toggleProviderVisibility(provider.id)
-                        },
-                        onFocus: {
-                            withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
-                                focusedProviderID = focusedProviderID == provider.id ? nil : provider.id
-                                if !selectedProviderIDs.contains(provider.id) {
-                                    selectedProviderIDs.insert(provider.id)
-                                }
-                            }
-                        },
-                        onOpenDetail: {
-                            detailProvider = provider
+                    Divider()
+
+                    ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
+                        modelRow(model, index: index)
+                        if expandedModel == model.model {
+                            modelDetailRow(model, index: index)
                         }
-                    )
+                        if index < models.count - 1 {
+                            Divider().padding(.horizontal, 12)
+                        }
+                    }
                 }
             }
         }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 18) {
-            Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.system(size: 58))
-                .foregroundStyle(.secondary)
-
-            Text(t("No local cost sources found", "未发现本地费用来源"))
-                .font(.title3.weight(.bold))
-
-            Text(
-                t(
-                    "When local ledgers such as Claude Code usage logs are available, they will land here as shared time-series spend sources.",
-                    "当 Claude Code 这类本地账本可用时，它们会在这里以共享时间序列来源的形式出现。"
-                )
-            )
-            .font(.body)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: 540)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-
-    private var heroBackground: some View {
-        RoundedRectangle(cornerRadius: 24)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.11, green: 0.16, blue: 0.24),
-                        Color(red: 0.13, green: 0.22, blue: 0.20),
-                        Color(red: 0.18, green: 0.14, blue: 0.22)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-    }
-
-    private func overviewBadge(title: String, value: String, tint: Color, icon: String) -> some View {
-        VStack(alignment: .center, spacing: 10) {
-            HStack(spacing: 7) {
-                Image(systemName: icon)
-                    .font(.caption.weight(.bold))
-                Text(title)
+    private func modelRow(_ model: ModelCostBreakdown, index: Int) -> some View {
+        let color = modelColor(index)
+        let sparkValues = modelSparklineValues(model.model)
+        let isExpanded = expandedModel == model.model
+        return HStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12)
+                Circle().fill(color).frame(width: 8, height: 8)
+                Text(shortModelName(model.model))
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
             }
-            .foregroundStyle(.white.opacity(0.76))
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(value)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-        }
-        .frame(maxWidth: .infinity, minHeight: 90)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 22)
-                .fill(tint.opacity(0.16))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22)
-                .stroke(tint.opacity(0.22), lineWidth: 1)
-        )
-    }
+            Text(formatCurrency(model.estimatedCostUsd))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .frame(width: 80, alignment: .trailing)
 
-    private func syncProviderSelection() {
-        let visibleIDs = Set(filteredProviders.map(\.id))
-        guard !visibleIDs.isEmpty else {
-            selectedProviderIDs = []
-            focusedProviderID = nil
-            return
-        }
-
-        selectedProviderIDs.formIntersection(visibleIDs)
-        if selectedProviderIDs.isEmpty {
-            selectedProviderIDs = visibleIDs
-        }
-
-        if let focusedProviderID, !visibleIDs.contains(focusedProviderID) {
-            self.focusedProviderID = nil
-        }
-    }
-
-    private func toggleProviderVisibility(_ providerID: String) {
-        withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
-            if selectedProviderIDs.contains(providerID) {
-                selectedProviderIDs.remove(providerID)
-                if focusedProviderID == providerID {
-                    focusedProviderID = nil
-                }
-            } else {
-                selectedProviderIDs.insert(providerID)
-            }
-        }
-    }
-
-    private func accentColor(for provider: ProviderData) -> Color {
-        switch provider.providerId {
-        case "claude":
-            return .orange
-        default:
-            let palette: [Color] = [.blue, .mint, .pink, .teal, .indigo, .green, .cyan]
-            let seed = provider.id.unicodeScalars.reduce(0) { partial, scalar in
-                (partial * 31 + Int(scalar.value)) % palette.count
-            }
-            return palette[seed]
-        }
-    }
-
-    private func timelinePoints(for provider: ProviderData) -> [CostTimelinePoint] {
-        guard let timeline = provider.costSummary?.timeline else { return [] }
-        switch selectedGranularity {
-        case .hourly:
-            return !timeline.hourly.isEmpty ? timeline.hourly : timeline.daily
-        case .daily:
-            return !timeline.daily.isEmpty ? timeline.daily : timeline.hourly
-        }
-    }
-}
-
-private enum CostTimelineGranularity: String, CaseIterable, Identifiable {
-    case hourly
-    case daily
-
-    var id: String { rawValue }
-}
-
-private enum CostTimelineMetric: String, CaseIterable, Identifiable {
-    case usd
-    case tokens
-
-    var id: String { rawValue }
-}
-
-private enum CostTimelineChartStyle: String, CaseIterable, Identifiable {
-    case line
-    case bars
-    case hybrid
-
-    var id: String { rawValue }
-}
-
-private struct CostDisplaySeries: Identifiable {
-    let provider: ProviderData
-    let color: Color
-    let points: [CostTimelinePoint]
-
-    var id: String { provider.id }
-}
-
-private struct CostVisualizationPanel: View {
-    let title: String
-    let subtitle: String
-    @Binding var granularity: CostTimelineGranularity
-    @Binding var metric: CostTimelineMetric
-    @Binding var chartStyle: CostTimelineChartStyle
-    let focusedProviderID: String?
-    let series: [CostDisplaySeries]
-    let summary: CostTrackingSummary
-    let language: String
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    private func t(_ en: String, _ zh: String) -> String {
-        language == "zh" ? zh : en
-    }
-
-    private var resolvedSeries: [CostDisplaySeries] {
-        if let focusedProviderID,
-           let focused = series.first(where: { $0.id == focusedProviderID }) {
-            return [focused] + series.filter { $0.id != focusedProviderID }
-        }
-        return series
-    }
-
-    private var hasMultipleVisibleSeries: Bool {
-        series.count > 1
-    }
-
-    private var selectedPoints: [CostChartPoint] {
-        resolvedSeries.flatMap { series in
-            series.points.map { point in
-                CostChartPoint(
-                    providerID: series.id,
-                    providerName: series.provider.label,
-                    label: point.label,
-                    bucket: point.bucket,
-                    usd: point.usd,
-                    tokens: Double(point.tokens),
-                    color: series.color
-                )
-            }
-        }
-    }
-
-    private var referencePoints: [CostTimelinePoint] {
-        resolvedSeries.max(by: { $0.points.count < $1.points.count })?.points ?? []
-    }
-
-    private var aggregatePoints: [AggregatedCostChartPoint] {
-        guard !resolvedSeries.isEmpty else { return [] }
-
-        var order: [String] = []
-        var labels: [String: String] = [:]
-        var totals: [String: (usd: Double, tokens: Double)] = [:]
-
-        for series in resolvedSeries {
-            for point in series.points {
-                if labels[point.bucket] == nil {
-                    order.append(point.bucket)
-                    labels[point.bucket] = point.label
-                }
-                let current = totals[point.bucket] ?? (0, 0)
-                totals[point.bucket] = (current.usd + point.usd, current.tokens + Double(point.tokens))
-            }
-        }
-
-        return order.map { bucket in
-            let total = totals[bucket] ?? (0, 0)
-            return AggregatedCostChartPoint(
-                bucket: bucket,
-                label: labels[bucket] ?? bucket,
-                usd: total.usd,
-                tokens: total.tokens
-            )
-        }
-    }
-
-    private var emphasisProviderID: String? {
-        focusedProviderID ?? (series.count == 1 ? series.first?.id : nil)
-    }
-
-    private var xAxisLabels: [String] {
-        let points = !referencePoints.isEmpty ? referencePoints : resolvedSeries.flatMap(\.points)
-        guard !points.isEmpty else { return [] }
-        let desiredCount = granularity == .hourly ? 6 : 7
-        let step = max(Int(ceil(Double(points.count) / Double(desiredCount))), 1)
-
-        return points.enumerated().compactMap { index, point in
-            let isFirst = index == 0
-            let isLast = index == points.count - 1
-            return isFirst || isLast || index.isMultiple(of: step) ? point.label : nil
-        }
-    }
-
-    private var aggregateTint: Color {
-        switch metric {
-        case .usd:
-            return .orange
-        case .tokens:
-            return .mint
-        }
-    }
-
-    private var latestAggregatePoint: AggregatedCostChartPoint? {
-        aggregatePoints.last
-    }
-
-    private var aggregatePeakPoint: AggregatedCostChartPoint? {
-        aggregatePoints.max { lhs, rhs in
-            activeValue(lhs) < activeValue(rhs)
-        }
-    }
-
-    private var averageAggregateValue: Double {
-        guard !aggregatePoints.isEmpty else { return 0 }
-        return aggregatePoints.map(activeValue).reduce(0, +) / Double(aggregatePoints.count)
-    }
-
-    private var yUpperBound: Double {
-        let peak = max(
-            selectedPoints.map(activeValue).max() ?? 0,
-            aggregatePoints.map(activeValue).max() ?? 0
-        )
-        return peak <= 0 ? 1 : peak * 1.18
-    }
-
-    private var latestBucketValueText: String {
-        aggregateValueLabel(for: latestAggregatePoint)
-    }
-
-    private var averageBucketValueText: String {
-        guard averageAggregateValue > 0 else { return "—" }
-        return formatChartValue(averageAggregateValue)
-    }
-
-    private var peakBucketValueText: String {
-        aggregateValueLabel(for: aggregatePeakPoint)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(title)
-                        .font(.title3.weight(.bold))
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 16)
-
-                VStack(alignment: .trailing, spacing: 8) {
-                    segmentedControl(
-                        title: t("Window", "窗口"),
-                        cases: CostTimelineGranularity.allCases,
-                        selection: $granularity
-                    ) { item in
-                        switch item {
-                        case .hourly:
-                            return t("Hourly", "小时")
-                        case .daily:
-                            return t("Daily", "每日")
-                        }
-                    }
-
-                    segmentedControl(
-                        title: t("Metric", "指标"),
-                        cases: CostTimelineMetric.allCases,
-                        selection: $metric
-                    ) { item in
-                        switch item {
-                        case .usd:
-                            return "USD"
-                        case .tokens:
-                            return t("Tokens", "Tokens")
-                        }
-                    }
-
-                    segmentedControl(
-                        title: t("View", "视图"),
-                        cases: CostTimelineChartStyle.allCases,
-                        selection: $chartStyle
-                    ) { item in
-                        switch item {
-                        case .line:
-                            return t("Line", "曲线")
-                        case .bars:
-                            return t("Bars", "柱状")
-                        case .hybrid:
-                            return t("Hybrid", "混合")
-                        }
-                    }
-                }
-            }
-
-            HStack(spacing: 12) {
-                chartMetricPill(
-                    title: t("Latest Bucket", "当前区间"),
-                    value: latestBucketValueText,
-                    note: latestAggregatePoint?.label ?? "—",
-                    tint: aggregateTint
-                )
-                chartMetricPill(
-                    title: t("Average", "区间均值"),
-                    value: averageBucketValueText,
-                    note: granularity == .hourly ? t("Hourly view", "按小时视图") : t("Daily view", "按每日视图"),
-                    tint: .blue
-                )
-                chartMetricPill(
-                    title: t("Peak Bucket", "峰值区间"),
-                    value: peakBucketValueText,
-                    note: aggregatePeakPoint?.label ?? "—",
-                    tint: .pink
-                )
-                chartMetricPill(
-                    title: t("Focused", "聚焦"),
-                    value: focusedName,
-                    note: t("\(series.count) sources visible", "当前显示 \(series.count) 个来源"),
-                    tint: .mint
-                )
-            }
-
-            if selectedPoints.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .font(.system(size: 34))
-                        .foregroundStyle(.secondary)
-                    Text(t("No source selected", "当前没有选中来源"))
-                        .font(.headline)
-                    Text(t("Use the source cards below to bring one or more lines into the chart.", "在下方来源卡中打开一个或多个来源，即可回到主图。"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 34)
-            } else {
-                Chart {
-                    if hasMultipleVisibleSeries {
-                        aggregateMarks
-                    }
-
-                    ForEach(resolvedSeries) { series in
-                        chartMarks(for: series)
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks(values: xAxisLabels) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
-                            .foregroundStyle(.secondary.opacity(0.18))
-                        AxisValueLabel {
-                            if let label = value.as(String.self) {
-                                Text(label)
-                                    .font(.caption2)
-                            }
-                        }
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
-                            .foregroundStyle(.secondary.opacity(0.18))
-                        AxisValueLabel {
-                            if let amount = value.as(Double.self) {
-                                Text(metric == .usd ? chartCurrencyLabel(amount) : formatCompactNumber(amount))
-                                    .font(.caption2)
-                            }
-                        }
-                    }
-                }
-                .chartYScale(domain: 0...yUpperBound)
-                .chartPlotStyle { plotContent in
-                    plotContent
-                        .background(
-                            RoundedRectangle(cornerRadius: 22)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            aggregateTint.opacity(colorScheme == .dark ? 0.08 : 0.04),
-                                            Color.primary.opacity(colorScheme == .dark ? 0.03 : 0.015),
-                                            Color.clear
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                        )
-                }
-                .frame(height: 360)
-
-                if !series.isEmpty {
-                    flowLegend
-                }
-            }
-        }
-        .padding(22)
-        .background(panelBackground)
-        .overlay(
-            RoundedRectangle(cornerRadius: 28)
-                .stroke(Color.white.opacity(colorScheme == .dark ? 0.07 : 0.32), lineWidth: 1)
-        )
-    }
-
-    @ChartContentBuilder
-    private func chartMarks(for series: CostDisplaySeries) -> some ChartContent {
-        let emphasized = emphasisProviderID == nil || emphasisProviderID == series.id
-        let shouldShowBars = chartStyle == .bars || (
-            chartStyle == .hybrid &&
-            !hasMultipleVisibleSeries &&
-            (emphasisProviderID == series.id || (emphasisProviderID == nil && self.series.count == 1))
-        )
-        let shouldShowLine = chartStyle != .bars
-        let shouldFillArea = chartStyle != .bars && (
-            emphasisProviderID == series.id || (emphasisProviderID == nil && self.series.count == 1)
-        )
-        let seriesOpacity = emphasized ? 0.96 : 0.24
-
-        if shouldShowBars {
-            ForEach(series.points) { point in
-                BarMark(
-                    x: .value("Bucket", point.label),
-                    y: .value(metricAxisTitle, pointValue(point)),
-                    width: .fixed(chartStyle == .bars ? 12 : 16)
-                )
-                .position(by: .value("Source", series.provider.label))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            series.color.opacity(chartStyle == .bars ? (emphasized ? 0.88 : 0.42) : 0.28),
-                            series.color.opacity(chartStyle == .bars ? (emphasized ? 0.56 : 0.20) : 0.10)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .cornerRadius(7)
-                .opacity(chartStyle == .bars ? 1 : seriesOpacity)
-            }
-        }
-
-        if shouldFillArea {
-            ForEach(series.points) { point in
-                AreaMark(
-                    x: .value("Bucket", point.label),
-                    y: .value(metricAxisTitle, pointValue(point))
-                )
-                .interpolationMethod(.catmullRom)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            series.color.opacity(colorScheme == .dark ? 0.28 : 0.22),
-                            series.color.opacity(0.02)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .opacity(seriesOpacity)
-            }
-        }
-
-        if shouldShowLine {
-            ForEach(series.points) { point in
-                LineMark(
-                    x: .value("Bucket", point.label),
-                    y: .value(metricAxisTitle, pointValue(point))
-                )
-                .interpolationMethod(.catmullRom)
-                .foregroundStyle(series.color)
-                .lineStyle(StrokeStyle(lineWidth: emphasized ? 2.8 : 2.0, lineCap: .round, lineJoin: .round))
-                .opacity(seriesOpacity)
-            }
-
-            if emphasized {
-                ForEach(series.points.suffix(1)) { point in
-                    PointMark(
-                        x: .value("Bucket", point.label),
-                        y: .value(metricAxisTitle, pointValue(point))
-                    )
-                    .foregroundStyle(series.color)
-                    .symbolSize(45)
-                }
-            }
-        }
-    }
-
-    @ChartContentBuilder
-    private var aggregateMarks: some ChartContent {
-        let shouldShowBars = chartStyle != .line
-        let shouldShowLine = chartStyle != .bars
-
-        if shouldShowBars {
-            ForEach(aggregatePoints) { point in
-                BarMark(
-                    x: .value("Bucket", point.label),
-                    y: .value(metricAxisTitle, activeValue(point)),
-                    width: .fixed(chartStyle == .bars ? 18 : 24)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            aggregateTint.opacity(chartStyle == .bars ? 0.72 : 0.34),
-                            aggregateTint.opacity(chartStyle == .bars ? 0.32 : 0.10)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .cornerRadius(8)
-            }
-        }
-
-        if shouldShowLine {
-            ForEach(aggregatePoints) { point in
-                AreaMark(
-                    x: .value("Bucket", point.label),
-                    y: .value(metricAxisTitle, activeValue(point))
-                )
-                .interpolationMethod(.catmullRom)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            aggregateTint.opacity(colorScheme == .dark ? 0.18 : 0.12),
-                            aggregateTint.opacity(0.01)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-            }
-
-            ForEach(aggregatePoints) { point in
-                LineMark(
-                    x: .value("Bucket", point.label),
-                    y: .value(metricAxisTitle, activeValue(point))
-                )
-                .interpolationMethod(.catmullRom)
-                .foregroundStyle(aggregateTint.opacity(0.55))
-                .lineStyle(StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
-            }
-
-            if averageAggregateValue > 0 {
-                RuleMark(y: .value(metricAxisTitle, averageAggregateValue))
-                    .foregroundStyle(aggregateTint.opacity(0.28))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 5]))
-                    .annotation(position: .topTrailing, alignment: .trailing) {
-                        Text(t("Avg", "均值"))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(aggregateTint)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(Color(nsColor: .controlBackgroundColor))
-                            )
-                    }
-            }
-
-            if let peak = aggregatePeakPoint {
-                PointMark(
-                    x: .value("Bucket", peak.label),
-                    y: .value(metricAxisTitle, activeValue(peak))
-                )
-                .foregroundStyle(aggregateTint)
-                .symbolSize(64)
-                .annotation(position: .top, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(t("Peak", "峰值"))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(aggregateValueLabel(for: peak))
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.primary)
-                        Text(peak.label)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(aggregateTint.opacity(0.16), lineWidth: 1)
-                    )
-                }
-            }
-        }
-    }
-
-    private var flowLegend: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(series) { series in
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(series.color)
-                            .frame(width: 8, height: 8)
-                        Text(series.provider.label)
-                            .font(.caption.weight(.semibold))
-                        if let latest = series.points.last {
-                            Text(legendValue(for: latest))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(series.color.opacity(0.10))
-                    )
-                }
-            }
-        }
-    }
-
-    private var focusedName: String {
-        if let focusedProviderID,
-           let series = series.first(where: { $0.id == focusedProviderID }) {
-            return series.provider.label
-        }
-        return t("All", "全部")
-    }
-
-    private var metricAxisTitle: String {
-        switch metric {
-        case .usd:
-            return "USD"
-        case .tokens:
-            return "Tokens"
-        }
-    }
-
-    private var panelBackground: some View {
-        RoundedRectangle(cornerRadius: 28)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color(nsColor: .controlBackgroundColor),
-                        Color(nsColor: .controlBackgroundColor).opacity(0.92),
-                        Color.black.opacity(colorScheme == .dark ? 0.10 : 0.02)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-    }
-
-    private func segmentedControl<T: Hashable & Identifiable>(
-        title: String,
-        cases: [T],
-        selection: Binding<T>,
-        label: @escaping (T) -> String
-    ) -> some View {
-        HStack(spacing: 8) {
-            Text(title)
-                .font(.caption2.weight(.semibold))
+            Text(formatCompactNumber(Double(model.totalTokens)))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
+                .frame(width: 80, alignment: .trailing)
 
-            HStack(spacing: 4) {
-                ForEach(cases) { item in
-                    let isSelected = selection.wrappedValue.id == item.id
-                    Button {
-                        selection.wrappedValue = item
-                    } label: {
-                        Text(label(item))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(isSelected ? .white : .primary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.07))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
+            Text(String(format: "%.1f%%", model.percentage))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(color)
+                .frame(width: 60, alignment: .trailing)
+
+            MiniSparkline(values: sparkValues, color: color)
+                .frame(width: 56, height: 20)
+                .padding(.leading, 8)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                expandedModel = expandedModel == model.model ? nil : model.model
             }
         }
-    }
-
-    private func chartMetricPill(title: String, value: String, note: String? = nil, tint: Color) -> some View {
-        VStack(alignment: .center, spacing: 8) {
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(tint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            if let note {
-                Text(note)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: 82)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .simultaneousGesture(TapGesture(count: 2).onEnded {
+            toggleModelSelection(model.model)
+        })
         .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(tint.opacity(0.10))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(tint.opacity(0.14), lineWidth: 1)
+            selectedModels.contains(model.model)
+                ? RoundedRectangle(cornerRadius: 8).fill(color.opacity(0.08))
+                : nil
         )
     }
 
-    private func activeValue(_ point: CostChartPoint) -> Double {
-        switch metric {
-        case .usd:
-            return point.usd
-        case .tokens:
-            return point.tokens
+    private func modelDetailRow(_ model: ModelCostBreakdown, index: Int) -> some View {
+        let color = modelColor(index)
+        return HStack(spacing: 16) {
+            Spacer().frame(width: 28)
+            tokenBreakdownPill(label: t("Input", "输入"), tokens: model.inputTokens, color: .blue)
+            tokenBreakdownPill(label: t("Output", "输出"), tokens: model.outputTokens, color: .green)
+            tokenBreakdownPill(label: t("Cache Read", "缓存读取"), tokens: model.cacheReadTokens, color: .orange)
+            tokenBreakdownPill(label: t("Cache Write", "缓存写入"), tokens: model.cacheCreateTokens, color: .purple)
+            Spacer()
+            Button {
+                toggleModelSelection(model.model)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: selectedModels.contains(model.model) ? "checkmark.circle.fill" : "circle")
+                    Text(t("Compare", "对比"))
+                }
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(selectedModels.contains(model.model) ? color : .secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.04))
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private func tokenBreakdownPill(label: String, tokens: Int, color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(formatCompactNumber(Double(tokens)))
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(color)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: 6).fill(color.opacity(0.08)))
+    }
+
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text(t("No cost data found", "未发现费用数据"))
+                .font(.title3.weight(.bold))
+            Text(t("Claude Code usage logs will appear here.", "Claude Code 使用日志将在这里显示。"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Data Helpers
+
+    private func aggregateChartPoints() -> [CostTimelinePoint] {
+        guard let timeline = costSummary?.timeline else { return [] }
+        return selectedGranularity == .hourly
+            ? (!timeline.hourly.isEmpty ? timeline.hourly : timeline.daily)
+            : (!timeline.daily.isEmpty ? timeline.daily : timeline.hourly)
+    }
+
+    private func chartPointsForModel(_ model: String) -> [CostTimelinePoint] {
+        let modelSeries = costSummary?.modelTimelines?.first { $0.model == model }
+        return timelineFromSeries(modelSeries)
+    }
+
+    private func chartModelSeries() -> [(model: String, points: [CostTimelinePoint])] {
+        guard let modelTimelines = costSummary?.modelTimelines else { return [] }
+        return modelTimelines.compactMap { series in
+            let points = timelineFromSeries(series)
+            guard !points.isEmpty else { return nil }
+            return (model: series.model, points: points)
         }
     }
 
-    private func activeValue(_ point: AggregatedCostChartPoint) -> Double {
-        switch metric {
-        case .usd:
-            return point.usd
-        case .tokens:
-            return point.tokens
-        }
+    private func timelineFromSeries(_ series: ModelTimelineSeries?) -> [CostTimelinePoint] {
+        guard let series else { return [] }
+        return selectedGranularity == .hourly
+            ? (!series.hourly.isEmpty ? series.hourly : series.daily)
+            : (!series.daily.isEmpty ? series.daily : series.hourly)
     }
 
-    private func pointValue(_ point: CostTimelinePoint) -> Double {
-        switch metric {
-        case .usd:
-            return point.usd
-        case .tokens:
-            return Double(point.tokens)
-        }
+    private func modelSparklineValues(_ model: String) -> [Double] {
+        guard let series = costSummary?.modelTimelines?.first(where: { $0.model == model }) else { return [] }
+        let points = selectedGranularity == .hourly
+            ? (!series.hourly.isEmpty ? series.hourly : series.daily)
+            : (!series.daily.isEmpty ? series.daily : series.hourly)
+        return points.map { selectedMetric == .usd ? $0.usd : Double($0.tokens) }
     }
 
-    private func peakLabel(_ point: CostChartPoint) -> String {
-        "\(point.providerName) · \(point.label)"
+    private func modelColor(_ index: Int) -> Color {
+        let palette: [Color] = [.orange, .blue, .purple, .green, .pink, .cyan, .mint, .indigo, .teal, .red]
+        return palette[index % palette.count]
     }
 
-    private func aggregateValueLabel(for point: AggregatedCostChartPoint?) -> String {
-        guard let point else { return "—" }
-        return formatChartValue(activeValue(point))
-    }
-
-    private func formatChartValue(_ value: Double) -> String {
-        switch metric {
-        case .usd:
-            return chartCurrencyLabel(value)
-        case .tokens:
-            return formatCompactNumber(value)
-        }
-    }
-
-    private func legendValue(for point: CostTimelinePoint) -> String {
-        switch metric {
-        case .usd:
-            return formatCurrency(point.usd)
-        case .tokens:
-            return formatCompactNumber(Double(point.tokens))
-        }
+    private func shortModelName(_ model: String) -> String {
+        model
+            .replacingOccurrences(of: "claude-", with: "")
+            .replacingOccurrences(of: "-20250514", with: "")
     }
 
     private func chartCurrencyLabel(_ value: Double) -> String {
@@ -1114,312 +690,56 @@ private struct CostVisualizationPanel: View {
     }
 }
 
-private struct CostChartPoint: Identifiable {
-    let providerID: String
-    let providerName: String
-    let label: String
-    let bucket: String
-    let usd: Double
-    let tokens: Double
-    let color: Color
+// MARK: - Mini Sparkline
 
-    var id: String { "\(providerID):\(bucket)" }
-}
-
-private struct AggregatedCostChartPoint: Identifiable {
-    let bucket: String
-    let label: String
-    let usd: Double
-    let tokens: Double
-
-    var id: String { bucket }
-}
-
-private struct CostSourceCard: View {
-    let provider: ProviderData
-    let color: Color
-    let isVisible: Bool
-    let isFocused: Bool
-    let granularity: CostTimelineGranularity
-    let metric: CostTimelineMetric
-    let language: String
-    let onToggleVisibility: () -> Void
-    let onFocus: () -> Void
-    let onOpenDetail: () -> Void
-
-    @EnvironmentObject var appState: AppState
-    @Environment(\.colorScheme) private var colorScheme
-
-    private func t(_ en: String, _ zh: String) -> String {
-        language == "zh" ? zh : en
-    }
-
-    private var summary: CostSummary? {
-        provider.costSummary
-    }
-
-    private var sparklineValues: [Double] {
-        let timeline = provider.costSummary?.timeline
-        let points: [CostTimelinePoint]
-        switch granularity {
-        case .hourly:
-            points = timeline?.hourly.isEmpty == false ? (timeline?.hourly ?? []) : (timeline?.daily ?? [])
-        case .daily:
-            points = timeline?.daily.isEmpty == false ? (timeline?.daily ?? []) : (timeline?.hourly ?? [])
-        }
-        return points.map {
-            switch metric {
-            case .usd:
-                return $0.usd
-            case .tokens:
-                return Double($0.tokens)
-            }
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(color.opacity(colorScheme == .dark ? 0.18 : 0.11))
-                        .frame(width: 48, height: 48)
-
-                    ProviderIconView(provider.providerId, size: 24)
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(provider.label)
-                        .font(.headline.weight(.bold))
-                        .lineLimit(1)
-
-                    Text(provider.sourceLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    Button(action: onOpenDetail) {
-                        Image(systemName: "arrow.up.forward.square")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-
-                    Button(action: onToggleVisibility) {
-                        Image(systemName: isVisible ? "eye.fill" : "eye.slash")
-                            .foregroundStyle(isVisible ? color : .secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(summary?.month.map { formatCurrency($0.usd) } ?? "—")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(isVisible ? .primary : .secondary)
-
-                Text(t("Month-to-date", "本月累计"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            CostSparkline(values: sparklineValues, color: color, isMuted: !isVisible)
-                .frame(height: 42)
-
-            HStack(spacing: 10) {
-                sourceMetric(
-                    title: t("Today", "今天"),
-                    value: summary?.today.map { formatCurrency($0.usd) } ?? "—"
-                )
-                sourceMetric(
-                    title: t("Week", "本周"),
-                    value: summary?.week.map { formatCurrency($0.usd) } ?? "—"
-                )
-                sourceMetric(
-                    title: t("Tokens", "Tokens"),
-                    value: summary?.month?.tokens.map { formatCompactNumber(Double($0)) } ?? "—"
-                )
-            }
-
-            HStack(alignment: .center) {
-                Text(isVisible ? t("Visible in chart", "已显示在主图") : t("Hidden from chart", "已隐藏"))
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(isVisible ? color : .secondary)
-
-                Spacer()
-
-                if let refreshTimestamp = appState.accountRefreshDate(for: provider) {
-                    Text(formatRefreshTimestamp(refreshTimestamp, language: language))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(16)
-        .background(cardBackground)
-        .overlay(
-            RoundedRectangle(cornerRadius: 22)
-                .stroke(borderColor, lineWidth: isFocused ? 1.4 : 1)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 22))
-        .onTapGesture(perform: onFocus)
-        .animation(.easeInOut(duration: 0.18), value: isVisible)
-        .animation(.easeInOut(duration: 0.18), value: isFocused)
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 22)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color(nsColor: .controlBackgroundColor),
-                        color.opacity(isVisible ? (colorScheme == .dark ? 0.12 : 0.07) : 0.03)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-    }
-
-    private var borderColor: Color {
-        if isFocused {
-            return color.opacity(0.72)
-        }
-        if isVisible {
-            return color.opacity(colorScheme == .dark ? 0.26 : 0.16)
-        }
-        return Color.primary.opacity(0.08)
-    }
-
-    private func sourceMetric(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.caption.weight(.bold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(color.opacity(colorScheme == .dark ? 0.12 : 0.08))
-        )
-    }
-}
-
-private struct CostSparkline: View {
+private struct MiniSparkline: View {
     let values: [Double]
     let color: Color
-    let isMuted: Bool
 
     var body: some View {
         GeometryReader { geometry in
-            let points = sparklinePoints(in: geometry.size)
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(color.opacity(0.07))
-
-                if points.count > 1 {
-                    Path { path in
-                        path.move(to: points[0])
-                        for point in points.dropFirst() {
-                            path.addLine(to: point)
-                        }
-                    }
-                    .stroke(
-                        color.opacity(isMuted ? 0.35 : 0.92),
-                        style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
-                    )
-                } else if let point = points.first {
-                    Circle()
-                        .fill(color.opacity(isMuted ? 0.35 : 0.92))
-                        .frame(width: 8, height: 8)
-                        .position(point)
-                } else {
-                    Capsule()
-                        .fill(Color.secondary.opacity(0.22))
-                        .frame(width: geometry.size.width - 20, height: 2)
-                        .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+            let pts = sparkPoints(in: geometry.size)
+            if pts.count > 1 {
+                Path { path in
+                    path.move(to: pts[0])
+                    for p in pts.dropFirst() { path.addLine(to: p) }
                 }
+                .stroke(color.opacity(0.8), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
             }
         }
     }
 
-    private func sparklinePoints(in size: CGSize) -> [CGPoint] {
-        guard !values.isEmpty else { return [] }
-        guard values.count > 1 else {
-            return [CGPoint(x: size.width / 2, y: size.height / 2)]
-        }
-
-        let minValue = values.min() ?? 0
-        let maxValue = values.max() ?? 0
-        let range = max(maxValue - minValue, 0.0001)
-        let width = max(size.width - 16, 1)
-        let height = max(size.height - 16, 1)
-
-        return values.enumerated().map { index, value in
-            let x = 8 + width * CGFloat(index) / CGFloat(max(values.count - 1, 1))
-            let normalizedY = (value - minValue) / range
-            let y = 8 + height * CGFloat(1 - normalizedY)
+    private func sparkPoints(in size: CGSize) -> [CGPoint] {
+        guard values.count > 1 else { return [] }
+        let minV = values.min() ?? 0
+        let maxV = values.max() ?? 0
+        let range = max(maxV - minV, 0.0001)
+        return values.enumerated().map { i, v in
+            let x = size.width * CGFloat(i) / CGFloat(values.count - 1)
+            let y = size.height * CGFloat(1 - (v - minV) / range)
             return CGPoint(x: x, y: y)
         }
     }
 }
 
-private struct CostOverviewMetricCard: View {
-    let title: String
-    let value: String
-    let note: String
-    let tint: Color
-    let icon: String
+// MARK: - Enums
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(tint)
-
-                Spacer()
-
-                Text(value)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(tint)
-                    .multilineTextAlignment(.trailing)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.78)
-            }
-
-            Spacer(minLength: 12)
-
-            Text(title)
-                .font(.subheadline.weight(.bold))
-
-            Text(note)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-        }
-        .frame(maxWidth: .infinity, minHeight: 116, alignment: .leading)
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(tint.opacity(0.09))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(tint.opacity(0.16), lineWidth: 1)
-        )
-    }
+private enum CostGranularity: String, CaseIterable, Identifiable {
+    case hourly, daily
+    var id: String { rawValue }
 }
+
+private enum CostMetric: String, CaseIterable, Identifiable {
+    case usd, tokens
+    var id: String { rawValue }
+}
+
+private enum DistributionPeriod: String, CaseIterable, Identifiable {
+    case today, week, month, overall
+    var id: String { rawValue }
+}
+
+// MARK: - Dashboard Card (used by DashboardView)
 
 struct CostTrackingCard: View {
     let provider: ProviderData
@@ -1430,10 +750,8 @@ struct CostTrackingCard: View {
 
     private var color: Color {
         switch provider.providerId {
-        case "claude":
-            return .orange
-        default:
-            return .blue
+        case "claude": return .orange
+        default: return .blue
         }
     }
 
@@ -1444,7 +762,6 @@ struct CostTrackingCard: View {
                     RoundedRectangle(cornerRadius: 14)
                         .fill(color.opacity(colorScheme == .dark ? 0.18 : 0.10))
                         .frame(width: 50, height: 50)
-
                     ProviderIconView(provider.providerId, size: 26)
                 }
 
@@ -1513,49 +830,11 @@ struct CostTrackingCard: View {
     }
 }
 
-private struct CostTrackingSummary {
-    let todayUsd: Double
-    let weekUsd: Double
-    let monthUsd: Double
-    let todayTokensValue: Int
-    let weekTokensValue: Int
-    let monthTokensValue: Int
-    let sourceCount: Int
-    let topSource: ProviderData?
-
-    init(providers: [ProviderData]) {
-        todayUsd = providers.reduce(0) { $0 + ($1.costSummary?.today?.usd ?? 0) }
-        weekUsd = providers.reduce(0) { $0 + ($1.costSummary?.week?.usd ?? 0) }
-        monthUsd = providers.reduce(0) { $0 + ($1.costSummary?.month?.usd ?? 0) }
-        todayTokensValue = providers.reduce(0) { $0 + ($1.costSummary?.today?.tokens ?? 0) }
-        weekTokensValue = providers.reduce(0) { $0 + ($1.costSummary?.week?.tokens ?? 0) }
-        monthTokensValue = providers.reduce(0) { $0 + ($1.costSummary?.month?.tokens ?? 0) }
-        sourceCount = providers.count
-        topSource = providers.max {
-            ($0.costSummary?.month?.usd ?? 0) < ($1.costSummary?.month?.usd ?? 0)
-        }
-    }
-
-    var todayCost: String { formatCurrency(todayUsd) }
-    var weekCost: String { formatCurrency(weekUsd) }
-    var monthCost: String { formatCurrency(monthUsd) }
-    var todayTokens: String { "\(formatNumber(todayTokensValue)) tokens" }
-    var weekTokens: String { "\(formatNumber(weekTokensValue)) tokens" }
-    var monthTokens: String { "\(formatNumber(monthTokensValue)) tokens" }
-    var topSourceValue: String {
-        guard let topSource else { return "—" }
-        return formatCurrency(topSource.costSummary?.month?.usd ?? 0)
-    }
-
-    func topSourceName(language: String) -> String {
-        topSource?.label ?? (language == "zh" ? "暂无" : "None")
-    }
-}
+// MARK: - Format Helpers
 
 private func formatCompactNumber(_ value: Double) -> String {
     let formatter = NumberFormatter()
     formatter.numberStyle = .decimal
-
     switch abs(value) {
     case 1_000_000...:
         formatter.maximumFractionDigits = 1

@@ -231,21 +231,37 @@ public enum UsageNormalizer {
         let monthUsd   = extraDouble(usage, "currentMonth.estimatedCostUsd") ?? 0
         let weekUsd    = extraDouble(usage, "currentWeek.estimatedCostUsd") ?? 0
         let todayUsd   = extraDouble(usage, "today.estimatedCostUsd") ?? 0
+        let overallUsd = extraDouble(usage, "overall.estimatedCostUsd") ?? 0
         let monthTokens = extraInt(usage, "currentMonth.totalTokens") ?? 0
         let weekTokens  = extraInt(usage, "currentWeek.totalTokens") ?? 0
         let todayTokens = extraInt(usage, "today.totalTokens") ?? 0
+        let overallTokens = extraInt(usage, "overall.totalTokens") ?? 0
         let usageRows   = extraInt(usage, "overall.usageRows") ?? 0
         let dupRows     = extraInt(usage, "overall.duplicateRowsRemoved") ?? 0
         let unpricedModels = extraStringArray(usage, "overall.unpricedModels")
 
-        let topModels: [ModelInfo] = (extra(usage, "currentMonth.models") as? [[String: Any]] ?? [])
+        let rawModelItems = (usage.extra["currentMonth.models"]?.value as? [AnyCodable]) ?? []
+        let topModels: [ModelInfo] = rawModelItems
             .prefix(5)
-            .compactMap { m in
-                guard let model = m["model"] as? String,
-                      let tokens = m["totalTokens"] as? Int,
-                      let cost = m["estimatedCostDisplay"] as? String else { return nil }
+            .compactMap { item in
+                guard let m = item.value as? [String: AnyCodable],
+                      let model = m["model"]?.value as? String,
+                      let cost = m["estimatedCostDisplay"]?.value as? String else { return nil }
+                let tokens: Int
+                switch m["totalTokens"]?.value {
+                case let v as Int: tokens = v
+                case let v as Double: tokens = Int(v)
+                default: tokens = 0
+                }
                 return ModelInfo(label: model, value: formatInt(tokens), note: cost)
             }
+
+        let modelBreakdown = extractModelBreakdown(usage, "currentMonth.models")
+        let modelBreakdownToday = extractModelBreakdown(usage, "today.models")
+        let modelBreakdownWeek = extractModelBreakdown(usage, "currentWeek.models")
+        let modelBreakdownOverall = extractModelBreakdown(usage, "overall.models")
+
+        let modelTimelines: [ModelTimelineSeries] = extraModelTimelines(usage, "timeline.byModel")
 
         base.accountLabel = preferredAccountEmail(usage)
         base.category = "local-cost"
@@ -268,10 +284,16 @@ public enum UsageNormalizer {
             today: CostPeriod(usd: todayUsd, tokens: todayTokens, rangeLabel: extraString(usage, "today.key") ?? "Today"),
             week:  CostPeriod(usd: weekUsd,  tokens: weekTokens,  rangeLabel: extraString(usage, "currentWeek.key") ?? "This week"),
             month: CostPeriod(usd: monthUsd, tokens: monthTokens, rangeLabel: extraString(usage, "currentMonth.key") ?? "This month"),
+            overall: CostPeriod(usd: overallUsd, tokens: overallTokens, rangeLabel: "Overall"),
             timeline: CostTimelineInfo(
                 hourly: extraCostTimeline(usage, "timeline.hourly"),
                 daily: extraCostTimeline(usage, "timeline.daily")
-            )
+            ),
+            modelBreakdown: modelBreakdown.isEmpty ? nil : modelBreakdown,
+            modelBreakdownToday: modelBreakdownToday.isEmpty ? nil : modelBreakdownToday,
+            modelBreakdownWeek: modelBreakdownWeek.isEmpty ? nil : modelBreakdownWeek,
+            modelBreakdownOverall: modelBreakdownOverall.isEmpty ? nil : modelBreakdownOverall,
+            modelTimelines: modelTimelines.isEmpty ? nil : modelTimelines
         )
         base.models = topModels.isEmpty ? nil : topModels
         base.nextResetAt = nil
@@ -742,6 +764,73 @@ public enum UsageNormalizer {
                 tokens = 0
             }
 
+            return CostTimelinePoint(bucket: bucket, label: label, usd: usd, tokens: tokens)
+        }
+    }
+
+    private static func extractModelBreakdown(_ usage: ProviderUsage, _ key: String) -> [ModelCostInfo] {
+        let rawItems = (usage.extra[key]?.value as? [AnyCodable]) ?? []
+        return rawItems.compactMap { item in
+            guard let m = item.value as? [String: AnyCodable],
+                  let model = m["model"]?.value as? String else { return nil }
+            func intVal(_ k: String) -> Int {
+                switch m[k]?.value {
+                case let v as Int: return v
+                case let v as Double: return Int(v)
+                default: return 0
+                }
+            }
+            func dblVal(_ k: String) -> Double {
+                switch m[k]?.value {
+                case let v as Double: return v
+                case let v as Int: return Double(v)
+                default: return 0
+                }
+            }
+            return ModelCostInfo(
+                model: model,
+                totalTokens: intVal("totalTokens"),
+                inputTokens: intVal("inputTokens"),
+                outputTokens: intVal("outputTokens"),
+                cacheReadTokens: intVal("cacheReadTokens"),
+                cacheCreateTokens: intVal("cacheCreateTokens"),
+                estimatedCostUsd: dblVal("estimatedCostUsd"),
+                percentage: dblVal("percentage")
+            )
+        }
+    }
+
+    private static func extraModelTimelines(_ usage: ProviderUsage, _ key: String) -> [ModelTimelineSeries] {
+        guard let items = usage.extra[key]?.value as? [AnyCodable] else { return [] }
+        return items.compactMap { item in
+            guard let dict = item.value as? [String: AnyCodable],
+                  let model = dict["model"]?.value as? String else { return nil }
+            let hourlyRaw = dict["hourly"]?.value as? [AnyCodable] ?? []
+            let dailyRaw = dict["daily"]?.value as? [AnyCodable] ?? []
+            let hourly = parseCostTimelinePoints(hourlyRaw)
+            let daily = parseCostTimelinePoints(dailyRaw)
+            guard !hourly.isEmpty || !daily.isEmpty else { return nil }
+            return ModelTimelineSeries(model: model, hourly: hourly, daily: daily)
+        }
+    }
+
+    private static func parseCostTimelinePoints(_ items: [AnyCodable]) -> [CostTimelinePoint] {
+        items.compactMap { item in
+            guard let dict = item.value as? [String: AnyCodable],
+                  let bucket = dict["bucket"]?.value as? String,
+                  let label = dict["label"]?.value as? String else { return nil }
+            let usd: Double
+            switch dict["usd"]?.value {
+            case let v as Double: usd = v
+            case let v as Int: usd = Double(v)
+            default: usd = 0
+            }
+            let tokens: Int
+            switch dict["tokens"]?.value {
+            case let v as Int: tokens = v
+            case let v as Double: tokens = Int(v)
+            default: tokens = 0
+            }
             return CostTimelinePoint(bucket: bucket, label: label, usd: usd, tokens: tokens)
         }
     }

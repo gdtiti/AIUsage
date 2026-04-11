@@ -322,7 +322,7 @@ struct ProviderDetailView: View {
     
     private func costSection(_ costSummary: CostSummary) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(t("Cost Tracking", "费用追踪"))
+            Text(t("Claude Code Stats", "Claude Code 统计"))
                 .font(.title2)
                 .bold()
             

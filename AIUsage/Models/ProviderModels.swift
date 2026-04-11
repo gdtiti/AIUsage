@@ -366,7 +366,34 @@ struct CostSummary: Codable {
     let today: CostPeriod?
     let week: CostPeriod?
     let month: CostPeriod?
+    let overall: CostPeriod?
     let timeline: CostTimeline?
+    let modelBreakdown: [ModelCostBreakdown]?
+    let modelBreakdownToday: [ModelCostBreakdown]?
+    let modelBreakdownWeek: [ModelCostBreakdown]?
+    let modelBreakdownOverall: [ModelCostBreakdown]?
+    let modelTimelines: [ModelTimelineSeries]?
+}
+
+struct ModelCostBreakdown: Codable, Identifiable {
+    let model: String
+    let totalTokens: Int
+    let inputTokens: Int
+    let outputTokens: Int
+    let cacheReadTokens: Int
+    let cacheCreateTokens: Int
+    let estimatedCostUsd: Double
+    let percentage: Double
+
+    var id: String { model }
+}
+
+struct ModelTimelineSeries: Codable, Identifiable {
+    let model: String
+    let hourly: [CostTimelinePoint]
+    let daily: [CostTimelinePoint]
+
+    var id: String { model }
 }
 
 struct CostPeriod: Codable {

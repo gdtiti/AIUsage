@@ -40,7 +40,7 @@ struct ContentView: View {
                 Label(t("Providers", "服务商"), systemImage: "square.grid.2x2")
                     .tag(AppSection.providers)
 
-                Label(t("Cost Tracking", "费用追踪"), systemImage: "banknote")
+                Label(t("Claude Code Stats", "Claude Code 统计"), systemImage: "chart.bar.xaxis")
                     .tag(AppSection.costTracking)
 
                 inboxLabel

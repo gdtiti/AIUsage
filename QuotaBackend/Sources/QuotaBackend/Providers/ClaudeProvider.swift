@@ -62,17 +62,51 @@ public struct ClaudeProvider: ProviderFetcher {
         extra["timeline.hourly"]              = AnyCodable(encodeTimeline(todayHourlyTimeline(rows: rows, now: now)))
         extra["timeline.daily"]               = AnyCodable(encodeTimeline(trailingDailyTimeline(rows: rows, now: now, days: 7)))
 
+        extra["overall.estimatedCostUsd"]     = AnyCodable(overall.estimatedCostUsd)
+        extra["overall.totalTokens"]          = AnyCodable(overall.totalTokens)
         extra["overall.usageRows"]            = AnyCodable(overall.usageRows)
         extra["overall.duplicateRowsRemoved"] = AnyCodable(overall.duplicatesRemoved)
         extra["overall.unpricedModels"]       = AnyCodable(overall.unpricedModels.map { AnyCodable($0) })
 
-        // Top models by token count (for normalizer)
-        let topModels = overall.models.sorted { $0.totalTokens > $1.totalTokens }.prefix(5)
-        extra["currentMonth.models"] = AnyCodable(topModels.map { m -> AnyCodable in
-            AnyCodable(["model": AnyCodable(m.model),
-                        "totalTokens": AnyCodable(m.totalTokens),
-                        "estimatedCostDisplay": AnyCodable(formatCurrency(m.estimatedCostUsd))] as [String: AnyCodable])
-        })
+        // All models with full stats (sorted by cost desc)
+        func encodeModelBreakdown(_ agg: AggResult) -> [AnyCodable] {
+            let sorted = agg.models.sorted { $0.estimatedCostUsd > $1.estimatedCostUsd }
+            let totalCost = agg.estimatedCostUsd
+            return sorted.map { m -> AnyCodable in
+                let pct = totalCost > 0 ? roundUsd(m.estimatedCostUsd / totalCost * 100) : 0.0
+                return AnyCodable([
+                    "model": AnyCodable(m.model),
+                    "totalTokens": AnyCodable(m.totalTokens),
+                    "inputTokens": AnyCodable(m.inputTokens),
+                    "outputTokens": AnyCodable(m.outputTokens),
+                    "cacheReadTokens": AnyCodable(m.cacheReadTokens),
+                    "cacheCreateTokens": AnyCodable(m.cacheCreateTokens),
+                    "estimatedCostUsd": AnyCodable(m.estimatedCostUsd),
+                    "estimatedCostDisplay": AnyCodable(formatCurrency(m.estimatedCostUsd)),
+                    "percentage": AnyCodable(pct)
+                ] as [String: AnyCodable])
+            }
+        }
+        extra["currentMonth.models"] = AnyCodable(encodeModelBreakdown(currentMonth))
+        extra["today.models"] = AnyCodable(encodeModelBreakdown(today))
+        extra["currentWeek.models"] = AnyCodable(encodeModelBreakdown(currentWeek))
+        extra["overall.models"] = AnyCodable(encodeModelBreakdown(overall))
+
+        // Per-model timelines (hourly + daily)
+        let modelNames = Set(rows.map(\.model))
+        var modelTimelinesArr: [AnyCodable] = []
+        for modelName in modelNames.sorted() {
+            let modelRows = rows.filter { $0.model == modelName }
+            let hourly = todayHourlyTimeline(rows: modelRows, now: now)
+            let daily = trailingDailyTimeline(rows: modelRows, now: now, days: 7)
+            guard !hourly.isEmpty || !daily.isEmpty else { continue }
+            modelTimelinesArr.append(AnyCodable([
+                "model": AnyCodable(modelName),
+                "hourly": AnyCodable(encodeTimeline(hourly)),
+                "daily": AnyCodable(encodeTimeline(daily))
+            ] as [String: AnyCodable]))
+        }
+        extra["timeline.byModel"] = AnyCodable(modelTimelinesArr)
 
         var usage = ProviderUsage(provider: "claude", label: "Claude Code", extra: extra)
         var source = SourceInfo(mode: "auto", type: "claude-project-logs")
@@ -186,9 +220,10 @@ public struct ClaudeProvider: ProviderFetcher {
 
         let rawModel = (message?["model"] as? String ?? "").trimmingCharacters(in: .whitespaces)
         guard rawModel.isEmpty || rawModel.lowercased().contains("claude") else { return nil }
-        let model = normalizeModel(rawModel.isEmpty ? "unknown" : rawModel)
+        let displayModel = cleanModelName(rawModel.isEmpty ? "unknown" : rawModel)
+        let pricingKey = normalizeToPricingKey(rawModel.isEmpty ? "unknown" : rawModel)
 
-        let cost = estimateCost(model: model, input: input, cacheRead: cacheRead, cacheCreate: cacheCreate, output: output)
+        let cost = estimateCost(model: pricingKey, input: input, cacheRead: cacheRead, cacheCreate: cacheCreate, output: output)
         let isSubagent = filePath.components(separatedBy: "/").contains("subagents")
 
         return ClaudeRow(
@@ -201,8 +236,8 @@ public struct ClaudeProvider: ProviderFetcher {
             messageId: firstNonEmpty(message?["id"] as? String),
             requestId: firstNonEmpty(json["requestId"] as? String),
             isSidechain: json["isSidechain"] as? Bool ?? false,
-            model: model,
-            rawModel: rawModel.isEmpty ? model : rawModel,
+            model: displayModel,
+            rawModel: rawModel.isEmpty ? displayModel : rawModel,
             inputTokens: input,
             cacheCreateTokens: cacheCreate,
             cacheReadTokens: cacheRead,
@@ -227,6 +262,10 @@ public struct ClaudeProvider: ProviderFetcher {
     private struct ModelAgg {
         var model: String
         var totalTokens: Int
+        var inputTokens: Int
+        var outputTokens: Int
+        var cacheReadTokens: Int
+        var cacheCreateTokens: Int
         var estimatedCostUsd: Double
     }
 
@@ -242,8 +281,12 @@ public struct ClaudeProvider: ProviderFetcher {
             } else {
                 result.unpricedModels.insert(row.model)
             }
-            var m = modelMap[row.model] ?? ModelAgg(model: row.model, totalTokens: 0, estimatedCostUsd: 0)
+            var m = modelMap[row.model] ?? ModelAgg(model: row.model, totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, estimatedCostUsd: 0)
             m.totalTokens += row.totalTokens
+            m.inputTokens += row.inputTokens
+            m.outputTokens += row.outputTokens
+            m.cacheReadTokens += row.cacheReadTokens
+            m.cacheCreateTokens += row.cacheCreateTokens
             m.estimatedCostUsd += row.estimatedCostUsd ?? 0
             modelMap[row.model] = m
         }
@@ -379,29 +422,81 @@ public struct ClaudeProvider: ProviderFetcher {
 
     // MARK: - Model normalization
 
-    private func normalizeModel(_ raw: String) -> String {
+    /// Light cleanup for display: lowercase, strip vendor prefix and version suffix, replace dots with dashes
+    private func cleanModelName(_ raw: String) -> String {
+        var model = raw.lowercased()
+        if model.hasPrefix("anthropic/") { model = String(model.dropFirst("anthropic/".count)) }
+        if model.hasPrefix("anthropic.") { model = String(model.dropFirst("anthropic.".count)) }
+        model = model.replacingOccurrences(of: #"-v\d+:\d+$"#, with: "", options: .regularExpression)
+        model = model.replacingOccurrences(of: ".", with: "-")
+        return model
+    }
+
+    /// Full normalization to find a matching pricing key
+    private func normalizeToPricingKey(_ raw: String) -> String {
         var model = raw.lowercased()
         if model.hasPrefix("anthropic/") { model = String(model.dropFirst("anthropic/".count)) }
         if model.hasPrefix("anthropic.") { model = String(model.dropFirst("anthropic.".count)) }
         model = model.replacingOccurrences(of: #"-v\d+:\d+$"#, with: "", options: .regularExpression)
 
-        // Alias mappings
         let aliases: [String: String] = [
             "claude-opus-4.6": "claude-opus-4-6",
             "claude-sonnet-4.6": "claude-sonnet-4-6",
             "claude-opus-4.5": "claude-opus-4-5",
             "claude-sonnet-4.5": "claude-sonnet-4-5",
+            "claude-haiku-4.5": "claude-haiku-4-5",
             "claude-opus-4.1": "claude-opus-4-1",
-            "claude-opus-4-5-thinking": "claude-opus-4-5"
+            "claude-opus-4-5-thinking": "claude-opus-4-5",
+            "claude-sonnet-4-5-thinking": "claude-sonnet-4-5",
+            "claude-sonnet-4-6-thinking": "claude-sonnet-4-6",
+            "claude-haiku-4-5-thinking": "claude-haiku-4-5",
+            "claude-3-5-haiku": "claude-haiku-4-5",
+            "claude-3.5-haiku": "claude-haiku-4-5",
+            "claude-3-5-haiku-latest": "claude-haiku-4-5",
+            "claude-3-5-sonnet": "claude-sonnet-4-5",
+            "claude-3.5-sonnet": "claude-sonnet-4-5",
+            "claude-3-5-sonnet-latest": "claude-sonnet-4-5"
         ]
         if let mapped = aliases[model] { model = mapped }
 
         if Self.pricing[model] != nil { return model }
 
-        // Strip date suffix
+        // Strip date suffix (e.g. -20250514)
         if let range = model.range(of: #"^(.*)-(\d{8})$"#, options: .regularExpression) {
             let stripped = String(model[range].dropLast(9))
             if Self.pricing[stripped] != nil { return stripped }
+            if let mapped = aliases[stripped] { return mapped }
+        }
+
+        // Fuzzy family match: handle both "opus-4-6" and "4-6-opus" formats
+        let families: [(keyword: String, key: String)] = [
+            ("haiku-4-5", "claude-haiku-4-5"),
+            ("4-5-haiku", "claude-haiku-4-5"),
+            ("haiku-4.5", "claude-haiku-4-5"),
+            ("4.5-haiku", "claude-haiku-4-5"),
+            ("opus-4-6", "claude-opus-4-6"),
+            ("4-6-opus", "claude-opus-4-6"),
+            ("opus-4.6", "claude-opus-4-6"),
+            ("4.6-opus", "claude-opus-4-6"),
+            ("opus-4-5", "claude-opus-4-5"),
+            ("4-5-opus", "claude-opus-4-5"),
+            ("opus-4.5", "claude-opus-4-5"),
+            ("4.5-opus", "claude-opus-4-5"),
+            ("sonnet-4-6", "claude-sonnet-4-6"),
+            ("4-6-sonnet", "claude-sonnet-4-6"),
+            ("sonnet-4.6", "claude-sonnet-4-6"),
+            ("4.6-sonnet", "claude-sonnet-4-6"),
+            ("sonnet-4-5", "claude-sonnet-4-5"),
+            ("4-5-sonnet", "claude-sonnet-4-5"),
+            ("sonnet-4.5", "claude-sonnet-4-5"),
+            ("4.5-sonnet", "claude-sonnet-4-5"),
+            ("opus-4-1", "claude-opus-4-1"),
+            ("4-1-opus", "claude-opus-4-1"),
+            ("opus-4.1", "claude-opus-4-1"),
+            ("4.1-opus", "claude-opus-4-1")
+        ]
+        for (keyword, key) in families {
+            if model.contains(keyword) { return key }
         }
 
         return model

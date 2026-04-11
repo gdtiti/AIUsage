@@ -1999,6 +1999,9 @@ class AppState: ObservableObject {
             throw ProviderError("source_not_found", msg)
         }
 
+        let sourceData = try Data(contentsOf: URL(fileURLWithPath: resolved))
+        let nativeData = try convertToCodexNativeFormat(sourceData)
+
         if !fm.fileExists(atPath: codexDir) {
             try fm.createDirectory(atPath: codexDir, withIntermediateDirectories: true)
         }
@@ -2013,7 +2016,7 @@ class AppState: ObservableObject {
             if fm.fileExists(atPath: targetPath) {
                 try fm.removeItem(atPath: targetPath)
             }
-            try fm.copyItem(atPath: resolved, toPath: targetPath)
+            try nativeData.write(to: URL(fileURLWithPath: targetPath), options: .atomic)
         } catch {
             if fm.fileExists(atPath: backupPath) {
                 try? fm.removeItem(atPath: targetPath)
@@ -2031,6 +2034,35 @@ class AppState: ObservableObject {
         let label = email ?? accountId ?? "Codex"
         let msg = language == "zh" ? "已切换到 \(label)" : "Switched to \(label)"
         codexActivationResult = .success(msg)
+    }
+
+    private func convertToCodexNativeFormat(_ data: Data) throws -> Data {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return data
+        }
+
+        if json["tokens"] is [String: Any], json["auth_mode"] != nil {
+            return data
+        }
+
+        guard let accessToken = json["access_token"] as? String,
+              let refreshToken = json["refresh_token"] as? String else {
+            return data
+        }
+
+        var native: [String: Any] = [
+            "auth_mode": "chatgpt",
+            "tokens": [
+                "access_token": accessToken,
+                "refresh_token": refreshToken,
+                "account_id": json["account_id"] ?? "",
+                "id_token": json["id_token"] ?? ""
+            ] as [String: Any],
+            "last_refresh": json["last_refresh"] ?? ISO8601DateFormatter().string(from: Date())
+        ]
+        native["OPENAI_API_KEY"] = NSNull()
+
+        return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
     }
 
     private func resolveCodexAuthSource(email: String?, accountId: String?, entry: ProviderAccountEntry) -> String? {

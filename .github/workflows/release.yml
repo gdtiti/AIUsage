@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   build-release:
@@ -91,19 +90,13 @@ jobs:
       - name: Update appcast.xml in repository
         if: startsWith(github.ref, 'refs/tags/') && hashFiles('dist/appcast.xml') != ''
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          BRANCH="update-appcast-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main --depth=1
-          git switch --create "$BRANCH" FETCH_HEAD
+          git checkout FETCH_HEAD
           cp dist/appcast.xml appcast.xml
           git add appcast.xml
           git diff --cached --quiet && { echo "No appcast changes"; exit 0; }
           git commit -m "Update appcast.xml for ${{ github.ref_name }}"
-          git push --set-upstream origin "$BRANCH"
-          gh pr create --title "Update appcast.xml for ${{ github.ref_name }}" \
-            --body "Automated update of appcast.xml after release ${{ github.ref_name }}." \
-            --base main --head "$BRANCH"
+          git push origin HEAD:main

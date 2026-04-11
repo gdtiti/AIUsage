@@ -1,5 +1,8 @@
 import Foundation
 import Security
+import os.log
+
+private let vaultLog = Logger(subsystem: "com.aiusage.desktop", category: "SecureAccountVault")
 
 final class SecureAccountVault {
     static let shared = SecureAccountVault()
@@ -20,6 +23,11 @@ final class SecureAccountVault {
 
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
+
+        if status != errSecSuccess && status != errSecItemNotFound {
+            let msg = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
+            vaultLog.error("Keychain read failed: \(msg)")
+        }
 
         guard status == errSecSuccess,
               let data = item as? Data,

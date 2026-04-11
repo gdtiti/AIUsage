@@ -105,9 +105,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showPopover() {
-        AppState.shared.detectActiveCodexAccount()
-        AppState.shared.detectActiveGeminiAccount()
-
         let popover = NSPopover()
         popover.contentSize = NSSize(width: 400, height: 700)
         popover.behavior = .transient
@@ -120,6 +117,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let button = statusItem?.button {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+
+        DispatchQueue.main.async {
+            AppState.shared.detectActiveCodexAccount()
+            AppState.shared.detectActiveGeminiAccount()
         }
     }
 

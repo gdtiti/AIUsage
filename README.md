@@ -15,7 +15,7 @@
 <p align="center">
   <img alt="macOS" src="https://img.shields.io/badge/macOS-14%2B-111827?style=flat-square&logo=apple&logoColor=white">
   <img alt="SwiftUI" src="https://img.shields.io/badge/SwiftUI-Native%20App-f97316?style=flat-square&logo=swift&logoColor=white">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.3-22c55e?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.4-22c55e?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-0ea5e9?style=flat-square">
 </p>
 
@@ -41,7 +41,7 @@ AIUsage is a macOS app for monitoring AI subscription quotas, account status, re
 | `Menu bar quick view` | Click the menu bar icon to see all provider quotas, cost data, and active accounts at a glance — with mini progress rings and one-click account switching |
 | `Theme modes` | Choose between system, light, or dark appearance |
 | `Launch at login` | Optionally start AIUsage when you log in |
-| `Sparkle auto-update` | In-app download and install for new releases |
+| `Sparkle auto-update` | Automatic background download and silent install for new releases, with localized Chinese/English update prompts |
 
 ## Preview
 

@@ -2,10 +2,16 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedSection: AppSection = AppState.shared.selectedSection
     
     private func t(_ en: String, _ zh: String) -> String {
         appState.language == "zh" ? zh : en
+    }
+
+    private var sectionBinding: Binding<AppSection> {
+        Binding(
+            get: { appState.selectedSection },
+            set: { appState.selectedSection = $0 }
+        )
     }
 
     private var inboxLabel: some View {
@@ -27,7 +33,7 @@ struct ContentView: View {
     
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedSection) {
+            List(selection: sectionBinding) {
                 Label(t("Dashboard", "仪表盘"), systemImage: "chart.bar.doc.horizontal")
                     .tag(AppSection.dashboard)
 
@@ -51,7 +57,7 @@ struct ContentView: View {
         } detail: {
             // 主内容区
             ZStack {
-                switch selectedSection {
+                switch appState.selectedSection {
                 case .dashboard:
                     DashboardView()
                 case .providers:
@@ -65,19 +71,6 @@ struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .onAppear {
-            selectedSection = appState.selectedSection
-        }
-        .onChange(of: selectedSection) { _, newValue in
-            guard appState.selectedSection != newValue else { return }
-            DispatchQueue.main.async {
-                appState.selectedSection = newValue
-            }
-        }
-        .onChange(of: appState.selectedSection) { _, newValue in
-            guard selectedSection != newValue else { return }
-            selectedSection = newValue
         }
         .task {
             await appState.performStartupFlowIfNeeded()

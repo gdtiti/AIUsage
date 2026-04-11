@@ -279,69 +279,6 @@ public final class AccountCredentialStore: @unchecked Sendable {
         return try? JSONDecoder().decode(AccountCredential.self, from: data)
     }
 
-    private func loadCredentialIndexUnsafe() -> [String] {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.service,
-            kSecAttrAccount as String: Self.credentialIndexAccount,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let index = try? JSONDecoder().decode(CredentialIndex.self, from: data) else {
-            return []
-        }
-
-        return index.storageKeys
-    }
-
-    private func saveCredentialIndexUnsafe(_ storageKeys: [String]) {
-        let normalizedKeys = Array(Set(storageKeys.filter { !$0.isEmpty })).sorted()
-        guard let data = try? JSONEncoder().encode(CredentialIndex(storageKeys: normalizedKeys)) else {
-            return
-        }
-
-        let baseQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.service,
-            kSecAttrAccount as String: Self.credentialIndexAccount
-        ]
-        let update: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: Self.keychainAccessibility
-        ]
-
-        let status = SecItemUpdate(baseQuery as CFDictionary, update as CFDictionary)
-        if status == errSecItemNotFound {
-            var create = baseQuery
-            create[kSecValueData as String] = data
-            create[kSecAttrAccessible as String] = Self.keychainAccessibility
-            SecItemAdd(create as CFDictionary, nil)
-        }
-    }
-
-    private func upsertCredentialIndexKeyUnsafe(_ storageKey: String) {
-        guard !storageKey.isEmpty else { return }
-        var keys = loadCredentialIndexUnsafe()
-        guard !keys.contains(storageKey) else { return }
-        keys.append(storageKey)
-        saveCredentialIndexUnsafe(keys)
-    }
-
-    private func removeCredentialIndexKeyUnsafe(_ storageKey: String) {
-        guard !storageKey.isEmpty else { return }
-        let keys = loadCredentialIndexUnsafe().filter { $0 != storageKey }
-        saveCredentialIndexUnsafe(keys)
-    }
-
-    private func deleteCredentialUnsafe(_ credential: AccountCredential) {
-        deleteCredentialStorageKeyUnsafe(storageKey(credential))
-    }
-
     private func deleteCredentialStorageKeyUnsafe(_ storageKey: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

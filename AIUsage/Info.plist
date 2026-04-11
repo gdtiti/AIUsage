@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.2.3</string>
+	<string>0.2.4</string>
 	<key>CFBundleVersion</key>
-	<string>5</string>
+	<string>0.2.4</string>
 	<key>ProjectGitHubOwner</key>
 	<string>sylearn</string>
 	<key>ProjectGitHubRepository</key>
@@ -29,6 +29,8 @@
 	<key>SUPublicEDKey</key>
 	<string>f5UoF4I5VmGyR0qdyj/hBdkX8tsTuiqR3uIbWG9yAdU=</string>
 	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
 	<true/>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>

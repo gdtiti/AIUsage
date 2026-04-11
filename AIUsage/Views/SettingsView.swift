@@ -426,8 +426,6 @@ struct SettingsView: View {
             subtitle: t("Version information and update checks.", "版本信息与更新检查。")
         ) {
             settingsValueRow(title: t("Version", "版本"), value: appVersion)
-            Divider()
-            settingsValueRow(title: t("Build", "构建号"), value: appBuild)
 
             Divider()
 
@@ -552,10 +550,6 @@ struct SettingsView: View {
     
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"
-    }
-    
-    private var appBuild: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }
 
     private func quotaStyleTitle(_ style: CardQuotaIndicatorStyle) -> String {

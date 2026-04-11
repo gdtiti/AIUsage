@@ -1,6 +1,9 @@
 import SwiftUI
 import Combine
+import os.log
 import QuotaBackend
+
+private let appStateLog = Logger(subsystem: "com.aiusage.desktop", category: "AppState")
 
 enum CardQuotaIndicatorStyle: String, CaseIterable {
     case bar
@@ -859,19 +862,13 @@ class AppState: ObservableObject {
         await syncUnifiedManagedAccounts(for: [providerId])
 
         if let results = await engine.fetchMultiAccountProvider(id: providerId) {
-            print("[fetchSingleProviderLocal] \(providerId): got \(results.count) results")
-            for r in results {
-                print("  result id=\(r.id) ok=\(r.ok) accountId=\(r.resultAccountId ?? "nil") error=\(r.error ?? "none") hasSummary=\(r.summary != nil)")
-            }
             let convertedResults = results.compactMap { result -> ProviderData? in
                 guard let summary = result.summary else { return nil }
                 return localizeProviderData(convertSummary(summary))
             }
             let stabilizedResults = stabilizedBulkRefreshProviders(convertedResults, preservingExistingFor: providerId)
-            print("[fetchSingleProviderLocal] \(providerId): \(convertedResults.count) converted, registry=\(accountRegistry.filter { $0.providerId == providerId }.map { "[\($0.email) cred=\($0.credentialId ?? "nil") hidden=\($0.isHidden) resultId=\($0.providerResultId ?? "nil")]" })")
             reconcileAccountRegistry(with: stabilizedResults)
             let visible = visibleProviders(from: stabilizedResults)
-            print("[fetchSingleProviderLocal] \(providerId): \(visible.count) visible (of \(stabilizedResults.count) stabilized)")
             replaceProviderEntries(for: providerId, with: visible)
         } else if let result = await engine.fetchSingle(id: providerId),
                   let summary = result.summary {
@@ -890,9 +887,10 @@ class AppState: ObservableObject {
             reconcileAccountRegistry(with: localizedProviders)
             replaceProviderEntries(for: providerId, with: visibleProviders(from: localizedProviders))
         } catch {
-            sendErrorNotification("Remote refresh failed for \(providerId): \(error.localizedDescription)")
+            let redactedError = SensitiveDataRedactor.redactedMessage(for: error)
+            sendErrorNotification("Remote refresh failed for \(providerId): \(redactedError)")
             if !providers.contains(where: { $0.baseProviderId == providerId }) {
-                errorMessage = error.localizedDescription
+                errorMessage = redactedError
             }
         }
     }
@@ -962,7 +960,7 @@ class AppState: ObservableObject {
         } catch {
             self.isLoading = false
             if providers.isEmpty {
-                self.errorMessage = error.localizedDescription
+                self.errorMessage = SensitiveDataRedactor.redactedMessage(for: error)
             }
         }
     }
@@ -1706,8 +1704,6 @@ class AppState: ObservableObject {
 
     private func storedAccountMatchesLive(_ stored: StoredProviderAccount, provider: ProviderData) -> Bool {
         guard stored.providerId == provider.baseProviderId else { return false }
-        let _dbg = stored.providerId == "gemini"
-        if _dbg { print("[matchLive] stored=\(stored.email) cred=\(stored.credentialId ?? "nil") hidden=\(stored.isHidden) resultId=\(stored.providerResultId ?? "nil") vs live=\(provider.id) label=\(provider.accountLabel ?? "nil")") }
 
         if let credentialId = stored.credentialId?.nilIfBlank {
             let expectedId = "\(stored.providerId):cred:\(credentialId)"
@@ -2244,7 +2240,8 @@ class AppState: ObservableObject {
                 try? fm.removeItem(atPath: targetPath)
                 try? fm.copyItem(atPath: backupPath, toPath: targetPath)
             }
-            let msg = language == "zh" ? "切换失败：\(error.localizedDescription)" : "Switch failed: \(error.localizedDescription)"
+            let redactedError = SensitiveDataRedactor.redactedMessage(for: error)
+            let msg = language == "zh" ? "切换失败：\(redactedError)" : "Switch failed: \(redactedError)"
             activationResult = .failure(msg)
             throw error
         }
@@ -2708,6 +2705,7 @@ class AppState: ObservableObject {
     
     private func sendErrorNotification(_ message: String) {
         // 错误通过 errorMessage 在 UI 内展示，不使用系统通知避免 XPC 解码警告
-        print("AIUsage error: \(message)")
+        let redactedMessage = SensitiveDataRedactor.redactPaths(in: message)
+        appStateLog.error("AIUsage error: \(redactedMessage)")
     }
 }

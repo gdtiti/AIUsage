@@ -8,6 +8,10 @@ public struct CopilotProvider: ProviderFetcher, CredentialAcceptingProvider {
     public let displayName = "GitHub Copilot"
     public let description = "GitHub Copilot quota usage"
 
+    static let editorPluginVersion = "GitHubCopilotChat/0.26.7"
+    static let editorVersion = "vscode/1.96.2"
+    static let githubApiVersion = "2025-04-01"
+
     let timeoutSeconds: Double
 
     public var supportedAuthMethods: [AuthMethod] { [.token, .auto] }
@@ -135,10 +139,10 @@ public struct CopilotProvider: ProviderFetcher, CredentialAcceptingProvider {
         var request = URLRequest(url: copilotURL, timeoutInterval: timeoutSeconds)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("GitHubCopilotChat/0.26.7", forHTTPHeaderField: "Editor-Plugin-Version")
-        request.setValue("vscode/1.96.2", forHTTPHeaderField: "Editor-Version")
-        request.setValue("GitHubCopilotChat/0.26.7", forHTTPHeaderField: "User-Agent")
-        request.setValue("2025-04-01", forHTTPHeaderField: "X-Github-Api-Version")
+        request.setValue(Self.editorPluginVersion, forHTTPHeaderField: "Editor-Plugin-Version")
+        request.setValue(Self.editorVersion, forHTTPHeaderField: "Editor-Version")
+        request.setValue(Self.editorPluginVersion, forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.githubApiVersion, forHTTPHeaderField: "X-Github-Api-Version")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, http.statusCode == 401 || http.statusCode == 403 {
@@ -159,7 +163,7 @@ public struct CopilotProvider: ProviderFetcher, CredentialAcceptingProvider {
         var req = URLRequest(url: url, timeoutInterval: timeoutSeconds)
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         req.setValue("token \(token)", forHTTPHeaderField: "Authorization")
-        req.setValue("GitHubCopilotChat/0.26.7", forHTTPHeaderField: "User-Agent")
+        req.setValue(Self.editorPluginVersion, forHTTPHeaderField: "User-Agent")
 
         guard let (data, _) = try? await URLSession.shared.data(for: req),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
@@ -171,7 +175,7 @@ public struct CopilotProvider: ProviderFetcher, CredentialAcceptingProvider {
         var emailsReq = URLRequest(url: emailsURL, timeoutInterval: timeoutSeconds)
         emailsReq.setValue("application/json", forHTTPHeaderField: "Accept")
         emailsReq.setValue("token \(token)", forHTTPHeaderField: "Authorization")
-        emailsReq.setValue("GitHubCopilotChat/0.26.7", forHTTPHeaderField: "User-Agent")
+        emailsReq.setValue(Self.editorPluginVersion, forHTTPHeaderField: "User-Agent")
 
         guard let (emailsData, _) = try? await URLSession.shared.data(for: emailsReq),
               let emails = try? JSONSerialization.jsonObject(with: emailsData) as? [[String: Any]] else { return nil }

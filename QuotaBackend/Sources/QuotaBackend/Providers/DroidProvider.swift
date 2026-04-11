@@ -468,8 +468,14 @@ public struct DroidProvider: ProviderFetcher, CredentialAcceptingProvider {
         }
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, http.statusCode == 401 || http.statusCode == 403 {
-            throw ProviderError("invalid_credentials", "Droid login state is invalid or expired.")
+        if let http = response as? HTTPURLResponse {
+            if http.statusCode == 401 || http.statusCode == 403 {
+                throw ProviderError("invalid_credentials", "Droid login state is invalid or expired.")
+            }
+            if !(200...299).contains(http.statusCode) {
+                let body = String(data: data.prefix(512), encoding: .utf8) ?? ""
+                throw ProviderError("api_error", "Droid API returned HTTP \(http.statusCode): \(body)")
+            }
         }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw ProviderError("parse_failed", "Droid API returned invalid JSON.")
@@ -598,8 +604,19 @@ public struct DroidProvider: ProviderFetcher, CredentialAcceptingProvider {
 
     private static func extractDroidCookieHeader(dbPath: String, keychainService: String) -> String? {
         let tempPath = NSTemporaryDirectory() + "droid_\(ProcessInfo.processInfo.processIdentifier)_\(Int.random(in: 10000...99999)).db"
-        defer { try? FileManager.default.removeItem(atPath: tempPath) }
+        defer {
+            try? FileManager.default.removeItem(atPath: tempPath)
+            try? FileManager.default.removeItem(atPath: tempPath + "-wal")
+            try? FileManager.default.removeItem(atPath: tempPath + "-shm")
+        }
         do { try FileManager.default.copyItem(atPath: dbPath, toPath: tempPath) } catch { return nil }
+        let fm = FileManager.default
+        if fm.fileExists(atPath: dbPath + "-wal") {
+            try? fm.copyItem(atPath: dbPath + "-wal", toPath: tempPath + "-wal")
+        }
+        if fm.fileExists(atPath: dbPath + "-shm") {
+            try? fm.copyItem(atPath: dbPath + "-shm", toPath: tempPath + "-shm")
+        }
 
         let query = """
         SELECT name, expires_utc, hex(encrypted_value), value

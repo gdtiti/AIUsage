@@ -79,7 +79,7 @@ public enum UsageNormalizer {
 
     public static func errorSummary(provider: any ProviderFetcher, error: Error) -> ProviderSummary {
         let theme = providerThemes[provider.id] ?? ThemeInfo(accent: "slate", glow: "#8e96a8")
-        let msg = (error as? ProviderError)?.message ?? error.localizedDescription
+        let msg = SensitiveDataRedactor.redactedMessage(for: error)
         return ProviderSummary(
             id: provider.id,
             providerId: provider.id,

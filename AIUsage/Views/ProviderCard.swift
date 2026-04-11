@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import QuotaBackend
 
 struct ProviderCard: View {
     let provider: ProviderData
@@ -329,7 +330,10 @@ struct ProviderCard: View {
         do {
             try appState.activateAccount(entry: entry)
         } catch {
-            print("[Activate] \(entry.providerId) failed: \(error.localizedDescription)")
+            if appState.activationResult == nil {
+                activationMessage = SensitiveDataRedactor.redactedMessage(for: error)
+                showActivationAlert = true
+            }
         }
         if let result = appState.activationResult {
             switch result {

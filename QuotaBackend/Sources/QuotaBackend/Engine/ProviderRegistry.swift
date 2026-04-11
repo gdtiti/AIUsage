@@ -5,28 +5,34 @@ import Foundation
 
 public enum ProviderRegistry {
 
+    private static let all: [any ProviderFetcher] = [
+        AmpProvider(),
+        AntigravityProvider(),
+        ClaudeProvider(),
+        CodexProvider(),
+        CopilotProvider(),
+        CursorProvider(),
+        DroidProvider(),
+        GeminiProvider(),
+        KiroProvider(),
+        WarpProvider()
+    ]
+
+    private static let byId: [String: any ProviderFetcher] = Dictionary(
+        uniqueKeysWithValues: all.map { ($0.id, $0) }
+    )
+
     public static func allProviders() -> [any ProviderFetcher] {
-        [
-            AmpProvider(),
-            AntigravityProvider(),
-            ClaudeProvider(),
-            CodexProvider(),
-            CopilotProvider(),
-            CursorProvider(),
-            DroidProvider(),
-            GeminiProvider(),
-            KiroProvider(),
-            WarpProvider()
-        ]
+        all
     }
 
     public static func providers(for ids: [String]) -> [any ProviderFetcher] {
         guard !ids.isEmpty else { return [] }
         let wanted = Set(ids)
-        return allProviders().filter { wanted.contains($0.id) }
+        return all.filter { wanted.contains($0.id) }
     }
 
     public static func provider(for id: String) -> (any ProviderFetcher)? {
-        allProviders().first { $0.id == id }
+        byId[id]
     }
 }

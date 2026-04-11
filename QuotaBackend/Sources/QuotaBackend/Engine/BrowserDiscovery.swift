@@ -23,40 +23,74 @@ public enum BrowserDiscovery {
 
     private static func allBrowserProfiles(home: String) -> [BrowserProfile] {
         let fm = FileManager.default
-        return [
-            BrowserProfile(browserName: "Chrome", profileName: "Default",
-                           cookiesDBPath: "\(home)/Library/Application Support/Google/Chrome/Default/Cookies",
-                           keychainService: "Chrome Safe Storage",
-                           isAvailable: fm.fileExists(atPath: "\(home)/Library/Application Support/Google/Chrome/Default/Cookies")),
-            BrowserProfile(browserName: "Chrome", profileName: "Profile 1",
-                           cookiesDBPath: "\(home)/Library/Application Support/Google/Chrome/Profile 1/Cookies",
-                           keychainService: "Chrome Safe Storage",
-                           isAvailable: fm.fileExists(atPath: "\(home)/Library/Application Support/Google/Chrome/Profile 1/Cookies")),
-            BrowserProfile(browserName: "Chrome", profileName: "Profile 2",
-                           cookiesDBPath: "\(home)/Library/Application Support/Google/Chrome/Profile 2/Cookies",
-                           keychainService: "Chrome Safe Storage",
-                           isAvailable: fm.fileExists(atPath: "\(home)/Library/Application Support/Google/Chrome/Profile 2/Cookies")),
-            BrowserProfile(browserName: "Arc", profileName: "Default",
-                           cookiesDBPath: "\(home)/Library/Application Support/Arc/User Data/Default/Cookies",
-                           keychainService: "Arc Safe Storage",
-                           isAvailable: fm.fileExists(atPath: "\(home)/Library/Application Support/Arc/User Data/Default/Cookies")),
-            BrowserProfile(browserName: "Edge", profileName: "Default",
-                           cookiesDBPath: "\(home)/Library/Application Support/Microsoft Edge/Default/Cookies",
-                           keychainService: "Microsoft Edge Safe Storage",
-                           isAvailable: fm.fileExists(atPath: "\(home)/Library/Application Support/Microsoft Edge/Default/Cookies")),
-            BrowserProfile(browserName: "Brave", profileName: "Default",
-                           cookiesDBPath: "\(home)/Library/Application Support/BraveSoftware/Brave-Browser/Default/Cookies",
-                           keychainService: "Brave Safe Storage",
-                           isAvailable: fm.fileExists(atPath: "\(home)/Library/Application Support/BraveSoftware/Brave-Browser/Default/Cookies")),
-            BrowserProfile(browserName: "Cursor", profileName: "Browser",
-                           cookiesDBPath: "\(home)/Library/Application Support/Cursor/Partitions/cursor-browser/Cookies",
-                           keychainService: "Cursor Safe Storage",
-                           isAvailable: fm.fileExists(atPath: "\(home)/Library/Application Support/Cursor/Partitions/cursor-browser/Cookies")),
-            BrowserProfile(browserName: "Cursor", profileName: "Main",
-                           cookiesDBPath: "\(home)/Library/Application Support/Cursor/Cookies",
-                           keychainService: "Cursor Safe Storage",
-                           isAvailable: fm.fileExists(atPath: "\(home)/Library/Application Support/Cursor/Cookies")),
+        var profiles: [BrowserProfile] = []
+
+        let chromeBase = "\(home)/Library/Application Support/Google/Chrome"
+        profiles.append(contentsOf: discoverChromiumProfiles(
+            base: chromeBase, browserName: "Chrome", keychainService: "Chrome Safe Storage", fm: fm
+        ))
+
+        let arcBase = "\(home)/Library/Application Support/Arc/User Data"
+        profiles.append(contentsOf: discoverChromiumProfiles(
+            base: arcBase, browserName: "Arc", keychainService: "Arc Safe Storage", fm: fm
+        ))
+
+        let edgeBase = "\(home)/Library/Application Support/Microsoft Edge"
+        profiles.append(contentsOf: discoverChromiumProfiles(
+            base: edgeBase, browserName: "Edge", keychainService: "Microsoft Edge Safe Storage", fm: fm
+        ))
+
+        let braveBase = "\(home)/Library/Application Support/BraveSoftware/Brave-Browser"
+        profiles.append(contentsOf: discoverChromiumProfiles(
+            base: braveBase, browserName: "Brave", keychainService: "Brave Safe Storage", fm: fm
+        ))
+
+        let cursorPaths: [(String, String)] = [
+            ("\(home)/Library/Application Support/Cursor/Partitions/cursor-browser/Cookies", "Browser"),
+            ("\(home)/Library/Application Support/Cursor/Cookies", "Main"),
         ]
+        for (path, name) in cursorPaths {
+            profiles.append(BrowserProfile(
+                browserName: "Cursor", profileName: name,
+                cookiesDBPath: path, keychainService: "Cursor Safe Storage",
+                isAvailable: fm.fileExists(atPath: path)
+            ))
+        }
+
+        return profiles
+    }
+
+    private static func discoverChromiumProfiles(base: String, browserName: String, keychainService: String, fm: FileManager) -> [BrowserProfile] {
+        var results: [BrowserProfile] = []
+        guard fm.fileExists(atPath: base) else { return results }
+
+        let candidateNames = ["Default"] + (1...20).map { "Profile \($0)" }
+        for name in candidateNames {
+            let cookiesPath = "\(base)/\(name)/Cookies"
+            if fm.fileExists(atPath: cookiesPath) {
+                results.append(BrowserProfile(
+                    browserName: browserName, profileName: name,
+                    cookiesDBPath: cookiesPath, keychainService: keychainService,
+                    isAvailable: true
+                ))
+            }
+        }
+
+        if let entries = try? fm.contentsOfDirectory(atPath: base) {
+            let knownNames = Set(candidateNames)
+            for entry in entries where !knownNames.contains(entry) {
+                let cookiesPath = "\(base)/\(entry)/Cookies"
+                if fm.fileExists(atPath: cookiesPath) {
+                    results.append(BrowserProfile(
+                        browserName: browserName, profileName: entry,
+                        cookiesDBPath: cookiesPath, keychainService: keychainService,
+                        isAvailable: true
+                    ))
+                }
+            }
+        }
+
+        return results
     }
 
     // MARK: - Discover Available Browsers

@@ -20,8 +20,6 @@ mkdir -p "$OUTPUT_DIR"
 
 echo "Building ${APP_NAME} ${VERSION}..."
 
-BUILD_NUMBER="${BUILD_NUMBER:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST_PATH" 2>/dev/null || echo 1)}"
-
 xcodebuild \
   -project "$PROJECT_PATH" \
   -scheme "$SCHEME" \
@@ -31,7 +29,7 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
   MARKETING_VERSION="$VERSION" \
-  CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+  CURRENT_PROJECT_VERSION="$VERSION" \
   build
 
 APP_PATH="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/$APP_NAME.app"
@@ -45,17 +43,19 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 
 echo "Injecting custom Sparkle localization strings..."
-SPARKLE_RES="$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/Resources"
+SPARKLE_RES=$(find "$APP_PATH/Contents/Frameworks" -path "*/Sparkle.framework/*/Resources" -type d 2>/dev/null | head -1)
 STRINGS_SRC="$ROOT_DIR/AIUsage/Resources"
-if [[ -d "$SPARKLE_RES" ]]; then
+if [[ -n "$SPARKLE_RES" && -d "$SPARKLE_RES" ]]; then
   for LOCALE in Base.lproj zh_CN.lproj; do
     SRC_FILE="$STRINGS_SRC/$LOCALE/Sparkle.strings"
-    DST_FILE="$SPARKLE_RES/$LOCALE/Sparkle.strings"
-    if [[ -f "$SRC_FILE" && -d "$SPARKLE_RES/$LOCALE" ]]; then
-      cp -f "$SRC_FILE" "$DST_FILE"
+    if [[ -f "$SRC_FILE" ]]; then
+      mkdir -p "$SPARKLE_RES/$LOCALE"
+      cp -f "$SRC_FILE" "$SPARKLE_RES/$LOCALE/Sparkle.strings"
       echo "  Injected $LOCALE/Sparkle.strings"
     fi
   done
+else
+  echo "  WARNING: Sparkle.framework Resources not found, skipping string injection"
 fi
 
 echo "Ad-hoc signing ${APP_NAME}.app..."

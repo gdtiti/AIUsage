@@ -318,7 +318,7 @@ final class CodexLoginCoordinator: ObservableObject {
         do {
             try fileManager.createDirectory(at: sessionDirectory, withIntermediateDirectories: true)
         } catch {
-            phase = .failed("Failed to prepare a secure Codex login session: \(error.localizedDescription)")
+            phase = .failed("Failed to prepare a secure Codex login session: \(SensitiveDataRedactor.redactedMessage(for: error))")
             return
         }
 
@@ -375,7 +375,7 @@ final class CodexLoginCoordinator: ObservableObject {
             beginWaitingForAuthFile()
         } catch {
             cleanup(removeArtifacts: true)
-            phase = .failed("Failed to start Codex login: \(error.localizedDescription)")
+            phase = .failed("Failed to start Codex login: \(SensitiveDataRedactor.redactedMessage(for: error))")
         }
     }
 
@@ -735,7 +735,7 @@ final class GeminiLoginCoordinator: ObservableObject {
         do {
             try fileManager.createDirectory(at: sessionDirectory, withIntermediateDirectories: true)
         } catch {
-            phase = .failed("Failed to prepare a Gemini login session: \(error.localizedDescription)")
+            phase = .failed("Failed to prepare a Gemini login session: \(SensitiveDataRedactor.redactedMessage(for: error))")
             return
         }
 
@@ -767,7 +767,7 @@ final class GeminiLoginCoordinator: ObservableObject {
             listener.start(queue: listenerQueue)
         } catch {
             cleanup(removeArtifacts: true)
-            phase = .failed("Failed to start the Gemini sign-in callback server: \(error.localizedDescription)")
+            phase = .failed("Failed to start the Gemini sign-in callback server: \(SensitiveDataRedactor.redactedMessage(for: error))")
         }
     }
 
@@ -821,7 +821,7 @@ final class GeminiLoginCoordinator: ObservableObject {
             }
             beginTimeout()
         case .failed(let error):
-            phase = .failed("Gemini sign-in listener failed: \(error.localizedDescription)")
+            phase = .failed("Gemini sign-in listener failed: \(SensitiveDataRedactor.redactedMessage(for: error))")
             cleanup(removeArtifacts: true)
         default:
             break
@@ -846,7 +846,7 @@ final class GeminiLoginCoordinator: ObservableObject {
 
             if let error {
                 Task { @MainActor in
-                    self.phase = .failed("Gemini callback failed: \(error.localizedDescription)")
+                    self.phase = .failed("Gemini callback failed: \(SensitiveDataRedactor.redactedMessage(for: error))")
                 }
                 connection.cancel()
                 return
@@ -929,7 +929,7 @@ final class GeminiLoginCoordinator: ObservableObject {
             listener?.cancel()
             listener = nil
         } catch {
-            let message = error.localizedDescription
+            let message = SensitiveDataRedactor.redactedMessage(for: error)
             phase = .failed(message)
             respond(on: connection, html: Self.failureHTML(message: message))
             cleanup(removeArtifacts: true)

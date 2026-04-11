@@ -41,9 +41,7 @@ public struct GeminiProvider: ProviderFetcher, CredentialAcceptingProvider {
     }
 
     private func fetchUsageWithRetry(creds: GeminiCredentials, source: SourceInfo, credentialPath: String) async throws -> ProviderUsage {
-        print("[Gemini.fetchUsageWithRetry] path=\(credentialPath) hasToken=\(creds.accessToken != nil) expiry=\(creds.expiryDate.map { "\($0.timeIntervalSinceNow)s from now" } ?? "nil") email=\(creds.accountEmail ?? "nil")")
         let (accessToken, didRefresh) = try await resolveAccessToken(creds: creds, credentialPath: credentialPath)
-        print("[Gemini.fetchUsageWithRetry] resolved token, didRefresh=\(didRefresh)")
 
         async let codeAssistTask = loadCodeAssist(accessToken: accessToken)
         let codeAssist = await codeAssistTask

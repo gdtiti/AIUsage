@@ -433,7 +433,7 @@ struct ProviderAccountEditorView: View {
             beginWatchingForFreshSession()
             statusMessage = t("Login started. Finish sign-in and it will connect automatically.", "登录已启动，完成后会自动连接。")
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = SensitiveDataRedactor.redactedMessage(for: error)
         }
     }
 
@@ -647,7 +647,7 @@ struct ProviderAccountEditorView: View {
         do {
             try await operation()
         } catch {
-            await MainActor.run { errorMessage = error.localizedDescription }
+            await MainActor.run { errorMessage = SensitiveDataRedactor.redactedMessage(for: error) }
         }
         await MainActor.run { isWorking = false }
     }

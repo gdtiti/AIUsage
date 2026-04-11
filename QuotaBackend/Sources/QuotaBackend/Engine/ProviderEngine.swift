@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let engineLog = Logger(subsystem: "com.aiusage.desktop", category: "ProviderEngine")
 
 // MARK: - Provider Engine
 // Orchestrates concurrent fetching of all providers and normalization.
@@ -80,18 +83,12 @@ public actor ProviderEngine {
         if let credentialProvider = provider as? CredentialAcceptingProvider {
             let creds = AccountCredentialStore.shared.loadCredentials(for: provider.id)
             hasCredentials = creds.contains { credentialProvider.supportedAuthMethods.contains($0.authMethod) }
-            if provider.id == "gemini" {
-                print("[fetchAllResults] gemini: \(creds.count) total creds, \(creds.filter { credentialProvider.supportedAuthMethods.contains($0.authMethod) }.count) matching auth methods")
-                for c in creds { print("  cred id=\(c.id) method=\(c.authMethod) label=\(c.accountLabel ?? "nil") path=\(c.credential.prefix(80))") }
-            }
         } else {
             hasCredentials = false
         }
 
         if hasCredentials && !isMultiAccount {
-            print("[fetchAllResults] \(provider.id): using credential-backed strategy (hasCredentials=true, isMultiAccount=false)")
             let results = await fetchCredentialBackedResults(for: provider)
-            print("[fetchAllResults] \(provider.id): got \(results.count) credential-backed results")
             return results.isEmpty ? [await fetchOne(provider: provider)] : results
         }
 
@@ -132,18 +129,19 @@ public actor ProviderEngine {
                 try await provider.fetchUsage()
             }
             let elapsed = Date().timeIntervalSince(start)
-            print("✓ \(provider.id): \(String(format: "%.0f", elapsed * 1000))ms")
+            engineLog.debug("✓ \(provider.id): \(String(format: "%.0f", elapsed * 1000))ms")
             let autoId = "\(provider.id):auto:\(usage.usageAccountId ?? "default")"
             var summary = UsageNormalizer.normalize(provider: provider, usage: usage)
             summary.id = autoId
             return ProviderResult(id: autoId, providerId: provider.id, accountId: usage.usageAccountId, ok: true, usage: usage, summary: summary)
         } catch {
             let elapsed = Date().timeIntervalSince(start)
-            print("✗ \(provider.id): \(String(format: "%.0f", elapsed * 1000))ms - \(error.localizedDescription)")
+            let redactedError = SensitiveDataRedactor.redactedDescription(for: error)
+            engineLog.warning("✗ \(provider.id): \(String(format: "%.0f", elapsed * 1000))ms - \(redactedError)")
             let autoId = "\(provider.id):auto:default"
             var summary = UsageNormalizer.errorSummary(provider: provider, error: error)
             summary.id = autoId
-            return ProviderResult(id: autoId, providerId: provider.id, ok: false, summary: summary, error: error.localizedDescription)
+            return ProviderResult(id: autoId, providerId: provider.id, ok: false, summary: summary, error: redactedError)
         }
     }
 
@@ -183,14 +181,13 @@ public actor ProviderEngine {
         let label = credential.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
         let fallbackAccountId = resolveAccountIdFromCredential(credential) ?? label ?? credential.id
         let uniqueId = "\(provider.id):cred:\(credential.id)"
-        print("[fetchWithCredential] \(provider.id) cred=\(credential.id) label=\(label ?? "nil") path=\(credential.credential.prefix(80))")
 
         do {
             let usage = try await performCredentialFetch(credentialProvider: credentialProvider, credential: credential, label: label, fallbackAccountId: fallbackAccountId)
-            print("[fetchWithCredential] \(provider.id) cred=\(credential.id) SUCCESS email=\(usage.accountEmail ?? "nil")")
             return buildCredentialSuccess(provider: provider, usage: usage, credential: credential, uniqueId: uniqueId, label: label)
         } catch {
-            print("[fetchWithCredential] \(provider.id) cred=\(credential.id) FAILED: \(error)")
+            let redactedError = SensitiveDataRedactor.redactedDescription(for: error)
+            engineLog.warning("\(provider.id) credential-backed fetch failed: \(redactedError)")
             if let refreshed = await refreshFromSourceAndRetry(
                 provider: provider, credentialProvider: credentialProvider, credential: credential,
                 uniqueId: uniqueId, label: label, fallbackAccountId: fallbackAccountId
@@ -210,7 +207,7 @@ public actor ProviderEngine {
                 accountId: fallbackAccountId,
                 ok: false,
                 summary: summary,
-                error: error.localizedDescription
+                error: redactedError
             )
         }
     }
@@ -327,7 +324,7 @@ public actor ProviderEngine {
 
         if accountResults.isEmpty {
             let elapsed = Date().timeIntervalSince(start)
-            print("✗ \(provider.id): \(String(format: "%.0f", elapsed * 1000))ms - no accounts found")
+            engineLog.warning("✗ \(provider.id): \(String(format: "%.0f", elapsed * 1000))ms - no accounts found")
             let summary = UsageNormalizer.errorSummary(
                 provider: provider,
                 error: ProviderError("not_logged_in", "No accounts found for \(provider.displayName)")
@@ -336,7 +333,7 @@ public actor ProviderEngine {
         }
 
         let elapsed = Date().timeIntervalSince(start)
-        print("✓ \(provider.id): \(String(format: "%.0f", elapsed * 1000))ms [\(accountResults.count) accounts]")
+        engineLog.debug("✓ \(provider.id): \(String(format: "%.0f", elapsed * 1000))ms [\(accountResults.count) accounts]")
 
         let results = accountResults.map { fetchResult in
             let acctId: String = fetchResult.accountId
@@ -371,7 +368,7 @@ public actor ProviderEngine {
                     accountId: acctId,
                     ok: false,
                     summary: summary,
-                    error: error.localizedDescription
+                    error: SensitiveDataRedactor.redactedDescription(for: error)
                 )
             }
         }
@@ -383,7 +380,7 @@ public actor ProviderEngine {
         )
 
         if deduplicated.count != results.count {
-            print("[fetchMultiAccount] \(provider.id): deduplicated \(results.count - deduplicated.count) duplicate account result(s)")
+            engineLog.debug("\(provider.id): deduplicated \(results.count - deduplicated.count) duplicate account result(s)")
         }
 
         return deduplicated

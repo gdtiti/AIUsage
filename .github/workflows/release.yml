@@ -63,6 +63,7 @@ jobs:
         shell: bash
         env:
           SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+          REQUIRE_SPARKLE_SIGNING: "1"
         run: |
           SPARKLE_TOOL="$(find build/DerivedData/SourcePackages/artifacts -name sign_update -path '*/bin/sign_update' | head -1)"
           export SPARKLE_SIGN_TOOL="${SPARKLE_TOOL}"
@@ -100,3 +101,12 @@ jobs:
           git diff --cached --quiet && { echo "No appcast changes"; exit 0; }
           git commit -m "Update appcast.xml for ${{ github.ref_name }}"
           git push origin HEAD:main
+
+      - name: Verify appcast version
+        if: startsWith(github.ref, 'refs/tags/') && hashFiles('dist/appcast.xml') != ''
+        shell: bash
+        run: |
+          EXPECTED="${{ steps.version.outputs.version }}"
+          grep -q "<sparkle:shortVersionString>${EXPECTED}</sparkle:shortVersionString>" dist/appcast.xml
+          grep -q "<sparkle:version>${EXPECTED}</sparkle:version>" dist/appcast.xml
+          echo "Appcast verified: version ${EXPECTED}"

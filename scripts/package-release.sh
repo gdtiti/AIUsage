@@ -11,6 +11,7 @@ DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-$ROOT_DIR/build/DerivedData}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/dist}"
 INFO_PLIST_PATH="${INFO_PLIST_PATH:-$ROOT_DIR/AIUsage/Info.plist}"
 VERSION="${1:-${VERSION:-}}"
+REQUIRE_SPARKLE_SIGNING="${REQUIRE_SPARKLE_SIGNING:-0}"
 
 if [[ -z "${VERSION}" ]]; then
   VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST_PATH")"
@@ -133,6 +134,11 @@ if [[ -n "$SPARKLE_SIGN" && -n "$SPARKLE_KEY" ]]; then
   SIGN_OUTPUT=$("$SPARKLE_SIGN" "$ZIP_PATH" --ed-key-file "$TMPKEY" 2>&1)
   rm -f "$TMPKEY"
   EDDSA_SIG=$(echo "$SIGN_OUTPUT" | grep -oE 'sparkle:edSignature="[^"]+"' | cut -d'"' -f2)
+  if [[ -z "$EDDSA_SIG" ]]; then
+    echo "Failed to extract Sparkle EdDSA signature from sign_update output" >&2
+    echo "$SIGN_OUTPUT" >&2
+    exit 1
+  fi
   ZIP_LENGTH=$(stat -f%z "$ZIP_PATH" 2>/dev/null || stat --printf="%s" "$ZIP_PATH" 2>/dev/null)
 
   DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://github.com/sylearn/AIUsage/releases/download/v${VERSION}}"
@@ -163,5 +169,9 @@ APPCAST_EOF
 
   echo "  $APPCAST_PATH"
 else
+  if [[ "$REQUIRE_SPARKLE_SIGNING" == "1" ]]; then
+    echo "Sparkle signing is required for release builds, but SPARKLE_SIGN_TOOL or SPARKLE_EDDSA_PRIVATE_KEY is missing" >&2
+    exit 1
+  fi
   echo "Skipping Sparkle signing (SPARKLE_SIGN_TOOL or SPARKLE_EDDSA_PRIVATE_KEY not set)"
 fi

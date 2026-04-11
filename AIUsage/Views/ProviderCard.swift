@@ -44,8 +44,8 @@ struct ProviderCard: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
                 providerIcon
                 
                 VStack(alignment: .leading, spacing: 2) {
@@ -162,8 +162,9 @@ struct ProviderCard: View {
                 }
             }
         }
-        .frame(minHeight: 168)
-        .padding()
+        .frame(minHeight: 148)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(cardBackgroundColor)
@@ -649,7 +650,7 @@ private struct MultiWindowRingItem: View {
     }
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 5) {
             ZStack {
                 Circle()
                     .fill(accentColor.opacity(colorScheme == .dark ? 0.08 : 0.06))
@@ -669,19 +670,19 @@ private struct MultiWindowRingItem: View {
                     .rotationEffect(.degrees(-90))
 
                 Text(displayText)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(LinearGradient(colors: gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
             }
-            .frame(width: 58, height: 58)
+            .frame(width: 62, height: 62)
 
             Text(label)
-                .font(.caption2.weight(.medium))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
             if let resetText = compactResetText {
                 Text(resetText)
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(resetHighlightColor)
             }
         }
@@ -1045,7 +1046,7 @@ struct QuotaIndicatorView: View {
     }
 
     private var ringStyle: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
             ZStack {
                 Circle()
                     .fill(accentColor.opacity(colorScheme == .dark ? 0.08 : 0.06))
@@ -1059,20 +1060,20 @@ struct QuotaIndicatorView: View {
                     .rotationEffect(.degrees(-90))
                     .shadow(color: riskColor.opacity(colorScheme == .dark ? 0.32 : 0.15), radius: 8, x: 0, y: 4)
 
-                VStack(spacing: 2) {
+                VStack(spacing: 1) {
                     Text(displayText)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundStyle(valueGradient)
                     Text(metricLabel)
-                        .font(.caption2)
+                        .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 86, height: 86)
+            .frame(width: 80, height: 80)
 
             if let resetText = inlineResetText {
                 Text(resetText)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(inlineResetColor)
             }
         }

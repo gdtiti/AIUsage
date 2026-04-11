@@ -124,6 +124,7 @@ class AppState: ObservableObject {
         bootstrapCredentialIndexFromRegistry()
         normalizePersistedState()
         setupAutoRefresh()
+        detectActiveCodexAccount()
     }
 
     static func normalizedAutoRefreshInterval(_ value: Int) -> Int {
@@ -1970,6 +1971,177 @@ class AppState: ObservableObject {
         ProviderManagedImportStore.cleanupOrphanedManagedImports(referencedBy: credentials)
     }
 
+    // MARK: - Codex Account Activation
+
+    @Published var activeCodexAccountId: String? = UserDefaults.standard.string(forKey: "activeCodexAccountId")
+    @Published var codexActivationResult: CodexActivationResult?
+
+    enum CodexActivationResult: Equatable {
+        case success(String)
+        case failure(String)
+    }
+
+    func activateCodexAccount(entry: ProviderAccountEntry) throws {
+        let fm = FileManager.default
+        let codexDir = NSString(string: "~/.codex").expandingTildeInPath
+        let targetPath = "\(codexDir)/auth.json"
+
+        let email = entry.accountEmail
+            ?? entry.storedAccount?.email
+            ?? entry.liveProvider?.accountLabel
+        let accountId = entry.storedAccount?.accountId
+            ?? entry.liveProvider?.accountId
+
+        let resolved = resolveCodexAuthSource(email: email, accountId: accountId, entry: entry)
+        guard let resolved, fm.fileExists(atPath: resolved) else {
+            let msg = language == "zh" ? "找不到该账号的认证文件" : "Auth file not found for this account."
+            codexActivationResult = .failure(msg)
+            throw ProviderError("source_not_found", msg)
+        }
+
+        let sourceData = try Data(contentsOf: URL(fileURLWithPath: resolved))
+        let nativeData = try convertToCodexNativeFormat(sourceData)
+
+        if !fm.fileExists(atPath: codexDir) {
+            try fm.createDirectory(atPath: codexDir, withIntermediateDirectories: true)
+        }
+
+        let backupPath = "\(targetPath).bak"
+        if fm.fileExists(atPath: targetPath) {
+            try? fm.removeItem(atPath: backupPath)
+            try fm.copyItem(atPath: targetPath, toPath: backupPath)
+        }
+
+        do {
+            if fm.fileExists(atPath: targetPath) {
+                try fm.removeItem(atPath: targetPath)
+            }
+            try nativeData.write(to: URL(fileURLWithPath: targetPath), options: .atomic)
+        } catch {
+            if fm.fileExists(atPath: backupPath) {
+                try? fm.removeItem(atPath: targetPath)
+                try? fm.copyItem(atPath: backupPath, toPath: targetPath)
+            }
+            let msg = language == "zh" ? "切换失败：\(error.localizedDescription)" : "Switch failed: \(error.localizedDescription)"
+            codexActivationResult = .failure(msg)
+            throw error
+        }
+
+        let newActiveId = accountId ?? email
+        activeCodexAccountId = newActiveId
+        UserDefaults.standard.set(newActiveId, forKey: "activeCodexAccountId")
+
+        let label = email ?? accountId ?? "Codex"
+        let msg = language == "zh" ? "已切换到 \(label)" : "Switched to \(label)"
+        codexActivationResult = .success(msg)
+    }
+
+    private func convertToCodexNativeFormat(_ data: Data) throws -> Data {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return data
+        }
+
+        if json["tokens"] is [String: Any], json["auth_mode"] != nil {
+            return data
+        }
+
+        guard let accessToken = json["access_token"] as? String,
+              let refreshToken = json["refresh_token"] as? String else {
+            return data
+        }
+
+        var native: [String: Any] = [
+            "auth_mode": "chatgpt",
+            "tokens": [
+                "access_token": accessToken,
+                "refresh_token": refreshToken,
+                "account_id": json["account_id"] ?? "",
+                "id_token": json["id_token"] ?? ""
+            ] as [String: Any],
+            "last_refresh": json["last_refresh"] ?? ISO8601DateFormatter().string(from: Date())
+        ]
+        native["OPENAI_API_KEY"] = NSNull()
+
+        return try JSONSerialization.data(withJSONObject: native, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    private func resolveCodexAuthSource(email: String?, accountId: String?, entry: ProviderAccountEntry) -> String? {
+        let fm = FileManager.default
+        let proxyDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+
+        if let email {
+            if let freshPath = freshestCliProxyFile(dir: proxyDir, email: email, fm: fm) {
+                return freshPath
+            }
+        }
+
+        let credentials = matchingCredentials(for: entry)
+        if let credential = credentials.first {
+            let candidatePaths: [String?] = [
+                credential.authMethod == .authFile ? credential.credential : nil,
+                credential.metadata["sourcePath"]
+            ]
+            for p in candidatePaths.compactMap({ $0?.nilIfBlank }) {
+                let expanded = NSString(string: p).expandingTildeInPath
+                if fm.fileExists(atPath: expanded) { return expanded }
+            }
+        }
+
+        return nil
+    }
+
+    private func freshestCliProxyFile(dir: String, email: String, fm: FileManager) -> String? {
+        guard let files = try? fm.contentsOfDirectory(atPath: dir) else { return nil }
+        let emailLower = email.lowercased()
+        let matching = files.filter {
+            $0.hasPrefix("codex-") && $0.hasSuffix(".json") && $0.lowercased().contains(emailLower)
+        }
+        guard !matching.isEmpty else { return nil }
+
+        var best: (path: String, date: Date)?
+        for file in matching {
+            let fullPath = "\(dir)/\(file)"
+            guard let attrs = try? fm.attributesOfItem(atPath: fullPath),
+                  let modDate = attrs[.modificationDate] as? Date else { continue }
+            if best == nil || modDate > best!.date {
+                best = (fullPath, modDate)
+            }
+        }
+        return best?.path
+    }
+
+    func detectActiveCodexAccount() {
+        let authPath = NSString(string: "~/.codex/auth.json").expandingTildeInPath
+        guard let data = FileManager.default.contents(atPath: authPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+
+        let email = json["email"] as? String
+        let tokens = json["tokens"] as? [String: Any]
+        let accountId = (tokens?["account_id"] as? String)
+            ?? (tokens?["accountId"] as? String)
+            ?? (json["account_id"] as? String)
+            ?? (json["accountId"] as? String)
+
+        let detectedId = accountId ?? email
+        if let detectedId, detectedId != activeCodexAccountId {
+            activeCodexAccountId = detectedId
+            UserDefaults.standard.set(detectedId, forKey: "activeCodexAccountId")
+        }
+    }
+
+    func isActiveCodexAccount(_ entry: ProviderAccountEntry) -> Bool {
+        guard entry.providerId == "codex", let activeId = activeCodexAccountId?.lowercased() else { return false }
+        let candidates = [
+            entry.storedAccount?.accountId,
+            entry.liveProvider?.accountId,
+            entry.accountEmail,
+            entry.storedAccount?.email
+        ].compactMap { $0?.lowercased().nilIfBlank }
+        return candidates.contains(activeId)
+    }
+
     // MARK: - QuotaBackend → ProviderData conversion
 
     private func convertSummary(_ s: QuotaBackend.ProviderSummary) -> ProviderData {
@@ -1992,7 +2164,7 @@ class AppState: ObservableObject {
             membershipLabel: s.membershipLabel,
             headline: Headline(eyebrow: s.headline.eyebrow, primary: s.headline.primary, secondary: s.headline.secondary, supporting: s.headline.supporting),
             metrics: s.metrics.map { Metric(label: $0.label, value: $0.value, note: $0.note) },
-            windows: s.windows.map { QuotaWindow(label: $0.label, remainingPercent: $0.remainingPercent, usedPercent: $0.usedPercent, value: $0.value, note: $0.note) },
+            windows: s.windows.map { QuotaWindow(label: $0.label, remainingPercent: $0.remainingPercent, usedPercent: $0.usedPercent, value: $0.value, note: $0.note, resetAt: $0.resetAt) },
             remainingPercent: s.remainingPercent,
             nextResetAt: s.nextResetAt,
             nextResetLabel: s.nextResetLabel,
@@ -2071,7 +2243,8 @@ class AppState: ObservableObject {
                     remainingPercent: $0.remainingPercent,
                     usedPercent: $0.usedPercent,
                     value: localizedDynamicText($0.value),
-                    note: localizedDynamicText($0.note)
+                    note: localizedDynamicText($0.note),
+                    resetAt: $0.resetAt
                 )
             },
             remainingPercent: provider.remainingPercent,

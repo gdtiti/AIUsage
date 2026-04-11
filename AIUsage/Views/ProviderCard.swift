@@ -12,6 +12,8 @@ struct ProviderCard: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
     @State private var showingDetail = false
+    @State private var activationMessage: String?
+    @State private var showActivationAlert = false
 
     init(
         provider: ProviderData,
@@ -42,8 +44,8 @@ struct ProviderCard: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
                 providerIcon
                 
                 VStack(alignment: .leading, spacing: 2) {
@@ -62,6 +64,10 @@ struct ProviderCard: View {
                 
                 VStack(alignment: .trailing, spacing: 6) {
                     HStack(spacing: 6) {
+                        if isCodexActiveAccount {
+                            badge(text: t("Active", "当前"), tint: .green)
+                        }
+
                         if let membership = provider.membershipLabel {
                             badge(text: membership, tint: membershipBadgeTint(for: membership))
                         }
@@ -80,17 +86,17 @@ struct ProviderCard: View {
                     .minimumScaleFactor(0.72)
             }
 
-            if let nextResetAt = provider.nextResetAt {
-                ResetCountdownView(resetAt: nextResetAt, accentColor: accentColor)
-            }
-            
-            Spacer(minLength: 0)
-            
-            // 额度指示器（样式和语义可在设置中切换）
-            if let remaining = provider.remainingPercent {
-                QuotaIndicatorView(remainingPercent: remaining, accentColor: accentColor)
+            if useMultiWindowLayout {
+                Spacer(minLength: 0)
+                MultiWindowQuotaView(windows: provider.windows, accentColor: accentColor)
             } else {
-                Color.clear.frame(height: quotaIndicatorPlaceholderHeight)
+                Spacer(minLength: 0)
+
+                if let remaining = provider.remainingPercent {
+                    QuotaIndicatorView(remainingPercent: remaining, accentColor: accentColor, resetAt: provider.nextResetAt)
+                } else {
+                    Color.clear.frame(height: quotaIndicatorPlaceholderHeight)
+                }
             }
             
             // 底部信息
@@ -103,6 +109,20 @@ struct ProviderCard: View {
                 }
 
                 Spacer()
+
+                if canActivateCodex && !isCodexActiveAccount {
+                    Button {
+                        activateThisCodexAccount()
+                    } label: {
+                        Label(t("Activate", "激活"), systemImage: "bolt.fill")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(isHovered ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.15), value: isHovered)
+                    .help(t("Set as active Codex CLI account", "设为当前 Codex CLI 账号"))
+                }
 
                 Button {
                     Task {
@@ -142,8 +162,9 @@ struct ProviderCard: View {
                 }
             }
         }
-        .frame(minHeight: 168)
-        .padding()
+        .frame(minHeight: 148)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(cardBackgroundColor)
@@ -183,6 +204,19 @@ struct ProviderCard: View {
                 Label(t("Refresh This Account", "刷新此账号"), systemImage: "arrow.clockwise")
             }
 
+            if canActivateCodex {
+                Divider()
+                if isCodexActiveAccount {
+                    Label(t("Active Codex Account", "当前 Codex 账号"), systemImage: "checkmark.circle.fill")
+                } else {
+                    Button {
+                        activateThisCodexAccount()
+                    } label: {
+                        Label(t("Set as Active Codex Account", "设为当前 Codex 账号"), systemImage: "bolt.fill")
+                    }
+                }
+            }
+
             if let account = footerAccountLabel {
                 Button {
                     copyToPasteboard(account)
@@ -199,6 +233,11 @@ struct ProviderCard: View {
                 accountDisplayOverride: footerAccountLabelOverride,
                 accountEntry: accountEntry
             )
+        }
+        .alert(t("Account Switch", "账号切换"), isPresented: $showActivationAlert) {
+            Button("OK") { activationMessage = nil }
+        } message: {
+            Text(activationMessage ?? "")
         }
     }
     
@@ -271,6 +310,38 @@ struct ProviderCard: View {
         case "amp": return .teal
         default: return .gray
         }
+    }
+
+    private var canActivateCodex: Bool {
+        provider.providerId == "codex" && accountEntry != nil
+    }
+
+    private var isCodexActiveAccount: Bool {
+        guard let entry = accountEntry else { return false }
+        return appState.isActiveCodexAccount(entry)
+    }
+
+    private func activateThisCodexAccount() {
+        guard let entry = accountEntry else { return }
+        do {
+            try appState.activateCodexAccount(entry: entry)
+        } catch {
+            print("[CodexActivate] Failed: \(error.localizedDescription)")
+        }
+        if let result = appState.codexActivationResult {
+            switch result {
+            case .success(let msg), .failure(let msg):
+                activationMessage = msg
+                showActivationAlert = true
+            }
+            appState.codexActivationResult = nil
+        }
+    }
+
+    private var useMultiWindowLayout: Bool {
+        provider.providerId == "codex"
+            && provider.windows.count >= 2
+            && provider.windows.contains(where: { $0.remainingPercent != nil })
     }
 
     private var shouldShowStatusBadge: Bool {
@@ -346,9 +417,450 @@ struct ProviderCard: View {
     }
 }
 
+// MARK: - Multi-Window Quota View (Codex dual progress)
+
+struct MultiWindowQuotaView: View {
+    let windows: [QuotaWindow]
+    let accentColor: Color
+
+    @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
+
+    private func t(_ en: String, _ zh: String) -> String {
+        appState.language == "zh" ? zh : en
+    }
+
+    private func windowLabel(_ label: String) -> String {
+        guard appState.language == "zh" else { return label }
+        switch label {
+        case "5h Window":      return "5小时剩余"
+        case "Weekly Window":  return "7天剩余"
+        case "Code Review":    return "代码审查"
+        default:               return label
+        }
+    }
+
+    var body: some View {
+        switch appState.quotaIndicatorStyle {
+        case .bar:
+            barLayout
+        case .ring:
+            ringLayout
+        case .segments:
+            segmentsLayout
+        }
+    }
+
+    // MARK: - Bar Layout
+
+    private var barLayout: some View {
+        VStack(spacing: 10) {
+            ForEach(windows.prefix(2)) { window in
+                MultiWindowBarRow(window: window, label: windowLabel(window.label), accentColor: accentColor)
+                    .environmentObject(appState)
+            }
+        }
+    }
+
+    // MARK: - Ring Layout
+
+    private var ringLayout: some View {
+        HStack(spacing: 20) {
+            ForEach(windows.prefix(2)) { window in
+                MultiWindowRingItem(window: window, label: windowLabel(window.label), accentColor: accentColor)
+                    .environmentObject(appState)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Segments Layout
+
+    private var segmentsLayout: some View {
+        VStack(spacing: 10) {
+            ForEach(windows.prefix(2)) { window in
+                MultiWindowSegmentsRow(window: window, label: windowLabel(window.label), accentColor: accentColor)
+                    .environmentObject(appState)
+            }
+        }
+    }
+}
+
+// MARK: - Bar Row
+
+private struct MultiWindowBarRow: View {
+    let window: QuotaWindow
+    let label: String
+    let accentColor: Color
+
+    @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var clampedRemaining: Double {
+        min(max(window.remainingPercent ?? 0, 0), 100)
+    }
+
+    private var displayPercent: Double {
+        appState.quotaIndicatorMetric == .remaining ? clampedRemaining : 100 - clampedRemaining
+    }
+
+    private var displayText: String {
+        let rounded = (displayPercent * 10).rounded() / 10
+        if abs(rounded.rounded() - rounded) < 0.05 {
+            return "\(Int(rounded.rounded()))%"
+        }
+        return String(format: "%.1f%%", rounded)
+    }
+
+    private var riskColor: Color {
+        switch clampedRemaining {
+        case 70...: return Color(red: 0.15, green: 0.78, blue: 0.40)
+        case 35...: return Color(red: 0.96, green: 0.64, blue: 0.18)
+        default:    return Color(red: 0.92, green: 0.25, blue: 0.28)
+        }
+    }
+
+    private var gradientColors: [Color] {
+        switch clampedRemaining {
+        case 70...: return [Color(red: 0.37, green: 0.94, blue: 0.62), Color(red: 0.11, green: 0.74, blue: 0.39)]
+        case 35...: return [Color(red: 1.00, green: 0.84, blue: 0.34), Color(red: 0.96, green: 0.56, blue: 0.17)]
+        default:    return [Color(red: 1.00, green: 0.54, blue: 0.28), Color(red: 0.90, green: 0.20, blue: 0.29)]
+        }
+    }
+
+    private var trackColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
+    }
+
+    private var borderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.05)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text(displayText)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(LinearGradient(colors: gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
+
+                if let resetText = compactResetText {
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(resetText)
+                        .font(.caption2)
+                        .foregroundStyle(resetHighlightColor)
+                }
+            }
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(trackColor)
+                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(borderColor, lineWidth: 1))
+
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(LinearGradient(colors: gradientColors, startPoint: .leading, endPoint: .trailing))
+                        .frame(width: max(geometry.size.width * (displayPercent / 100), displayPercent > 0 ? 8 : 0))
+                        .shadow(color: riskColor.opacity(colorScheme == .dark ? 0.28 : 0.12), radius: 6, x: 0, y: 2)
+                }
+            }
+            .frame(height: 8)
+        }
+    }
+
+    private var compactResetText: String? {
+        guard let resetAt = window.resetAt,
+              let date = parseISO8601(resetAt) else { return nil }
+        let remaining = max(0, Int(date.timeIntervalSinceNow))
+        if remaining == 0 { return appState.language == "zh" ? "即将刷新" : "soon" }
+        let days = remaining / 86_400
+        let hours = (remaining % 86_400) / 3_600
+        let minutes = (remaining % 3_600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(max(1, minutes))m"
+    }
+
+    private var resetHighlightColor: Color {
+        guard let resetAt = window.resetAt,
+              let date = parseISO8601(resetAt) else { return .secondary }
+        let remaining = Int(date.timeIntervalSinceNow)
+        if remaining < 3_600 { return .red }
+        if remaining < 21_600 { return .orange }
+        return .secondary
+    }
+
+    private func parseISO8601(_ value: String) -> Date? {
+        let f1 = ISO8601DateFormatter()
+        f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f1.date(from: value) { return d }
+        let f2 = ISO8601DateFormatter()
+        f2.formatOptions = [.withInternetDateTime]
+        return f2.date(from: value)
+    }
+}
+
+// MARK: - Ring Item
+
+private struct MultiWindowRingItem: View {
+    let window: QuotaWindow
+    let label: String
+    let accentColor: Color
+
+    @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var clampedRemaining: Double {
+        min(max(window.remainingPercent ?? 0, 0), 100)
+    }
+
+    private var displayPercent: Double {
+        appState.quotaIndicatorMetric == .remaining ? clampedRemaining : 100 - clampedRemaining
+    }
+
+    private var displayText: String {
+        let rounded = (displayPercent * 10).rounded() / 10
+        if abs(rounded.rounded() - rounded) < 0.05 {
+            return "\(Int(rounded.rounded()))%"
+        }
+        return String(format: "%.1f%%", rounded)
+    }
+
+    private var gradientColors: [Color] {
+        switch clampedRemaining {
+        case 70...: return [Color(red: 0.37, green: 0.94, blue: 0.62), Color(red: 0.11, green: 0.74, blue: 0.39)]
+        case 35...: return [Color(red: 1.00, green: 0.84, blue: 0.34), Color(red: 0.96, green: 0.56, blue: 0.17)]
+        default:    return [Color(red: 1.00, green: 0.54, blue: 0.28), Color(red: 0.90, green: 0.20, blue: 0.29)]
+        }
+    }
+
+    private var riskColor: Color {
+        switch clampedRemaining {
+        case 70...: return Color(red: 0.15, green: 0.78, blue: 0.40)
+        case 35...: return Color(red: 0.96, green: 0.64, blue: 0.18)
+        default:    return Color(red: 0.92, green: 0.25, blue: 0.28)
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 5) {
+            ZStack {
+                Circle()
+                    .fill(accentColor.opacity(colorScheme == .dark ? 0.08 : 0.06))
+                Circle()
+                    .stroke(colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06), lineWidth: 7)
+                Circle()
+                    .trim(from: 0, to: displayPercent / 100)
+                    .stroke(
+                        AngularGradient(colors: [
+                            gradientColors.first?.opacity(0.45) ?? riskColor.opacity(0.45),
+                            gradientColors.first ?? riskColor,
+                            gradientColors.last ?? riskColor,
+                            gradientColors.last?.opacity(0.45) ?? riskColor.opacity(0.45)
+                        ], center: .center),
+                        style: StrokeStyle(lineWidth: 7, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+
+                Text(displayText)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(LinearGradient(colors: gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            }
+            .frame(width: 62, height: 62)
+
+            Text(label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            if let resetText = compactResetText {
+                Text(resetText)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(resetHighlightColor)
+            }
+        }
+    }
+
+    private var compactResetText: String? {
+        guard let resetAt = window.resetAt,
+              let date = parseISO8601(resetAt) else { return nil }
+        let remaining = max(0, Int(date.timeIntervalSinceNow))
+        if remaining == 0 { return appState.language == "zh" ? "即将刷新" : "soon" }
+        let days = remaining / 86_400
+        let hours = (remaining % 86_400) / 3_600
+        let minutes = (remaining % 3_600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(max(1, minutes))m"
+    }
+
+    private var resetHighlightColor: Color {
+        guard let resetAt = window.resetAt,
+              let date = parseISO8601(resetAt) else { return .secondary }
+        let remaining = Int(date.timeIntervalSinceNow)
+        if remaining < 3_600 { return .red }
+        if remaining < 21_600 { return .orange }
+        return .secondary
+    }
+
+    private func parseISO8601(_ value: String) -> Date? {
+        let f1 = ISO8601DateFormatter()
+        f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f1.date(from: value) { return d }
+        let f2 = ISO8601DateFormatter()
+        f2.formatOptions = [.withInternetDateTime]
+        return f2.date(from: value)
+    }
+}
+
+// MARK: - Segments Row
+
+private struct MultiWindowSegmentsRow: View {
+    let window: QuotaWindow
+    let label: String
+    let accentColor: Color
+
+    @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let segmentHeights: [CGFloat] = [10, 13, 17, 22, 28, 32, 32, 28, 22, 17, 13, 10]
+
+    private var clampedRemaining: Double {
+        min(max(window.remainingPercent ?? 0, 0), 100)
+    }
+
+    private var displayPercent: Double {
+        appState.quotaIndicatorMetric == .remaining ? clampedRemaining : 100 - clampedRemaining
+    }
+
+    private var displayText: String {
+        let rounded = (displayPercent * 10).rounded() / 10
+        if abs(rounded.rounded() - rounded) < 0.05 {
+            return "\(Int(rounded.rounded()))%"
+        }
+        return String(format: "%.1f%%", rounded)
+    }
+
+    private var gradientColors: [Color] {
+        switch clampedRemaining {
+        case 70...: return [Color(red: 0.37, green: 0.94, blue: 0.62), Color(red: 0.11, green: 0.74, blue: 0.39)]
+        case 35...: return [Color(red: 1.00, green: 0.84, blue: 0.34), Color(red: 0.96, green: 0.56, blue: 0.17)]
+        default:    return [Color(red: 1.00, green: 0.54, blue: 0.28), Color(red: 0.90, green: 0.20, blue: 0.29)]
+        }
+    }
+
+    private var trackColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
+    }
+
+    private var borderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.05)
+    }
+
+    private var riskColor: Color {
+        switch clampedRemaining {
+        case 70...: return Color(red: 0.15, green: 0.78, blue: 0.40)
+        case 35...: return Color(red: 0.96, green: 0.64, blue: 0.18)
+        default:    return Color(red: 0.92, green: 0.25, blue: 0.28)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(displayText)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(LinearGradient(colors: gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                if let resetText = compactResetText {
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(resetText)
+                        .font(.caption2)
+                        .foregroundStyle(resetHighlightColor)
+                }
+            }
+
+            HStack(alignment: .bottom, spacing: 3) {
+                ForEach(Array(segmentHeights.enumerated()), id: \.offset) { index, height in
+                    segmentView(at: index, height: height)
+                }
+            }
+            .frame(height: 36)
+        }
+    }
+
+    private var compactResetText: String? {
+        guard let resetAt = window.resetAt,
+              let date = parseISO8601(resetAt) else { return nil }
+        let remaining = max(0, Int(date.timeIntervalSinceNow))
+        if remaining == 0 { return appState.language == "zh" ? "即将刷新" : "soon" }
+        let days = remaining / 86_400
+        let hours = (remaining % 86_400) / 3_600
+        let minutes = (remaining % 3_600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(max(1, minutes))m"
+    }
+
+    private var resetHighlightColor: Color {
+        guard let resetAt = window.resetAt,
+              let date = parseISO8601(resetAt) else { return .secondary }
+        let remaining = Int(date.timeIntervalSinceNow)
+        if remaining < 3_600 { return .red }
+        if remaining < 21_600 { return .orange }
+        return .secondary
+    }
+
+    private func parseISO8601(_ value: String) -> Date? {
+        let f1 = ISO8601DateFormatter()
+        f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f1.date(from: value) { return d }
+        let f2 = ISO8601DateFormatter()
+        f2.formatOptions = [.withInternetDateTime]
+        return f2.date(from: value)
+    }
+
+    private func segmentView(at index: Int, height: CGFloat) -> some View {
+        let ratio = segmentFillRatio(for: index)
+        return ZStack(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(trackColor)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(borderColor, lineWidth: 1))
+            RoundedRectangle(cornerRadius: 4)
+                .fill(LinearGradient(colors: gradientColors, startPoint: .leading, endPoint: .trailing))
+                .frame(height: max(height * ratio, ratio > 0 ? 6 : 0))
+                .shadow(color: riskColor.opacity(colorScheme == .dark ? 0.2 : 0.08), radius: 3, x: 0, y: 1)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: height, alignment: .bottom)
+    }
+
+    private func segmentFillRatio(for index: Int) -> CGFloat {
+        let count = Double(segmentHeights.count)
+        let start = (Double(index) / count) * 100
+        let end = (Double(index + 1) / count) * 100
+        if displayPercent >= end { return 1 }
+        if displayPercent <= start { return 0 }
+        return CGFloat(min(max((displayPercent - start) / (end - start), 0), 1))
+    }
+}
+
 struct QuotaIndicatorView: View {
     let remainingPercent: Double
     let accentColor: Color
+    var resetAt: String?
 
     @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) private var colorScheme
@@ -369,6 +881,35 @@ struct QuotaIndicatorView: View {
 
     private var metricLabel: String {
         appState.quotaIndicatorMetric == .remaining ? t("Remaining", "剩余") : t("Used", "已用")
+    }
+
+    private var inlineResetText: String? {
+        guard let resetAt, let date = parseResetDate(resetAt) else { return nil }
+        let remaining = max(0, Int(date.timeIntervalSinceNow))
+        if remaining == 0 { return appState.language == "zh" ? "即将刷新" : "soon" }
+        let days = remaining / 86_400
+        let hours = (remaining % 86_400) / 3_600
+        let minutes = (remaining % 3_600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(max(1, minutes))m"
+    }
+
+    private var inlineResetColor: Color {
+        guard let resetAt, let date = parseResetDate(resetAt) else { return .secondary }
+        let remaining = Int(date.timeIntervalSinceNow)
+        if remaining < 3_600 { return .red }
+        if remaining < 21_600 { return .orange }
+        return .secondary
+    }
+
+    private func parseResetDate(_ value: String) -> Date? {
+        let f1 = ISO8601DateFormatter()
+        f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f1.date(from: value) { return d }
+        let f2 = ISO8601DateFormatter()
+        f2.formatOptions = [.withInternetDateTime]
+        return f2.date(from: value)
     }
 
     private var riskColor: Color {
@@ -469,6 +1010,15 @@ struct QuotaIndicatorView: View {
                 Text(displayText)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(valueGradient)
+
+                if let resetText = inlineResetText {
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(resetText)
+                        .font(.caption2)
+                        .foregroundStyle(inlineResetColor)
+                }
             }
 
             GeometryReader { geometry in
@@ -496,29 +1046,37 @@ struct QuotaIndicatorView: View {
     }
 
     private var ringStyle: some View {
-        ZStack {
-            Circle()
-                .fill(accentColor.opacity(colorScheme == .dark ? 0.08 : 0.06))
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(accentColor.opacity(colorScheme == .dark ? 0.08 : 0.06))
 
-            Circle()
-                .stroke(trackColor, lineWidth: 10)
+                Circle()
+                    .stroke(trackColor, lineWidth: 10)
 
-            Circle()
-                .trim(from: 0, to: displayPercent / 100)
-                .stroke(ringGradient, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .shadow(color: riskColor.opacity(colorScheme == .dark ? 0.32 : 0.15), radius: 8, x: 0, y: 4)
+                Circle()
+                    .trim(from: 0, to: displayPercent / 100)
+                    .stroke(ringGradient, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: riskColor.opacity(colorScheme == .dark ? 0.32 : 0.15), radius: 8, x: 0, y: 4)
 
-            VStack(spacing: 2) {
-                Text(displayText)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(valueGradient)
-                Text(metricLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                VStack(spacing: 1) {
+                    Text(displayText)
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(valueGradient)
+                    Text(metricLabel)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 80, height: 80)
+
+            if let resetText = inlineResetText {
+                Text(resetText)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(inlineResetColor)
             }
         }
-        .frame(width: 86, height: 86)
         .frame(maxWidth: .infinity)
     }
 
@@ -534,6 +1092,15 @@ struct QuotaIndicatorView: View {
                 Text(displayText)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(valueGradient)
+
+                if let resetText = inlineResetText {
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(resetText)
+                        .font(.caption2)
+                        .foregroundStyle(inlineResetColor)
+                }
             }
 
             HStack(alignment: .bottom, spacing: 4) {

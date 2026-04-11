@@ -345,6 +345,7 @@ struct QuotaWindow: Identifiable, Codable {
     let usedPercent: Double?
     let value: String
     let note: String
+    let resetAt: String?
     
     var id: String { label }
     

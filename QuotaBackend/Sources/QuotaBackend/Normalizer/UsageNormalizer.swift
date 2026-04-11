@@ -178,7 +178,8 @@ public enum UsageNormalizer {
                 remainingPercent: model.remainingPercent,
                 usedPercent: max(0, 100 - model.remainingPercent),
                 value: "\(formatPercent(model.remainingPercent)) left",
-                note: joinParts([model.providerLabel, formatShortDateTime(model.resetAt)]) ?? formatShortDateTime(model.resetAt) ?? "Live snapshot"
+                note: joinParts([model.providerLabel, formatShortDateTime(model.resetAt)]) ?? formatShortDateTime(model.resetAt) ?? "Live snapshot",
+                resetAt: model.resetAt
             )
         }
 
@@ -630,13 +631,14 @@ public enum UsageNormalizer {
             remainingPercent: remaining,
             usedPercent: used,
             value: remaining.map { "\(formatPercent($0)) left" } ?? "Tracked",
-            note: note
+            note: note,
+            resetAt: window.resetAt
         )
     }
 
     private static func createEntitlementWindow(label: String, window: RawQuotaWindow) -> WindowInfo {
         if window.unlimited == true {
-            return WindowInfo(label: label, remainingPercent: nil, usedPercent: nil, value: "Unlimited", note: window.resetDescription ?? "No fixed cap detected")
+            return WindowInfo(label: label, remainingPercent: nil, usedPercent: nil, value: "Unlimited", note: window.resetDescription ?? "No fixed cap detected", resetAt: window.resetAt)
         }
         let remaining = window.remainingPercent
         let entitlement = window.entitlement ?? 0
@@ -648,13 +650,14 @@ public enum UsageNormalizer {
             remainingPercent: remaining,
             usedPercent: window.usedPercent ?? remaining.map { 100 - $0 },
             value: "\(formatInt(rem)) left",
-            note: note
+            note: note,
+            resetAt: window.resetAt
         )
     }
 
     private static func createQuotaWindow(label: String, window: RawQuotaWindow) -> WindowInfo {
         if window.unlimited == true {
-            return WindowInfo(label: label, remainingPercent: nil, usedPercent: nil, value: "Unlimited", note: window.resetDescription ?? "No cap detected")
+            return WindowInfo(label: label, remainingPercent: nil, usedPercent: nil, value: "Unlimited", note: window.resetDescription ?? "No cap detected", resetAt: window.resetAt)
         }
         let remaining = window.remainingPercent
         let note = window.resetDescription ?? formatShortDateTime(window.resetAt) ?? "Live snapshot"
@@ -663,7 +666,8 @@ public enum UsageNormalizer {
             remainingPercent: remaining,
             usedPercent: window.usedPercent,
             value: remaining.map { "\(formatPercent($0)) left" } ?? "Unknown",
-            note: note
+            note: note,
+            resetAt: window.resetAt
         )
     }
 

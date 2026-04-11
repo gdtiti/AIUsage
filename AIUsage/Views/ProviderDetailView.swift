@@ -666,9 +666,9 @@ struct CostPeriodCard: View {
             Metric(label: "Source", value: "GitHub CLI", note: nil)
         ],
         windows: [
-            QuotaWindow(label: "Premium", remainingPercent: 72, usedPercent: 28, value: "72% left", note: "1,200 total • Resets Mar 31"),
-            QuotaWindow(label: "Chat", remainingPercent: nil, usedPercent: nil, value: "Unlimited", note: "No fixed cap detected"),
-            QuotaWindow(label: "Completions", remainingPercent: 85, usedPercent: 15, value: "850 left", note: "1,000 total • Resets Mar 31")
+            QuotaWindow(label: "Premium", remainingPercent: 72, usedPercent: 28, value: "72% left", note: "1,200 total • Resets Mar 31", resetAt: nil),
+            QuotaWindow(label: "Chat", remainingPercent: nil, usedPercent: nil, value: "Unlimited", note: "No fixed cap detected", resetAt: nil),
+            QuotaWindow(label: "Completions", remainingPercent: 85, usedPercent: 15, value: "850 left", note: "1,000 total • Resets Mar 31", resetAt: nil)
         ],
         remainingPercent: 72,
         nextResetAt: "2026-03-31T23:59:59Z",

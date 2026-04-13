@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import os.log
 import QuotaBackend
+import UserNotifications
 
 private let appStateLog = Logger(subsystem: "com.aiusage.desktop", category: "AppState")
 
@@ -30,6 +31,10 @@ class AppState: ObservableObject {
     private static let selectedProvidersKey = "selectedProviderIds"
     static let supportedAutoRefreshIntervals: [Int] = [30, 60, 180, 300, 600, 900, 1800, 3600, 0]
     static let defaultAutoRefreshInterval = 300
+
+    // Claude Code 独立刷新配置（支持更短的间隔，因为是本地数据）
+    static let supportedClaudeCodeRefreshIntervals: [Int] = [10, 30, 60, 180, 300, 600, 0]
+    static let defaultClaudeCodeRefreshInterval = 30
     private struct InitialState {
         let accounts: [StoredProviderAccount]
         let selectedProviderIds: Set<String>
@@ -92,9 +97,29 @@ class AppState: ObservableObject {
             : AppState.defaultAutoRefreshInterval
         return AppState.normalizedAutoRefreshInterval(storedValue)
     }()
+    @Published var claudeCodeRefreshInterval: Int = {
+        let defaults = UserDefaults.standard
+        let storedValue = defaults.object(forKey: "claudeCodeRefreshInterval") != nil
+            ? defaults.integer(forKey: "claudeCodeRefreshInterval")
+            : AppState.defaultClaudeCodeRefreshInterval
+        return AppState.normalizedClaudeCodeRefreshInterval(storedValue)
+    }()
     @Published var language: String = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
     @Published var quotaIndicatorStyle: CardQuotaIndicatorStyle = CardQuotaIndicatorStyle(rawValue: UserDefaults.standard.string(forKey: "quotaIndicatorStyle") ?? "") ?? .bar
     @Published var quotaIndicatorMetric: CardQuotaIndicatorMetric = CardQuotaIndicatorMetric(rawValue: UserDefaults.standard.string(forKey: "quotaIndicatorMetric") ?? "") ?? .remaining
+
+    // Claude Code 消费阈值报警
+    @Published var claudeCodeDailyThreshold: Double = {
+        let defaults = UserDefaults.standard
+        let storedValue = defaults.object(forKey: "claudeCodeDailyThreshold") != nil
+            ? defaults.double(forKey: "claudeCodeDailyThreshold")
+            : 0.0  // 0 表示关闭
+        return storedValue
+    }()
+    private var lastNotifiedDate: String? {
+        get { UserDefaults.standard.string(forKey: "claudeCodeLastNotifiedDate") }
+        set { UserDefaults.standard.set(newValue, forKey: "claudeCodeLastNotifiedDate") }
+    }
 
     // Backend mode: "local" (直接调用 Swift Provider) 或 "remote" (通过 HTTP)
     @Published var backendMode: String = UserDefaults.standard.string(forKey: "backendMode") ?? "local"
@@ -127,15 +152,18 @@ class AppState: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     private var refreshTimer: Timer?
+    private var claudeCodeRefreshTimer: Timer?
     private var didRunStartupFlow = false
     private var discoveryFailureBackoff: [String: Date] = [:]
     private let discoveryFailureCooldown: TimeInterval = 5 * 60
     
     private init() {
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
+        claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
         bootstrapCredentialIndexFromRegistry()
         normalizePersistedState()
         setupAutoRefresh()
+        setupClaudeCodeAutoRefresh()
         detectActiveCodexAccount()
         detectActiveGeminiAccount()
     }
@@ -148,6 +176,16 @@ class AppState: ObservableObject {
             .filter { $0 > 0 }
             .min(by: { abs($0 - value) < abs($1 - value) })
             ?? defaultAutoRefreshInterval
+    }
+
+    static func normalizedClaudeCodeRefreshInterval(_ value: Int) -> Int {
+        guard value > 0 else { return 0 }
+        guard !supportedClaudeCodeRefreshIntervals.contains(value) else { return value }
+
+        return supportedClaudeCodeRefreshIntervals
+            .filter { $0 > 0 }
+            .min(by: { abs($0 - value) < abs($1 - value) })
+            ?? defaultClaudeCodeRefreshInterval
     }
 
     @MainActor
@@ -163,7 +201,10 @@ class AppState: ObservableObject {
     func saveSettings() {
         let defaults = UserDefaults.standard
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
+        claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
         defaults.set(autoRefreshInterval, forKey: "autoRefreshInterval")
+        defaults.set(claudeCodeRefreshInterval, forKey: "claudeCodeRefreshInterval")
+        defaults.set(claudeCodeDailyThreshold, forKey: "claudeCodeDailyThreshold")
         defaults.set(isDarkMode, forKey: "isDarkMode")
         defaults.set(themeMode, forKey: "themeMode")
         defaults.set(language, forKey: "appLanguage")
@@ -686,20 +727,94 @@ class AppState: ObservableObject {
     func setupAutoRefresh() {
         refreshTimer?.invalidate()
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
-        
+
         if autoRefreshInterval > 0 {
             refreshTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(autoRefreshInterval), repeats: true) { [weak self] _ in
                 self?.refreshAllProviders()
             }
         }
     }
-    
+
+    func setupClaudeCodeAutoRefresh() {
+        claudeCodeRefreshTimer?.invalidate()
+        claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
+
+        if claudeCodeRefreshInterval > 0 {
+            claudeCodeRefreshTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(claudeCodeRefreshInterval), repeats: true) { [weak self] _ in
+                self?.refreshClaudeCodeOnly()
+            }
+        }
+    }
+
     func refreshAllProviders() {
         Task { @MainActor in
             guard !isRefreshingAllProviders else { return }
             isRefreshingAllProviders = true
             defer { isRefreshingAllProviders = false }
             await fetchDashboard()
+        }
+    }
+
+    func refreshClaudeCodeOnly() {
+        Task { @MainActor in
+            await refreshProviderNow("claude")
+            checkClaudeCodeDailyThreshold()
+        }
+    }
+
+    private func checkClaudeCodeDailyThreshold() {
+        guard claudeCodeDailyThreshold > 0 else {
+            return  // 移除日志，减少输出
+        }
+
+        // 检查今天是否已经通知过（提前检查，避免不必要的数据查询）
+        let today = ISO8601DateFormatter().string(from: Date()).prefix(10)  // YYYY-MM-DD
+        if lastNotifiedDate == String(today) {
+            return  // 今天已经通知过了，直接返回
+        }
+
+        // 获取 Claude Code 今日消费
+        guard let claudeProvider = providers.first(where: { $0.baseProviderId == "claude" }),
+              let todayCost = claudeProvider.costSummary?.today?.usd else {
+            return
+        }
+
+        // 检查是否超过阈值
+        guard todayCost >= claudeCodeDailyThreshold else {
+            return
+        }
+
+        // 发送通知
+        appStateLog.info("Sending Claude Code threshold notification: $\(todayCost, privacy: .public) > $\(self.claudeCodeDailyThreshold, privacy: .public)")
+        sendClaudeCodeThresholdNotification(cost: todayCost, threshold: claudeCodeDailyThreshold)
+        lastNotifiedDate = String(today)
+    }
+
+    private func sendClaudeCodeThresholdNotification(cost: Double, threshold: Double) {
+        // 不检查 showNotifications，因为这是独立的阈值通知功能
+
+        let content = UNMutableNotificationContent()
+        content.title = t("Claude Code Daily Cost Alert", "Claude Code 每日消费提醒")
+        content.body = t(
+            "Today's cost $\(String(format: "%.2f", cost)) has exceeded the threshold of $\(String(format: "%.2f", threshold))",
+            "今日消费 $\(String(format: "%.2f", cost)) 已超过阈值 $\(String(format: "%.2f", threshold))"
+        )
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "claude-code-threshold-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
+
+        DispatchQueue.main.async {
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    appStateLog.error("Failed to send notification: \(error.localizedDescription)")
+                } else {
+                    appStateLog.info("Claude Code threshold notification sent: $\(cost, privacy: .public) > $\(threshold, privacy: .public)")
+                }
+            }
         }
     }
 

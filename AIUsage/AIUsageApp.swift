@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import Sparkle
+import UserNotifications
 
 final class SparkleController: ObservableObject {
     @Published var canCheckForUpdates = false
@@ -68,9 +69,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
+        requestNotificationPermission()
 
         if UserDefaults.standard.bool(forKey: "hideDockIcon") {
             NSApp.setActivationPolicy(.accessory)
+        }
+    }
+
+    func requestNotificationPermission() {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error = error {
+                print("Notification permission error: \(error.localizedDescription)")
+            }
+            if granted {
+                print("Notification permission granted")
+            } else {
+                print("Notification permission denied")
+            }
         }
     }
 
@@ -129,7 +145,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: menuText("Open Dashboard", "打开仪表盘"), action: #selector(openDashboard), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: menuText("Open Cost Tracking", "打开费用追踪"), action: #selector(openCostTracking), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: menuText("Refresh All", "全部刷新"), action: #selector(refreshAll), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: menuText("Refresh Claude Code", "刷新 Claude Code"), action: #selector(refreshClaudeCode), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: menuText("Settings...", "设置..."), action: #selector(openSettings), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
@@ -162,6 +180,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func refreshAll() {
         AppState.shared.refreshAllProviders()
+    }
+
+    @objc func refreshClaudeCode() {
+        AppState.shared.refreshClaudeCodeOnly()
     }
 
     @objc func openSettings() {

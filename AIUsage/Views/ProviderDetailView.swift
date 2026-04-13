@@ -161,11 +161,19 @@ struct ProviderDetailView: View {
                         badge(text: localizedStatusLabel(provider.statusLabel), tint: statusColor)
                     }
                 }
-                
+
                 if let refreshTimestamp {
-                    Text(t("Updated", "更新于") + " " + formatRefreshTimestamp(refreshTimestamp, language: appState.language))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    HStack(spacing: 4) {
+                        Text(t("Updated", "更新于"))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        RefreshableTimeView(
+                            date: refreshTimestamp,
+                            language: appState.language,
+                            font: .caption2,
+                            foregroundStyle: .secondary
+                        )
+                    }
                 }
 
                 HStack(spacing: 8) {

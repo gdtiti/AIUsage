@@ -9,7 +9,7 @@ struct CostTrackingView: View {
     @State private var selectedMetric: CostMetric = .usd
     @State private var selectedModels: Set<String> = []
     @State private var distributionMetric: CostMetric = .usd
-    @State private var distributionPeriod: DistributionPeriod = .month
+    @State private var distributionPeriod: DistributionPeriod = .today
     @State private var detailProvider: ProviderData?
 
     private func t(_ en: String, _ zh: String) -> String {
@@ -789,9 +789,12 @@ struct CostTrackingCard: View {
             }
 
             if let refreshTimestamp = appState.accountRefreshDate(for: provider) {
-                Text(formatRefreshTimestamp(refreshTimestamp, language: appState.language))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                RefreshableTimeView(
+                    date: refreshTimestamp,
+                    language: appState.language,
+                    font: .caption2,
+                    foregroundStyle: .secondary
+                )
             }
         }
         .padding(18)

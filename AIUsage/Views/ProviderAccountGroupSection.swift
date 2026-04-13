@@ -74,13 +74,17 @@ struct ProviderAccountGroupSection: View {
                     }
 
                     if let refreshedAt = appState.providerRefreshDate(for: group.providerId) {
-                        Text(
-                            t("This app updated", "本应用更新于")
-                            + " "
-                            + formatRefreshTimestamp(refreshedAt, language: appState.language)
-                        )
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        HStack(spacing: 4) {
+                            Text(t("This app updated", "本应用更新于"))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            RefreshableTimeView(
+                                date: refreshedAt,
+                                language: appState.language,
+                                font: .caption2,
+                                foregroundStyle: .secondary
+                            )
+                        }
                     }
                 }
             }

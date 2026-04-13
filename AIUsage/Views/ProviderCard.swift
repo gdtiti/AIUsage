@@ -157,9 +157,12 @@ struct ProviderCard: View {
                 .help(t("Refresh only this account", "只刷新这个账号"))
 
                 if let refreshTimestamp, !isRefreshing {
-                    Text(formatRefreshTimestamp(refreshTimestamp, language: appState.language))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    RefreshableTimeView(
+                        date: refreshTimestamp,
+                        language: appState.language,
+                        font: .caption2,
+                        foregroundStyle: .secondary
+                    )
                 }
             }
         }

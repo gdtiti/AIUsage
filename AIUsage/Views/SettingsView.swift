@@ -105,6 +105,10 @@ struct SettingsView: View {
             appState.saveSettings()
             appState.setupAutoRefresh()
         }
+        .onChange(of: appState.claudeCodeRefreshInterval) { _, _ in
+            appState.saveSettings()
+            appState.setupClaudeCodeAutoRefresh()
+        }
         .onChange(of: appState.isDarkMode) { _, _ in
             appState.saveSettings()
         }
@@ -313,7 +317,10 @@ struct SettingsView: View {
             title: t("General", "通用"),
             subtitle: t("Control refresh cadence and language.", "控制刷新频率和界面语言。")
         ) {
-            settingsBlock(title: t("Auto-refresh interval", "自动刷新间隔")) {
+            settingsBlock(
+                title: t("Providers auto-refresh", "服务商自动刷新"),
+                subtitle: t("Refresh interval for API-based providers (OpenAI, Anthropic, etc.)", "API 服务商的刷新间隔（OpenAI、Anthropic 等）")
+            ) {
                 Picker("", selection: $appState.autoRefreshInterval) {
                     ForEach(AppState.supportedAutoRefreshIntervals, id: \.self) { interval in
                         Text(autoRefreshTitle(for: interval)).tag(interval)
@@ -321,6 +328,42 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.menu)
                 .frame(maxWidth: 180, alignment: .leading)
+            }
+
+            Divider()
+
+            settingsBlock(
+                title: t("Claude Code auto-refresh", "Claude Code 自动刷新"),
+                subtitle: t("Refresh interval for local Claude Code stats (faster intervals available)", "本地 Claude Code 统计的刷新间隔（支持更短间隔）")
+            ) {
+                Picker("", selection: $appState.claudeCodeRefreshInterval) {
+                    ForEach(AppState.supportedClaudeCodeRefreshIntervals, id: \.self) { interval in
+                        Text(claudeCodeRefreshTitle(for: interval)).tag(interval)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 180, alignment: .leading)
+            }
+
+            Divider()
+
+            settingsBlock(
+                title: t("Claude Code daily cost alert", "Claude Code 每日消费提醒"),
+                subtitle: t("Get notified when daily spending exceeds threshold (0 = off)", "当每日消费超过阈值时通知（0 = 关闭）")
+            ) {
+                HStack(spacing: 8) {
+                    Text("$")
+                        .foregroundStyle(.secondary)
+                    TextField("0.00", value: $appState.claudeCodeDailyThreshold, format: .number.precision(.fractionLength(2)))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                        .onChange(of: appState.claudeCodeDailyThreshold) { _, _ in
+                            appState.saveSettings()
+                        }
+                    Text(t("USD", "美元"))
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
             }
 
             Divider()
@@ -603,6 +646,29 @@ struct SettingsView: View {
             return t("30 minutes", "30 分钟")
         case 3600:
             return t("1 hour", "1 小时")
+        default:
+            return interval >= 60
+                ? t("\(interval / 60) minutes", "\(interval / 60) 分钟")
+                : t("\(interval) seconds", "\(interval) 秒")
+        }
+    }
+
+    private func claudeCodeRefreshTitle(for interval: Int) -> String {
+        switch interval {
+        case 0:
+            return t("Off", "关闭")
+        case 10:
+            return t("10 seconds", "10 秒")
+        case 30:
+            return t("30 seconds", "30 秒")
+        case 60:
+            return t("1 minute", "1 分钟")
+        case 180:
+            return t("3 minutes", "3 分钟")
+        case 300:
+            return t("5 minutes", "5 分钟")
+        case 600:
+            return t("10 minutes", "10 分钟")
         default:
             return interval >= 60
                 ? t("\(interval / 60) minutes", "\(interval / 60) 分钟")

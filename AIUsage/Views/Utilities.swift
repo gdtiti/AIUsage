@@ -1,5 +1,75 @@
 import Foundation
 import SwiftUI
+import Combine
+
+// MARK: - Global Time Manager (单例，所有 View 共享一个 Timer)
+
+class GlobalTimeManager: ObservableObject {
+    static let shared = GlobalTimeManager()
+
+    @Published var currentTime = Date()
+    private var timer: AnyCancellable?
+    private var activeViewCount = 0
+
+    private init() {}
+
+    func startIfNeeded() {
+        activeViewCount += 1
+        if timer == nil {
+            timer = Timer.publish(every: 1, on: .main, in: .common)
+                .autoconnect()
+                .sink { [weak self] time in
+                    self?.currentTime = time
+                }
+        }
+    }
+
+    func stopIfNeeded() {
+        activeViewCount -= 1
+        if activeViewCount <= 0 {
+            timer?.cancel()
+            timer = nil
+            activeViewCount = 0
+        }
+    }
+}
+
+// MARK: - Refreshable Time Views
+
+/// A view that displays a timestamp and automatically refreshes to keep the relative time accurate
+struct RefreshableTimeView: View {
+    let date: Date
+    let language: String
+    let font: Font
+    let foregroundStyle: Color
+
+    @StateObject private var timeManager = GlobalTimeManager.shared
+
+    init(date: Date, language: String, font: Font = .caption2, foregroundStyle: Color = .secondary) {
+        self.date = date
+        self.language = language
+        self.font = font
+        self.foregroundStyle = foregroundStyle
+    }
+
+    private var formattedTime: String {
+        // 使用 timeManager.currentTime 来触发重新计算
+        _ = timeManager.currentTime
+        return formatRefreshTimestamp(date, language: language)
+    }
+
+    var body: some View {
+        Text(formattedTime)
+            .font(font)
+            .foregroundStyle(foregroundStyle)
+            .onAppear {
+                timeManager.startIfNeeded()
+            }
+            .onDisappear {
+                timeManager.stopIfNeeded()
+            }
+    }
+}
 
 // MARK: - Shared Formatting Utilities
 

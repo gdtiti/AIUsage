@@ -1,5 +1,36 @@
 import Foundation
 import SwiftUI
+import Combine
+
+// MARK: - Refreshable Time Views
+
+/// A view that displays a timestamp and automatically refreshes to keep the relative time accurate
+struct RefreshableTimeView: View {
+    let date: Date
+    let language: String
+    let font: Font
+    let foregroundStyle: Color
+
+    @State private var currentTime = Date()
+
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    init(date: Date, language: String, font: Font = .caption2, foregroundStyle: Color = .secondary) {
+        self.date = date
+        self.language = language
+        self.font = font
+        self.foregroundStyle = foregroundStyle
+    }
+
+    var body: some View {
+        Text(formatRefreshTimestamp(date, language: language))
+            .font(font)
+            .foregroundStyle(foregroundStyle)
+            .onReceive(timer) { _ in
+                currentTime = Date()
+            }
+    }
+}
 
 // MARK: - Shared Formatting Utilities
 

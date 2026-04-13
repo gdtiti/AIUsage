@@ -32,9 +32,12 @@ struct MenuBarView: View {
                     .font(.system(size: 14, weight: .bold, design: .rounded))
 
                 if let lastRefresh = appState.lastRefreshTime {
-                    Text(formatRefreshTimestamp(lastRefresh, language: appState.language))
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                    RefreshableTimeView(
+                        date: lastRefresh,
+                        language: appState.language,
+                        font: .system(size: 10),
+                        foregroundStyle: .secondary
+                    )
                 } else {
                     Text(t("Not refreshed yet", "尚未刷新"))
                         .font(.system(size: 10))

@@ -30,6 +30,10 @@ class AppState: ObservableObject {
     private static let selectedProvidersKey = "selectedProviderIds"
     static let supportedAutoRefreshIntervals: [Int] = [30, 60, 180, 300, 600, 900, 1800, 3600, 0]
     static let defaultAutoRefreshInterval = 300
+
+    // Claude Code 独立刷新配置（支持更短的间隔，因为是本地数据）
+    static let supportedClaudeCodeRefreshIntervals: [Int] = [10, 30, 60, 180, 300, 600, 0]
+    static let defaultClaudeCodeRefreshInterval = 30
     private struct InitialState {
         let accounts: [StoredProviderAccount]
         let selectedProviderIds: Set<String>
@@ -92,6 +96,13 @@ class AppState: ObservableObject {
             : AppState.defaultAutoRefreshInterval
         return AppState.normalizedAutoRefreshInterval(storedValue)
     }()
+    @Published var claudeCodeRefreshInterval: Int = {
+        let defaults = UserDefaults.standard
+        let storedValue = defaults.object(forKey: "claudeCodeRefreshInterval") != nil
+            ? defaults.integer(forKey: "claudeCodeRefreshInterval")
+            : AppState.defaultClaudeCodeRefreshInterval
+        return AppState.normalizedClaudeCodeRefreshInterval(storedValue)
+    }()
     @Published var language: String = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
     @Published var quotaIndicatorStyle: CardQuotaIndicatorStyle = CardQuotaIndicatorStyle(rawValue: UserDefaults.standard.string(forKey: "quotaIndicatorStyle") ?? "") ?? .bar
     @Published var quotaIndicatorMetric: CardQuotaIndicatorMetric = CardQuotaIndicatorMetric(rawValue: UserDefaults.standard.string(forKey: "quotaIndicatorMetric") ?? "") ?? .remaining
@@ -127,15 +138,18 @@ class AppState: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     private var refreshTimer: Timer?
+    private var claudeCodeRefreshTimer: Timer?
     private var didRunStartupFlow = false
     private var discoveryFailureBackoff: [String: Date] = [:]
     private let discoveryFailureCooldown: TimeInterval = 5 * 60
     
     private init() {
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
+        claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
         bootstrapCredentialIndexFromRegistry()
         normalizePersistedState()
         setupAutoRefresh()
+        setupClaudeCodeAutoRefresh()
         detectActiveCodexAccount()
         detectActiveGeminiAccount()
     }
@@ -148,6 +162,16 @@ class AppState: ObservableObject {
             .filter { $0 > 0 }
             .min(by: { abs($0 - value) < abs($1 - value) })
             ?? defaultAutoRefreshInterval
+    }
+
+    static func normalizedClaudeCodeRefreshInterval(_ value: Int) -> Int {
+        guard value > 0 else { return 0 }
+        guard !supportedClaudeCodeRefreshIntervals.contains(value) else { return value }
+
+        return supportedClaudeCodeRefreshIntervals
+            .filter { $0 > 0 }
+            .min(by: { abs($0 - value) < abs($1 - value) })
+            ?? defaultClaudeCodeRefreshInterval
     }
 
     @MainActor
@@ -163,7 +187,9 @@ class AppState: ObservableObject {
     func saveSettings() {
         let defaults = UserDefaults.standard
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
+        claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
         defaults.set(autoRefreshInterval, forKey: "autoRefreshInterval")
+        defaults.set(claudeCodeRefreshInterval, forKey: "claudeCodeRefreshInterval")
         defaults.set(isDarkMode, forKey: "isDarkMode")
         defaults.set(themeMode, forKey: "themeMode")
         defaults.set(language, forKey: "appLanguage")
@@ -686,20 +712,37 @@ class AppState: ObservableObject {
     func setupAutoRefresh() {
         refreshTimer?.invalidate()
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
-        
+
         if autoRefreshInterval > 0 {
             refreshTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(autoRefreshInterval), repeats: true) { [weak self] _ in
                 self?.refreshAllProviders()
             }
         }
     }
-    
+
+    func setupClaudeCodeAutoRefresh() {
+        claudeCodeRefreshTimer?.invalidate()
+        claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
+
+        if claudeCodeRefreshInterval > 0 {
+            claudeCodeRefreshTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(claudeCodeRefreshInterval), repeats: true) { [weak self] _ in
+                self?.refreshClaudeCodeOnly()
+            }
+        }
+    }
+
     func refreshAllProviders() {
         Task { @MainActor in
             guard !isRefreshingAllProviders else { return }
             isRefreshingAllProviders = true
             defer { isRefreshingAllProviders = false }
             await fetchDashboard()
+        }
+    }
+
+    func refreshClaudeCodeOnly() {
+        Task { @MainActor in
+            await refreshProviderNow("claude")
         }
     }
 

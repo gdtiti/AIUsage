@@ -129,7 +129,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: menuText("Open Dashboard", "打开仪表盘"), action: #selector(openDashboard), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: menuText("Open Cost Tracking", "打开费用追踪"), action: #selector(openCostTracking), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: menuText("Refresh All", "全部刷新"), action: #selector(refreshAll), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: menuText("Refresh Claude Code", "刷新 Claude Code"), action: #selector(refreshClaudeCode), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: menuText("Settings...", "设置..."), action: #selector(openSettings), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
@@ -162,6 +164,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func refreshAll() {
         AppState.shared.refreshAllProviders()
+    }
+
+    @objc func refreshClaudeCode() {
+        AppState.shared.refreshClaudeCodeOnly()
     }
 
     @objc func openSettings() {

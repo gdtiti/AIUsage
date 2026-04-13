@@ -789,9 +789,12 @@ struct CostTrackingCard: View {
             }
 
             if let refreshTimestamp = appState.accountRefreshDate(for: provider) {
-                Text(formatRefreshTimestamp(refreshTimestamp, language: appState.language))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                RefreshableTimeView(
+                    date: refreshTimestamp,
+                    language: appState.language,
+                    font: .caption2,
+                    foregroundStyle: .secondary
+                )
             }
         }
         .padding(18)

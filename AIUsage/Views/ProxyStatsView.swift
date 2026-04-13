@@ -99,20 +99,54 @@ struct ProxyStatsView: View {
         viewModel.overallStats(nodeFilter: selectedNodeId, modelFilter: selectedModel)
     }
 
+    private var dateRange: (earliest: Date?, latest: Date?, days: Int) {
+        viewModel.dataDateRange(nodeFilter: selectedNodeId, modelFilter: selectedModel)
+    }
+
+    private var dataRangeBanner: some View {
+        let range = dateRange
+        let retentionDays = UserDefaults.standard.integer(forKey: "proxyLogRetentionDays")
+        let effectiveDays = retentionDays > 0 ? retentionDays : 30
+
+        return Group {
+            if let earliest = range.earliest {
+                let df = DateFormatter()
+                let _ = df.dateFormat = "yyyy/MM/dd"
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.secondary)
+                    Text(t("Data covers \(range.days) day(s) (\(df.string(from: earliest)) – \(df.string(from: range.latest ?? Date()))). Logs auto-clean after \(effectiveDays) days.",
+                           "数据覆盖 \(range.days) 天（\(df.string(from: earliest)) – \(df.string(from: range.latest ?? Date()))）。日志 \(effectiveDays) 天后自动清理。"))
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.03)))
+            }
+        }
+    }
+
     private var summaryStrip: some View {
         let s = stats
-        return HStack(spacing: 12) {
-            summaryCell(icon: "dollarsign.circle.fill", title: t("Total Cost", "总费用"),
-                        value: formatCurrency(s.cost), tint: .orange)
-            summaryCell(icon: "bolt.fill", title: t("Total Tokens", "总 Tokens"),
-                        value: formatCompactNumber(Double(s.tokens)), tint: .purple)
-            summaryCell(icon: "arrow.up.arrow.down", title: t("Requests", "请求数"),
-                        value: "\(s.requests)", tint: .blue)
-            summaryCell(icon: "checkmark.seal.fill", title: t("Success Rate", "成功率"),
-                        value: String(format: "%.1f%%", s.successRate), tint: .green)
-            summaryCell(icon: "cpu", title: t("Models", "模型数"),
-                        value: "\(viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: selectedModel).count)",
-                        tint: .pink)
+        return VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                summaryCell(icon: "dollarsign.circle.fill",
+                            title: t("Cost (\(dateRange.days)d)", "费用（\(dateRange.days)天）"),
+                            value: formatCurrency(s.cost), tint: .orange)
+                summaryCell(icon: "bolt.fill",
+                            title: t("Tokens (\(dateRange.days)d)", "Tokens（\(dateRange.days)天）"),
+                            value: formatCompactNumber(Double(s.tokens)), tint: .purple)
+                summaryCell(icon: "arrow.up.arrow.down", title: t("Requests", "请求数"),
+                            value: "\(s.requests)", tint: .blue)
+                summaryCell(icon: "checkmark.seal.fill", title: t("Success Rate", "成功率"),
+                            value: String(format: "%.1f%%", s.successRate), tint: .green)
+                summaryCell(icon: "cpu", title: t("Models", "模型数"),
+                            value: "\(viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: selectedModel).count)",
+                            tint: .pink)
+            }
+            dataRangeBanner
         }
     }
 

@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var isTestingRemoteConnection = false
     @State private var remoteConnectionState: RemoteConnectionState = .idle
     @State private var remoteConnectionMessage: String?
+    @AppStorage("proxyLogRetentionDays") private var proxyLogRetentionDays: Int = 30
 
     init() {
         if _lowQuotaThreshold.wrappedValue == 0 {
@@ -389,10 +390,7 @@ struct SettingsView: View {
                 title: t("Proxy Log Retention", "代理日志保留"),
                 subtitle: t("Automatically delete proxy request logs older than the specified number of days.", "自动删除超过指定天数的代理请求日志。")
             ) {
-                Picker("", selection: Binding(
-                    get: { UserDefaults.standard.integer(forKey: "proxyLogRetentionDays").clamped(to: 7...365, fallback: 30) },
-                    set: { UserDefaults.standard.set($0, forKey: "proxyLogRetentionDays") }
-                )) {
+                Picker("", selection: $proxyLogRetentionDays) {
                     Text(t("7 days", "7 天")).tag(7)
                     Text(t("14 days", "14 天")).tag(14)
                     Text(t("30 days", "30 天")).tag(30)

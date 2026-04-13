@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var proxyVM: ProxyViewModel
     
     private func t(_ en: String, _ zh: String) -> String {
         appState.language == "zh" ? zh : en
@@ -21,6 +22,9 @@ struct DashboardView: View {
                     }
                     if !costTrackingProviders.isEmpty {
                         costTrackingGrid(costTrackingProviders)
+                    }
+                    if !proxyVM.configurations.isEmpty {
+                        proxyStatsSection
                     }
                 } else {
                     emptyView
@@ -176,6 +180,27 @@ struct DashboardView: View {
                 icon: "chart.line.uptrend.xyaxis.circle.fill",
                 color: .purple
             ),
+            {
+                let proxyStats = proxyVM.overallStats(nodeFilter: nil, modelFilter: nil)
+                let proxyRange = proxyVM.dataDateRange(nodeFilter: nil, modelFilter: nil)
+                let activeNodes = proxyVM.configurations.filter { proxyVM.activatedConfigId == $0.id }.count
+                let proxyNote: String
+                if proxyStats.requests == 0 {
+                    proxyNote = t("No proxy requests recorded yet", "暂无代理请求记录")
+                } else {
+                    proxyNote = t(
+                        "\(proxyStats.requests) requests over \(proxyRange.days) days · \(proxyVM.modelAggregates(nodeFilter: nil, modelFilter: nil).count) models",
+                        "\(proxyRange.days) 天内 \(proxyStats.requests) 次请求 · \(proxyVM.modelAggregates(nodeFilter: nil, modelFilter: nil).count) 个模型"
+                    )
+                }
+                return DashboardSummaryCard(
+                    title: t("Proxy Stats", "代理统计"),
+                    value: formatCurrency(proxyStats.cost),
+                    note: proxyNote,
+                    icon: "server.rack",
+                    color: .teal
+                )
+            }(),
             DashboardSummaryCard(
                 title: t("Status Alerts", "状态提醒"),
                 value: formatInt(overview.attentionProviders),
@@ -230,6 +255,67 @@ struct DashboardView: View {
                 }
             }
         }
+    }
+
+    private var proxyStatsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text(t("Proxy Stats", "代理统计"))
+                    .font(.title2)
+                    .bold()
+                Spacer()
+                Button {
+                    appState.selectedSection = .proxyStats
+                } label: {
+                    Text(t("View Details", "查看详情"))
+                        .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+            }
+
+            let stats = proxyVM.overallStats(nodeFilter: nil, modelFilter: nil)
+            let models = proxyVM.modelAggregates(nodeFilter: nil, modelFilter: nil)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
+                proxyMiniCard(title: t("Cost", "费用"), value: AIUsage.formatCurrency(stats.cost), icon: "dollarsign.circle.fill", tint: .orange)
+                proxyMiniCard(title: "Tokens", value: formatCompactNumber(Double(stats.tokens)), icon: "bolt.fill", tint: .purple)
+                proxyMiniCard(title: t("Requests", "请求"), value: "\(stats.requests)", icon: "arrow.up.arrow.down", tint: .blue)
+                proxyMiniCard(title: t("Success", "成功率"), value: String(format: "%.0f%%", stats.successRate), icon: "checkmark.seal.fill", tint: .green)
+            }
+
+            if !models.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(models.prefix(4)) { m in
+                        HStack(spacing: 4) {
+                            Circle().fill(Color.blue.opacity(0.6)).frame(width: 6, height: 6)
+                            Text(m.model).font(.caption2).lineLimit(1)
+                            Text(AIUsage.formatCurrency(m.cost)).font(.caption2.weight(.medium).monospacedDigit())
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.primary.opacity(0.04)))
+                    }
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    private func proxyMiniCard(title: String, value: String, icon: String, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
+                Text(value).font(.system(size: 14, weight: .bold, design: .rounded))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.05)))
     }
 
     private func costTrackingGrid(_ providers: [ProviderData]) -> some View {

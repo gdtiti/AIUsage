@@ -34,17 +34,28 @@ public final class QuotaHTTPServer: @unchecked Sendable {
         }
         listener4.start(queue: .global())
 
-        // Also listen on IPv6 localhost for dual-stack support
-        let params6 = NWParameters.tcp
-        params6.requiredLocalEndpoint = NWEndpoint.hostPort(host: "::1", port: nwPort)
-        let listener6 = try NWListener(using: params6)
-        listener6.newConnectionHandler = { [weak self] connection in
-            guard let self else { return }
-            Task { await self.handleConnection(connection) }
+        // Attempt IPv6 dual-stack (best-effort, may fail if IPv4 already covers it)
+        var ipv6Active = false
+        do {
+            let params6 = NWParameters.tcp
+            params6.requiredLocalEndpoint = NWEndpoint.hostPort(host: "::1", port: nwPort)
+            let listener6 = try NWListener(using: params6)
+            listener6.newConnectionHandler = { [weak self] connection in
+                guard let self else { return }
+                Task { await self.handleConnection(connection) }
+            }
+            listener6.stateUpdateHandler = { state in
+                if case .failed(_) = state {
+                    // IPv6 bind failed — IPv4 on 0.0.0.0 typically already covers dual-stack
+                }
+            }
+            listener6.start(queue: .global())
+            ipv6Active = true
+        } catch {
+            // Silently ignore — IPv4 on 0.0.0.0 handles most cases
         }
-        listener6.start(queue: .global())
 
-        print("QuotaServer listening on \(host):\(port) (IPv4 + IPv6)")
+        print("QuotaServer listening on \(host):\(port)\(ipv6Active ? " (IPv4 + IPv6)" : " (IPv4)")")
         print("Endpoints:")
         print("  GET /api/dashboard")
         print("  GET /api/provider/:id")
@@ -56,17 +67,12 @@ public final class QuotaHTTPServer: @unchecked Sendable {
             print("  POST /v1/messages/count_tokens (Claude Proxy)")
         }
 
-        // Keep alive
+        // Keep alive until IPv4 listener fails
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             listener4.stateUpdateHandler = { state in
                 if case .failed(let error) = state {
-                    print("IPv4 listener failed: \(error)")
+                    print("Listener failed: \(error)")
                     cont.resume()
-                }
-            }
-            listener6.stateUpdateHandler = { state in
-                if case .failed(let error) = state {
-                    print("IPv6 listener failed (non-fatal): \(error)")
                 }
             }
         }

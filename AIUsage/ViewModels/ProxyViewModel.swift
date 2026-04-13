@@ -875,4 +875,13 @@ class ProxyViewModel: ObservableObject {
         let rate = logs.isEmpty ? 0 : Double(successCount) / Double(logs.count) * 100
         return (cost, tokens, logs.count, rate)
     }
+
+    func dataDateRange(nodeFilter: String?, modelFilter: String?) -> (earliest: Date?, latest: Date?, days: Int) {
+        let logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
+        guard let earliest = logs.last?.timestamp, let latest = logs.first?.timestamp else {
+            return (nil, nil, 0)
+        }
+        let days = max(1, Calendar.current.dateComponents([.day], from: earliest, to: latest).day ?? 0 + 1)
+        return (earliest, latest, days)
+    }
 }

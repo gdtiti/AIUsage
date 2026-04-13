@@ -21,6 +21,8 @@ enum AppSection: String, Hashable {
     case dashboard
     case providers
     case costTracking
+    case proxyManagement
+    case proxyStats
     case inbox
     case settings
 }

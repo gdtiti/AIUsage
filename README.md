@@ -33,6 +33,7 @@ AIUsage is a macOS app for monitoring AI subscription quotas, account status, re
 | `Multi-account` | Multiple accounts per provider with independent refresh and one-click CLI switching (Codex, Gemini) |
 | `Codex dual quota` | 5-hour and weekly remaining shown side by side, each with its own reset countdown |
 | `Claude Code stats` | Per-model cost and token breakdown, multi-model comparison charts, and time-period analysis (today / week / month / overall) |
+| `Claude Code proxy` | Protocol translation layer that exposes Claude-compatible API while forwarding to OpenAI-compatible backends with multi-config management |
 | `Menu bar` | Mini progress rings, cost data, active account badges, and account switching without opening the main window |
 | `Credential vault` | Managed credentials stored in macOS Keychain; file-based imports kept under app-managed storage |
 
@@ -95,6 +96,86 @@ Available release assets:
 ## Documentation
 
 - [Architecture Overview](docs/ARCHITECTURE.md)
+- [Claude Code Proxy Plan](docs/claude-code-proxy-plan.md)
+- [Proxy UI Implementation](docs/proxy-ui-implementation.md)
+- [Claude Code Proxy Usage Guide](#claude-code-proxy)
+
+## Claude Code Proxy
+
+AIUsage includes a built-in Claude Code proxy that allows you to use Claude Code CLI with any OpenAI-compatible backend.
+
+### Quick Start
+
+1. Set environment variables:
+```bash
+export OPENAI_API_KEY=sk-your-openai-key
+export OPENAI_BASE_URL=https://api.openai.com/v1  # optional
+export BIG_MODEL=gpt-4o                            # maps to opus
+export MIDDLE_MODEL=gpt-4o                         # maps to sonnet
+export SMALL_MODEL=gpt-4o-mini                     # maps to haiku
+```
+
+2. Start the proxy server:
+```bash
+cd QuotaBackend
+swift run QuotaServer --port 4318
+```
+
+3. Use Claude Code with the proxy:
+```bash
+ANTHROPIC_BASE_URL=http://127.0.0.1:4318 claude
+```
+
+### Features
+
+- ✅ Full Claude Messages API support (`/v1/messages`)
+- ✅ Token counting endpoint (`/v1/messages/count_tokens`)
+- ✅ Streaming SSE responses
+- ✅ Tool use / function calling
+- ✅ Image support (base64-encoded)
+- ✅ Model normalization (`claude-sonnet-4.5` → `sonnet` → `gpt-4o`)
+- ✅ Custom headers for tracking and authentication
+- ✅ Configurable upstream providers (OpenAI, Azure, Ollama, etc.)
+
+### Configuration
+
+All configuration is done via environment variables:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENAI_API_KEY` | Yes | - | Upstream API key |
+| `OPENAI_BASE_URL` | No | `https://api.openai.com/v1` | Upstream base URL |
+| `BIG_MODEL` | No | `gpt-4o` | Model for Claude Opus |
+| `MIDDLE_MODEL` | No | `gpt-4o` | Model for Claude Sonnet |
+| `SMALL_MODEL` | No | `gpt-4o-mini` | Model for Claude Haiku |
+| `ANTHROPIC_API_KEY` | No | - | Expected client API key (for auth) |
+
+### Testing
+
+Run the test suite:
+```bash
+cd QuotaBackend
+swift test
+```
+
+All 21 tests should pass, including:
+- HTTP server enhancements (POST, headers, streaming)
+- Model normalization and mapping
+- Claude ↔ OpenAI protocol conversion
+- Configuration validation
+- Token estimation
+
+### Architecture
+
+The proxy consists of:
+- **HTTP Server**: Enhanced `QuotaHTTPServer` with POST, headers, and SSE streaming
+- **Data Models**: Complete Claude and OpenAI API models
+- **Converters**: Bidirectional protocol translation
+- **Configuration**: Environment-based setup with validation
+- **Upstream Client**: HTTP client for OpenAI-compatible backends
+- **Proxy Service**: Orchestrates authentication, conversion, and forwarding
+
+See [Claude Code Proxy Plan](docs/claude-code-proxy-plan.md) for detailed implementation notes.
 
 ## Acknowledgements
 

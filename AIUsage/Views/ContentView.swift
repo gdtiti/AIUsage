@@ -43,6 +43,12 @@ struct ContentView: View {
                 Label(t("Claude Code Stats", "Claude Code 统计"), systemImage: "chart.bar.xaxis")
                     .tag(AppSection.costTracking)
 
+                Label(t("Claude Code Proxy", "Claude Code 代理"), systemImage: "server.rack")
+                    .tag(AppSection.proxyManagement)
+
+                Label(t("Proxy Stats", "代理统计"), systemImage: "chart.line.uptrend.xyaxis")
+                    .tag(AppSection.proxyStats)
+
                 inboxLabel
                     .tag(AppSection.inbox)
 
@@ -64,6 +70,10 @@ struct ContentView: View {
                     ProvidersView()
                 case .costTracking:
                     CostTrackingView()
+                case .proxyManagement:
+                    ProxyManagementView()
+                case .proxyStats:
+                    ProxyStatsView()
                 case .inbox:
                     InboxView()
                 case .settings:

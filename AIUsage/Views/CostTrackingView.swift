@@ -5,11 +5,11 @@ import Charts
 
 struct CostTrackingView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedGranularity: CostGranularity = .hourly
-    @State private var selectedMetric: CostMetric = .usd
+    @AppStorage("ccStatsGranularity") private var selectedGranularity: CostGranularity = .hourly
+    @AppStorage("ccStatsMetric") private var selectedMetric: CostMetric = .usd
     @State private var selectedModels: Set<String> = []
-    @State private var distributionMetric: CostMetric = .usd
-    @State private var distributionPeriod: DistributionPeriod = .today
+    @AppStorage("ccStatsDistMetric") private var distributionMetric: CostMetric = .usd
+    @AppStorage("ccStatsDistPeriod") private var distributionPeriod: DistributionPeriod = .today
     @State private var detailProvider: ProviderData?
 
     private func t(_ en: String, _ zh: String) -> String {
@@ -833,23 +833,4 @@ struct CostTrackingCard: View {
     }
 }
 
-// MARK: - Format Helpers
-
-private func formatCompactNumber(_ value: Double) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .decimal
-    switch abs(value) {
-    case 1_000_000...:
-        formatter.maximumFractionDigits = 1
-        return (formatter.string(from: NSNumber(value: value / 1_000_000)) ?? "0") + "M"
-    case 10_000...:
-        formatter.maximumFractionDigits = 1
-        return (formatter.string(from: NSNumber(value: value / 1_000)) ?? "0") + "k"
-    case 1_000...:
-        formatter.maximumFractionDigits = 0
-        return (formatter.string(from: NSNumber(value: value / 1_000)) ?? "0") + "k"
-    default:
-        formatter.maximumFractionDigits = value < 100 ? 1 : 0
-        return formatter.string(from: NSNumber(value: value)) ?? "0"
-    }
-}
+// formatCompactNumber is defined in Utilities.swift

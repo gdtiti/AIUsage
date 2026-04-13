@@ -132,12 +132,32 @@ func formatRelativeRefreshTime(_ date: Date, language: String) -> String {
 }
 
 func formatCurrency(_ value: Double) -> String {
+    let displayCurrency = UserDefaults.standard.string(forKey: "displayCurrency") ?? "USD"
+    let usdToCnyRate: Double = 7.3
+
+    let displayValue = displayCurrency == "CNY" ? value * usdToCnyRate : value
+    let symbol = displayCurrency == "CNY" ? "¥" : "$"
+
     let formatter = NumberFormatter()
     formatter.numberStyle = .currency
-    formatter.currencyCode = "USD"
-    formatter.minimumFractionDigits = value >= 1 ? 2 : 4
-    formatter.maximumFractionDigits = value >= 1 ? 2 : 4
-    return formatter.string(from: NSNumber(value: value)) ?? "$0.00"
+    formatter.currencySymbol = symbol
+    formatter.minimumFractionDigits = displayValue >= 1 ? 2 : 4
+    formatter.maximumFractionDigits = displayValue >= 1 ? 2 : 4
+    return formatter.string(from: NSNumber(value: displayValue)) ?? "\(symbol)0.00"
+}
+
+extension Int {
+    func clamped(to range: ClosedRange<Int>, fallback: Int) -> Int {
+        if self == 0 { return fallback }
+        return Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+func formatCompactNumber(_ value: Double) -> String {
+    if value >= 1_000_000_000 { return String(format: "%.1fB", value / 1_000_000_000) }
+    if value >= 1_000_000 { return String(format: "%.1fM", value / 1_000_000) }
+    if value >= 1_000 { return String(format: "%.1fK", value / 1_000) }
+    return String(format: "%.0f", value)
 }
 
 func formatNumber(_ value: Int) -> String {

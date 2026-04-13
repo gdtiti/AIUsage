@@ -403,8 +403,35 @@ public struct ClaudeProvider: ProviderFetcher {
         "claude-opus-4-1":           Pricing(1.5e-5, 7.5e-5, 1.875e-5, 1.5e-6)
     ]
 
+    static func loadPricingOverrides() -> [String: Pricing] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let path = (home as NSString).appendingPathComponent(".config/aiusage/proxy-pricing.json")
+        guard let data = FileManager.default.contents(atPath: path),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let pricingDict = root["pricing"] as? [String: [String: Double]] else {
+            return [:]
+        }
+
+        var overrides: [String: Pricing] = [:]
+        for (model, prices) in pricingDict {
+            let input = (prices["input_per_million"] ?? 0) / 1_000_000
+            let output = (prices["output_per_million"] ?? 0) / 1_000_000
+            let cache = (prices["cache_per_million"] ?? 0) / 1_000_000
+            overrides[model] = Pricing(input, output, cache * 1.25, cache)
+        }
+        return overrides
+    }
+
+    private var effectivePricing: [String: Pricing] {
+        var combined = Self.pricing
+        for (key, value) in Self.loadPricingOverrides() {
+            combined[key] = value
+        }
+        return combined
+    }
+
     private func estimateCost(model: String, input: Int, cacheRead: Int, cacheCreate: Int, output: Int) -> Double? {
-        guard let p = Self.pricing[model] else { return nil }
+        guard let p = effectivePricing[model] else { return nil }
 
         func tiered(_ tokens: Int, base: Double, above: Double?, threshold: Int?) -> Double {
             guard let t = threshold, let a = above else { return Double(tokens) * base }
@@ -422,7 +449,6 @@ public struct ClaudeProvider: ProviderFetcher {
 
     // MARK: - Model normalization
 
-    /// Light cleanup for display: lowercase, strip vendor prefix and version suffix, replace dots with dashes
     private func cleanModelName(_ raw: String) -> String {
         var model = raw.lowercased()
         if model.hasPrefix("anthropic/") { model = String(model.dropFirst("anthropic/".count)) }

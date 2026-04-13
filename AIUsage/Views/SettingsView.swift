@@ -369,6 +369,44 @@ struct SettingsView: View {
             Divider()
 
             settingsBlock(
+                title: t("Display Currency", "显示货币"),
+                subtitle: t("Currency for cost display across the app.", "应用中费用显示的货币单位。")
+            ) {
+                Picker("", selection: Binding(
+                    get: { UserDefaults.standard.string(forKey: "displayCurrency") ?? "USD" },
+                    set: { UserDefaults.standard.set($0, forKey: "displayCurrency") }
+                )) {
+                    Text("USD ($)").tag("USD")
+                    Text("CNY (¥)").tag("CNY")
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 200, alignment: .leading)
+            }
+
+            Divider()
+
+            settingsBlock(
+                title: t("Proxy Log Retention", "代理日志保留"),
+                subtitle: t("Automatically delete proxy request logs older than the specified number of days.", "自动删除超过指定天数的代理请求日志。")
+            ) {
+                Picker("", selection: Binding(
+                    get: { UserDefaults.standard.integer(forKey: "proxyLogRetentionDays").clamped(to: 7...365, fallback: 30) },
+                    set: { UserDefaults.standard.set($0, forKey: "proxyLogRetentionDays") }
+                )) {
+                    Text(t("7 days", "7 天")).tag(7)
+                    Text(t("14 days", "14 天")).tag(14)
+                    Text(t("30 days", "30 天")).tag(30)
+                    Text(t("90 days", "90 天")).tag(90)
+                    Text(t("180 days", "180 天")).tag(180)
+                    Text(t("365 days", "365 天")).tag(365)
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 180, alignment: .leading)
+            }
+
+            Divider()
+
+            settingsBlock(
                 title: t("Theme", "主题"),
                 subtitle: t("Choose app appearance: follow system, light, or dark.", "选择外观模式：跟随系统、浅色或深色。")
             ) {

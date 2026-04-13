@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5EF87F012F8D0E9E002FE291 /* ProxyConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F002F8D0E9E002FE291 /* ProxyConfiguration.swift */; };
+		5EF87F042F8D0ED3002FE291 /* ProxyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F022F8D0ED3002FE291 /* ProxyViewModel.swift */; };
+		5EF87F072F8D0EED002FE291 /* ProxyConfigEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F052F8D0EED002FE291 /* ProxyConfigEditorView.swift */; };
+		5EF87F082F8D0EED002FE291 /* ProxyManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F062F8D0EED002FE291 /* ProxyManagementView.swift */; };
+		B3943D26F03B43809C53419E /* ProxyStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DC4A1479C740ED996962FC /* ProxyStatsView.swift */; };
 		5EFAD7702F87AFE700A15674 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5EFAD7422F87AC7100A15674 /* Assets.xcassets */; };
 		5EFAD7712F87AFE700A15674 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5EFAD7402F87AC7100A15674 /* Preview Assets.xcassets */; };
 		5EFAD7732F87AFE700A15674 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7472F87AC7100A15674 /* DashboardView.swift */; };
@@ -38,6 +43,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5EF87F002F8D0E9E002FE291 /* ProxyConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyConfiguration.swift; sourceTree = "<group>"; };
+		5EF87F022F8D0ED3002FE291 /* ProxyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyViewModel.swift; sourceTree = "<group>"; };
+		5EF87F052F8D0EED002FE291 /* ProxyConfigEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyConfigEditorView.swift; sourceTree = "<group>"; };
+		5EF87F062F8D0EED002FE291 /* ProxyManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyManagementView.swift; sourceTree = "<group>"; };
+		F9DC4A1479C740ED996962FC /* ProxyStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyStatsView.swift; sourceTree = "<group>"; };
 		5EFAD72F2F87AC3300A15674 /* AIUsage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIUsage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5EFAD73D2F87AC7100A15674 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		5EFAD73E2F87AC7100A15674 /* ProviderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderModels.swift; sourceTree = "<group>"; };
@@ -82,6 +92,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		5EF87F032F8D0ED3002FE291 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				5EF87F022F8D0ED3002FE291 /* ProxyViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
 		5EFAD7262F87AC3300A15674 = {
 			isa = PBXGroup;
 			children = (
@@ -101,6 +119,7 @@
 		5EFAD73F2F87AC7100A15674 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				5EF87F002F8D0E9E002FE291 /* ProxyConfiguration.swift */,
 				5EFAD73D2F87AC7100A15674 /* AppState.swift */,
 				5EFAD73E2F87AC7100A15674 /* ProviderModels.swift */,
 			);
@@ -136,6 +155,9 @@
 		5EFAD74C2F87AC7100A15674 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				5EF87F052F8D0EED002FE291 /* ProxyConfigEditorView.swift */,
+				5EF87F062F8D0EED002FE291 /* ProxyManagementView.swift */,
+				F9DC4A1479C740ED996962FC /* ProxyStatsView.swift */,
 				5EFAD7462F87AC7100A15674 /* ContentView.swift */,
 				5EFAD7472F87AC7100A15674 /* DashboardView.swift */,
 				5EFAD7482F87AC7100A15674 /* MenuBarView.swift */,
@@ -161,6 +183,7 @@
 		5EFAD7502F87AC7100A15674 /* AIUsage */ = {
 			isa = PBXGroup;
 			children = (
+				5EF87F032F8D0ED3002FE291 /* ViewModels */,
 				5EFAD73F2F87AC7100A15674 /* Models */,
 				5EFAD7412F87AC7100A15674 /* Preview Content */,
 				5EFAD7432F87AC7100A15674 /* Resources */,
@@ -249,7 +272,6 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-
 /* Begin PBXSourcesBuildPhase section */
 		5EFAD72B2F87AC3300A15674 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -264,6 +286,7 @@
 				5EFAD7792F87AFE700A15674 /* ContentView.swift in Sources */,
 				5EFAD77A2F87AFE700A15674 /* AIUsageApp.swift in Sources */,
 				5EFAD77B2F87AFE700A15674 /* MenuBarView.swift in Sources */,
+				5EF87F012F8D0E9E002FE291 /* ProxyConfiguration.swift in Sources */,
 				5EFAD77C2F87AFE700A15674 /* ProviderModels.swift in Sources */,
 				5EFAD77D2F87AFE700A15674 /* ProviderDetailView.swift in Sources */,
 				5EFAD77E2F87AFE700A15674 /* ProviderIconView.swift in Sources */,
@@ -272,6 +295,9 @@
 				5EFAD7812F87AFE700A15674 /* CostTrackingView.swift in Sources */,
 				5EFAD7822F87AFE700A15674 /* ProviderPickerView.swift in Sources */,
 				5EFAD7832F87AFE700A15674 /* SecureAccountVault.swift in Sources */,
+				5EF87F072F8D0EED002FE291 /* ProxyConfigEditorView.swift in Sources */,
+				5EF87F082F8D0EED002FE291 /* ProxyManagementView.swift in Sources */,
+				B3943D26F03B43809C53419E /* ProxyStatsView.swift in Sources */,
 				5EFAD7842F87B00100A15674 /* WebLoginView.swift in Sources */,
 				5EFAD7862F87B10100A15674 /* ProviderAuthManager.swift in Sources */,
 				5EFAD7872F87B10200A15674 /* ProviderAccountEditorView.swift in Sources */,
@@ -279,6 +305,7 @@
 				5EFAD78B2F87B10400A15674 /* SavedAccountViews.swift in Sources */,
 				5EFAD78D2F87B10500A15674 /* AccountNoteEditorView.swift in Sources */,
 				5EFAD78F2F87B10600A15674 /* Utilities.swift in Sources */,
+				5EF87F042F8D0ED3002FE291 /* ProxyViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

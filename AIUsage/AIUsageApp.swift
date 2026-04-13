@@ -27,12 +27,14 @@ final class SparkleController: ObservableObject {
 struct AIUsageApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState.shared
+    @StateObject private var proxyViewModel = ProxyViewModel()
     @StateObject private var sparkle = SparkleController()
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
+                .environmentObject(proxyViewModel)
                 .environmentObject(sparkle)
                 .frame(minWidth: 900, idealWidth: 1100, minHeight: 600, idealHeight: 700)
                 .preferredColorScheme(appState.resolvedColorScheme)

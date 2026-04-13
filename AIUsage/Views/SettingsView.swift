@@ -348,6 +348,27 @@ struct SettingsView: View {
             Divider()
 
             settingsBlock(
+                title: t("Claude Code daily cost alert", "Claude Code 每日消费提醒"),
+                subtitle: t("Get notified when daily spending exceeds threshold (0 = off)", "当每日消费超过阈值时通知（0 = 关闭）")
+            ) {
+                HStack(spacing: 8) {
+                    Text("$")
+                        .foregroundStyle(.secondary)
+                    TextField("0.00", value: $appState.claudeCodeDailyThreshold, format: .number.precision(.fractionLength(2)))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                        .onChange(of: appState.claudeCodeDailyThreshold) { _, _ in
+                            appState.saveSettings()
+                        }
+                    Text(t("USD", "美元"))
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+            }
+
+            Divider()
+
+            settingsBlock(
                 title: t("Theme", "主题"),
                 subtitle: t("Choose app appearance: follow system, light, or dark.", "选择外观模式：跟随系统、浅色或深色。")
             ) {

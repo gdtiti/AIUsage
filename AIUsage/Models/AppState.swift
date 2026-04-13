@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import os.log
 import QuotaBackend
+import UserNotifications
 
 private let appStateLog = Logger(subsystem: "com.aiusage.desktop", category: "AppState")
 
@@ -107,6 +108,19 @@ class AppState: ObservableObject {
     @Published var quotaIndicatorStyle: CardQuotaIndicatorStyle = CardQuotaIndicatorStyle(rawValue: UserDefaults.standard.string(forKey: "quotaIndicatorStyle") ?? "") ?? .bar
     @Published var quotaIndicatorMetric: CardQuotaIndicatorMetric = CardQuotaIndicatorMetric(rawValue: UserDefaults.standard.string(forKey: "quotaIndicatorMetric") ?? "") ?? .remaining
 
+    // Claude Code 消费阈值报警
+    @Published var claudeCodeDailyThreshold: Double = {
+        let defaults = UserDefaults.standard
+        let storedValue = defaults.object(forKey: "claudeCodeDailyThreshold") != nil
+            ? defaults.double(forKey: "claudeCodeDailyThreshold")
+            : 0.0  // 0 表示关闭
+        return storedValue
+    }()
+    private var lastNotifiedDate: String? {
+        get { UserDefaults.standard.string(forKey: "claudeCodeLastNotifiedDate") }
+        set { UserDefaults.standard.set(newValue, forKey: "claudeCodeLastNotifiedDate") }
+    }
+
     // Backend mode: "local" (直接调用 Swift Provider) 或 "remote" (通过 HTTP)
     @Published var backendMode: String = UserDefaults.standard.string(forKey: "backendMode") ?? "local"
     @Published var remoteHost: String = UserDefaults.standard.string(forKey: "remoteHost") ?? "127.0.0.1"
@@ -190,6 +204,7 @@ class AppState: ObservableObject {
         claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
         defaults.set(autoRefreshInterval, forKey: "autoRefreshInterval")
         defaults.set(claudeCodeRefreshInterval, forKey: "claudeCodeRefreshInterval")
+        defaults.set(claudeCodeDailyThreshold, forKey: "claudeCodeDailyThreshold")
         defaults.set(isDarkMode, forKey: "isDarkMode")
         defaults.set(themeMode, forKey: "themeMode")
         defaults.set(language, forKey: "appLanguage")
@@ -743,6 +758,63 @@ class AppState: ObservableObject {
     func refreshClaudeCodeOnly() {
         Task { @MainActor in
             await refreshProviderNow("claude")
+            checkClaudeCodeDailyThreshold()
+        }
+    }
+
+    private func checkClaudeCodeDailyThreshold() {
+        guard claudeCodeDailyThreshold > 0 else {
+            return  // 移除日志，减少输出
+        }
+
+        // 检查今天是否已经通知过（提前检查，避免不必要的数据查询）
+        let today = ISO8601DateFormatter().string(from: Date()).prefix(10)  // YYYY-MM-DD
+        if lastNotifiedDate == String(today) {
+            return  // 今天已经通知过了，直接返回
+        }
+
+        // 获取 Claude Code 今日消费
+        guard let claudeProvider = providers.first(where: { $0.baseProviderId == "claude" }),
+              let todayCost = claudeProvider.costSummary?.today?.usd else {
+            return
+        }
+
+        // 检查是否超过阈值
+        guard todayCost >= claudeCodeDailyThreshold else {
+            return
+        }
+
+        // 发送通知
+        appStateLog.info("Sending Claude Code threshold notification: $\(todayCost, privacy: .public) > $\(self.claudeCodeDailyThreshold, privacy: .public)")
+        sendClaudeCodeThresholdNotification(cost: todayCost, threshold: claudeCodeDailyThreshold)
+        lastNotifiedDate = String(today)
+    }
+
+    private func sendClaudeCodeThresholdNotification(cost: Double, threshold: Double) {
+        // 不检查 showNotifications，因为这是独立的阈值通知功能
+
+        let content = UNMutableNotificationContent()
+        content.title = t("Claude Code Daily Cost Alert", "Claude Code 每日消费提醒")
+        content.body = t(
+            "Today's cost $\(String(format: "%.2f", cost)) has exceeded the threshold of $\(String(format: "%.2f", threshold))",
+            "今日消费 $\(String(format: "%.2f", cost)) 已超过阈值 $\(String(format: "%.2f", threshold))"
+        )
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "claude-code-threshold-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
+
+        DispatchQueue.main.async {
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    appStateLog.error("Failed to send notification: \(error.localizedDescription)")
+                } else {
+                    appStateLog.info("Claude Code threshold notification sent: $\(cost, privacy: .public) > $\(threshold, privacy: .public)")
+                }
+            }
         }
     }
 

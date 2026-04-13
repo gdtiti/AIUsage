@@ -9,7 +9,7 @@ struct CostTrackingView: View {
     @State private var selectedMetric: CostMetric = .usd
     @State private var selectedModels: Set<String> = []
     @State private var distributionMetric: CostMetric = .usd
-    @State private var distributionPeriod: DistributionPeriod = .month
+    @State private var distributionPeriod: DistributionPeriod = .today
     @State private var detailProvider: ProviderData?
 
     private func t(_ en: String, _ zh: String) -> String {

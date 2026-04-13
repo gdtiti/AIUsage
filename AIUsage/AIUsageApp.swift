@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import Sparkle
+import UserNotifications
 
 final class SparkleController: ObservableObject {
     @Published var canCheckForUpdates = false
@@ -68,9 +69,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
+        requestNotificationPermission()
 
         if UserDefaults.standard.bool(forKey: "hideDockIcon") {
             NSApp.setActivationPolicy(.accessory)
+        }
+    }
+
+    func requestNotificationPermission() {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error = error {
+                print("Notification permission error: \(error.localizedDescription)")
+            }
+            if granted {
+                print("Notification permission granted")
+            } else {
+                print("Notification permission denied")
+            }
         }
     }
 

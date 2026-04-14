@@ -8,6 +8,9 @@ struct ProxyConfigEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var config: ProxyConfiguration
     @State private var isNew: Bool
+    @State private var availableModels: [String] = []
+    @State private var isFetchingModels: Bool = false
+    @State private var fetchModelsError: String?
 
     private func t(_ en: String, _ zh: String) -> String {
         appState.language == "zh" ? zh : en
@@ -324,13 +327,32 @@ struct ProxyConfigEditorView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            HStack(spacing: 6) {
-                Image(systemName: "info.circle.fill")
-                    .foregroundStyle(.blue)
-                Text(t("This key will be used to call the upstream API",
-                       "此密钥将用于调用上游 API"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Button {
+                    fetchModels()
+                } label: {
+                    HStack(spacing: 4) {
+                        if isFetchingModels {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.down.circle")
+                        }
+                        Text(t("Fetch Models", "获取模型"))
+                    }
+                    .font(.caption.weight(.semibold))
+                }
+                .disabled(config.upstreamBaseURL.isEmpty || config.upstreamAPIKey.isEmpty || isFetchingModels)
+
+                if !availableModels.isEmpty {
+                    Text(t("\(availableModels.count) models available", "已获取 \(availableModels.count) 个模型"))
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                } else if let error = fetchModelsError {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                }
             }
         }
         .padding(16)
@@ -472,9 +494,8 @@ struct ProxyConfigEditorView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(t("Default Model", "主模型"))
                     .font(.subheadline.weight(.semibold))
-                TextField(config.nodeType == .openaiProxy ? "gpt-5.4" : "claude-sonnet-4-6",
-                          text: $config.defaultModel)
-                    .textFieldStyle(.roundedBorder)
+                modelTextField(text: $config.defaultModel,
+                               placeholder: config.nodeType == .openaiProxy ? "gpt-5.4" : "claude-sonnet-4-6")
                 Text(t("The model field in settings.json. Claude Code uses this as the active model.",
                        "settings.json 中的 model 字段，Claude Code 以此作为当前使用的模型。"))
                     .font(.caption2)
@@ -532,9 +553,42 @@ struct ProxyConfigEditorView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 52, alignment: .trailing)
 
-            TextField(placeholder, text: binding)
+            modelTextField(text: binding, placeholder: placeholder)
+        }
+    }
+
+    private func modelTextField(text: Binding<String>, placeholder: String) -> some View {
+        let suggestions = filteredModels(for: text.wrappedValue)
+        let showSuggestions = !availableModels.isEmpty && !text.wrappedValue.isEmpty && !suggestions.isEmpty
+            && !suggestions.contains(where: { $0 == text.wrappedValue })
+
+        return VStack(alignment: .leading, spacing: 0) {
+            TextField(placeholder, text: text)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.body, design: .monospaced))
+
+            if showSuggestions {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(suggestions.prefix(8), id: \.self) { model in
+                            Button {
+                                text.wrappedValue = model
+                            } label: {
+                                Text(model)
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                            .background(Color.primary.opacity(0.04))
+                        }
+                    }
+                }
+                .frame(maxHeight: 160)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlBackgroundColor)))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.primary.opacity(0.1)))
+            }
         }
     }
 
@@ -669,6 +723,58 @@ struct ProxyConfigEditorView: View {
                 !config.modelMapping.middleModel.name.isEmpty &&
                 !config.modelMapping.smallModel.name.isEmpty
         }
+    }
+
+    // MARK: - Model Fetching
+
+    private func fetchModels() {
+        let baseURL: String
+        let apiKey: String
+
+        if config.nodeType == .openaiProxy {
+            baseURL = config.upstreamBaseURL
+            apiKey = config.upstreamAPIKey
+        } else {
+            baseURL = config.anthropicBaseURL
+            apiKey = config.anthropicAPIKey
+        }
+
+        guard !baseURL.isEmpty, !apiKey.isEmpty else { return }
+
+        let urlString = baseURL.hasSuffix("/")
+            ? baseURL + "models"
+            : baseURL + "/models"
+        guard let url = URL(string: urlString) else { return }
+
+        isFetchingModels = true
+        fetchModelsError = nil
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            defer { DispatchQueue.main.async { isFetchingModels = false } }
+            if let error = error {
+                DispatchQueue.main.async { fetchModelsError = error.localizedDescription }
+                return
+            }
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let dataArr = json["data"] as? [[String: Any]] else {
+                DispatchQueue.main.async { fetchModelsError = "Invalid response" }
+                return
+            }
+
+            let models = dataArr.compactMap { $0["id"] as? String }.sorted()
+            DispatchQueue.main.async {
+                availableModels = models
+                fetchModelsError = models.isEmpty ? "No models found" : nil
+            }
+        }.resume()
+    }
+
+    private func filteredModels(for text: String) -> [String] {
+        guard !text.isEmpty else { return availableModels }
+        return availableModels.filter { $0.localizedCaseInsensitiveContains(text) }
     }
 
     // MARK: - Actions

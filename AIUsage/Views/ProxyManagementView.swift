@@ -254,6 +254,24 @@ struct ProxyManagementView: View {
                 selectedConfigId = isSelected ? nil : config.id
             }
         }
+        .contextMenu {
+            Button {
+                editingConfig = config
+            } label: {
+                Label(t("Edit", "编辑"), systemImage: "pencil")
+            }
+            Button {
+                duplicateConfig(config)
+            } label: {
+                Label(t("Duplicate", "复制节点"), systemImage: "doc.on.doc")
+            }
+            Divider()
+            Button(role: .destructive) {
+                deleteConfig(config)
+            } label: {
+                Label(t("Delete", "删除"), systemImage: "trash")
+            }
+        }
     }
 
     private static let anthropicBrand = Color(red: 0.85, green: 0.47, blue: 0.34)
@@ -573,6 +591,31 @@ struct ProxyManagementView: View {
 
     private func editConfig(_ config: ProxyConfiguration) {
         editingConfig = config
+    }
+
+    private func duplicateConfig(_ config: ProxyConfiguration) {
+        let usedPorts = Set(viewModel.configurations.map(\.port))
+        var newPort = config.port + 1
+        while usedPorts.contains(newPort) && newPort < 65535 { newPort += 1 }
+
+        let copy = ProxyConfiguration(
+            name: config.name + " " + t("(Copy)", "(副本)"),
+            nodeType: config.nodeType,
+            anthropicBaseURL: config.anthropicBaseURL,
+            anthropicAPIKey: config.anthropicAPIKey,
+            usePassthroughProxy: config.usePassthroughProxy,
+            host: config.host,
+            port: newPort,
+            allowLAN: config.allowLAN,
+            upstreamBaseURL: config.upstreamBaseURL,
+            upstreamAPIKey: config.upstreamAPIKey,
+            expectedClientKey: config.expectedClientKey,
+            defaultModel: config.defaultModel,
+            modelMapping: config.modelMapping,
+            maxOutputTokens: config.maxOutputTokens,
+            passthroughPricing: config.passthroughPricing
+        )
+        viewModel.addConfiguration(copy)
     }
 
     private func deleteConfig(_ config: ProxyConfiguration) {

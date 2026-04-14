@@ -196,7 +196,6 @@ class ProxyViewModel: ObservableObject {
             }
             configurations[index] = config
             saveConfigurations()
-            recalculateCosts(for: config.id)
             if wasActivated {
                 activateConfiguration(config.id)
             }
@@ -335,44 +334,46 @@ class ProxyViewModel: ObservableObject {
         saveLogs()
     }
 
+    /// Fill in costs for logs that have estimatedCostUSD == 0 (pricing was missing at creation time).
+    /// Logs with existing non-zero costs are preserved as-is.
     func recalculateCosts(for configId: String) {
         guard let config = configurations.first(where: { $0.id == configId }),
               let logs = recentLogs[configId] else { return }
 
-        var totalCost: Double = 0
+        var changed = false
         var updatedLogs: [ProxyRequestLog] = []
 
         for log in logs {
-            let pricing = config.pricingForModel(log.upstreamModel)
-            let cost = pricing?.costForTokens(input: log.tokensInput, output: log.tokensOutput, cache: log.tokensCache) ?? 0
-            totalCost += cost
-
-            let updated = ProxyRequestLog(
-                id: log.id,
-                configId: log.configId,
-                timestamp: log.timestamp,
-                method: log.method,
-                path: log.path,
-                claudeModel: log.claudeModel,
-                upstreamModel: log.upstreamModel,
-                success: log.success,
-                responseTimeMs: log.responseTimeMs,
-                tokensInput: log.tokensInput,
-                tokensOutput: log.tokensOutput,
-                tokensCache: log.tokensCache,
-                estimatedCostUSD: cost,
-                errorMessage: log.errorMessage
-            )
-            updatedLogs.append(updated)
+            if log.estimatedCostUSD == 0, log.tokensInput + log.tokensOutput + log.tokensCache > 0 {
+                let pricing = config.pricingForModel(log.upstreamModel)
+                let cost = pricing?.costForTokens(input: log.tokensInput, output: log.tokensOutput, cache: log.tokensCache) ?? 0
+                if cost > 0 {
+                    changed = true
+                    updatedLogs.append(ProxyRequestLog(
+                        id: log.id, configId: log.configId, timestamp: log.timestamp,
+                        method: log.method, path: log.path,
+                        claudeModel: log.claudeModel, upstreamModel: log.upstreamModel,
+                        success: log.success, responseTimeMs: log.responseTimeMs,
+                        tokensInput: log.tokensInput, tokensOutput: log.tokensOutput,
+                        tokensCache: log.tokensCache, estimatedCostUSD: cost,
+                        errorMessage: log.errorMessage
+                    ))
+                    continue
+                }
+            }
+            updatedLogs.append(log)
         }
 
-        recentLogs[configId] = updatedLogs
-        if var stats = statistics[configId] {
-            stats.estimatedCostUSD = totalCost
-            statistics[configId] = stats
+        if changed {
+            recentLogs[configId] = updatedLogs
+            let totalCost = updatedLogs.reduce(0.0) { $0 + $1.estimatedCostUSD }
+            if var stats = statistics[configId] {
+                stats.estimatedCostUSD = totalCost
+                statistics[configId] = stats
+            }
+            saveStatistics()
+            saveLogs()
         }
-        saveStatistics()
-        saveLogs()
     }
 
     // MARK: - Logs Management

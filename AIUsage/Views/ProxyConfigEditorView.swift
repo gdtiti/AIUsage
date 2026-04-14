@@ -110,7 +110,7 @@ struct ProxyConfigEditorView: View {
                 .tag(NodeType.openaiProxy)
             }
             .pickerStyle(.segmented)
-            .onChange(of: config.nodeType) { newType in
+            .onChange(of: config.nodeType) { _, newType in
                 if isNew {
                     switch newType {
                     case .anthropicDirect:
@@ -373,7 +373,7 @@ struct ProxyConfigEditorView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 160)
-                .onChange(of: pricingCurrency) { newCurrency in
+                .onChange(of: pricingCurrency) { _, newCurrency in
                     for key in config.passthroughPricing.keys {
                         config.passthroughPricing[key]?.currency = newCurrency
                     }
@@ -603,7 +603,7 @@ struct ProxyConfigEditorView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 160)
-                .onChange(of: pricingCurrency) { newCurrency in
+                .onChange(of: pricingCurrency) { _, newCurrency in
                     config.modelMapping.bigModel.pricing.currency = newCurrency
                     config.modelMapping.middleModel.pricing.currency = newCurrency
                     config.modelMapping.smallModel.pricing.currency = newCurrency

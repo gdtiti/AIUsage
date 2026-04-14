@@ -136,17 +136,30 @@ private enum CurrencyDisplayConstants {
     static let approximateUsdToCnyRate: Double = 7.3
 }
 
+private enum NumberFormatterCache {
+    static func currencyFormatter(symbol: String, fractionDigits: Int) -> NumberFormatter {
+        let key = "AIUsage.CurrencyFormatter.\(symbol).\(fractionDigits)"
+        if let formatter = Thread.current.threadDictionary[key] as? NumberFormatter {
+            return formatter
+        }
+
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = symbol
+        formatter.minimumFractionDigits = fractionDigits
+        formatter.maximumFractionDigits = fractionDigits
+        Thread.current.threadDictionary[key] = formatter
+        return formatter
+    }
+}
+
 func formatCurrency(_ value: Double) -> String {
     let displayCurrency = UserDefaults.standard.string(forKey: DefaultsKey.displayCurrency) ?? "USD"
 
     let displayValue = displayCurrency == "CNY" ? value * CurrencyDisplayConstants.approximateUsdToCnyRate : value
     let symbol = displayCurrency == "CNY" ? "¥" : "$"
-
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .currency
-    formatter.currencySymbol = symbol
-    formatter.minimumFractionDigits = displayValue >= 1 ? 2 : 4
-    formatter.maximumFractionDigits = displayValue >= 1 ? 2 : 4
+    let fractionDigits = displayValue >= 1 ? 2 : 4
+    let formatter = NumberFormatterCache.currencyFormatter(symbol: symbol, fractionDigits: fractionDigits)
     return formatter.string(from: NSNumber(value: displayValue)) ?? "\(symbol)0.00"
 }
 

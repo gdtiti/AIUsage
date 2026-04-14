@@ -179,7 +179,6 @@ struct DashboardView: View {
             {
                 let proxyStats = proxyVM.overallStats(nodeFilter: nil, modelFilter: nil)
                 let proxyRange = proxyVM.dataDateRange(nodeFilter: nil, modelFilter: nil)
-                let activeNodes = proxyVM.configurations.filter { proxyVM.activatedConfigId == $0.id }.count
                 let proxyNote: String
                 if proxyStats.requests == 0 {
                     proxyNote = L("No proxy requests recorded yet", "暂无代理请求记录")
@@ -214,12 +213,7 @@ struct DashboardView: View {
     }
 
     private func formatCurrency(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
-        formatter.minimumFractionDigits = value >= 1 ? 2 : 4
-        formatter.maximumFractionDigits = value >= 1 ? 2 : 4
-        return formatter.string(from: NSNumber(value: value)) ?? "$0.00"
+        AIUsage.formatCurrency(value)
     }
 
     private func deduplicatedProviders(_ providers: [ProviderData]) -> [ProviderData] {

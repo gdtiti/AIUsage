@@ -54,7 +54,7 @@ struct ProxyStatsView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear { validateSelections() }
-        .onChange(of: selectedNodeIdRaw) { _ in validateSelections() }
+        .onChange(of: selectedNodeIdRaw) { _, _ in validateSelections() }
     }
 
     // MARK: - Empty State
@@ -152,7 +152,7 @@ struct ProxyStatsView: View {
                 summaryCell(icon: "bolt.fill",
                             title: L("Tokens (\(dateRange.days)d)", "Tokens（\(dateRange.days)天）"),
                             value: formatCompactNumber(Double(s.tokens)), tint: .purple)
-                summaryCell(icon: "arrow.up.arrow.down", title: L("Requests", "请求数"),
+                summaryCell(icon: "arrow.up.arrow.down", title: L("Request Count", "请求数"),
                             value: "\(s.requests)", tint: .blue)
                 summaryCell(icon: "checkmark.seal.fill", title: L("Success Rate", "成功率"),
                             value: String(format: "%.1f%%", s.successRate), tint: .green)

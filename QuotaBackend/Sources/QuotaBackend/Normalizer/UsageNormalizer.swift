@@ -126,11 +126,35 @@ public enum UsageNormalizer {
         var alerts: [AlertInfo] = []
         for s in summaries {
             if s.status == "critical" {
-                alerts.append(AlertInfo(tone: "critical", providerId: s.id, title: "\(s.label) needs attention", body: s.headline.secondary))
+                alerts.append(
+                    AlertInfo(
+                        id: "\(s.id):status-critical",
+                        tone: "critical",
+                        providerId: s.id,
+                        title: "\(s.label) needs attention",
+                        body: s.headline.secondary
+                    )
+                )
             } else if s.status == "watch" {
-                alerts.append(AlertInfo(tone: "watch", providerId: s.id, title: "\(s.label) is getting tight", body: s.headline.secondary))
+                alerts.append(
+                    AlertInfo(
+                        id: "\(s.id):status-watch",
+                        tone: "watch",
+                        providerId: s.id,
+                        title: "\(s.label) is getting tight",
+                        body: s.headline.secondary
+                    )
+                )
             } else if let unpriced = s.unpricedModels, !unpriced.isEmpty {
-                alerts.append(AlertInfo(tone: "neutral", providerId: s.id, title: "\(s.label) has unpriced models", body: unpriced.joined(separator: ", ")))
+                alerts.append(
+                    AlertInfo(
+                        id: "\(s.id):unpriced-models",
+                        tone: "neutral",
+                        providerId: s.id,
+                        title: "\(s.label) has unpriced models",
+                        body: unpriced.joined(separator: ", ")
+                    )
+                )
             }
         }
 

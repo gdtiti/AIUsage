@@ -158,9 +158,7 @@ public final class QuotaHTTPServer: @unchecked Sendable {
             return jsonResponse(
                 [
                     "ok": true,
-                    "generatedAt": generatedAt,
-                    "status": "ok",
-                    "time": generatedAt
+                    "generatedAt": generatedAt
                 ],
                 headers: corsHeaders
             )

@@ -154,6 +154,7 @@ public struct StatInfo: Codable, Sendable {
 }
 
 public struct AlertInfo: Codable, Sendable {
+    public let id: String
     public let tone: String
     public let providerId: String
     public let title: String

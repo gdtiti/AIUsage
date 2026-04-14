@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import Combine
 
@@ -202,6 +203,25 @@ final class AppSettings: ObservableObject {
     }
 }
 
-func L(_ en: String, _ zh: String) -> String {
-    AppSettings.localized(en, zh)
+func L(_ en: String, _ zh: String, key: String? = nil, file: StaticString = #fileID) -> String {
+    let fallback = AppSettings.localized(en, zh)
+    let language = AppSettings.shared.language == "zh" ? "zh_CN" : "en"
+
+    guard let path = Bundle.main.path(forResource: language, ofType: "lproj"),
+          let bundle = Bundle(path: path) else {
+        return fallback
+    }
+
+    let contextualKey = key ?? "\(String(describing: file))::\(en)"
+    let contextualValue = bundle.localizedString(forKey: contextualKey, value: nil, table: "Localizable")
+    if contextualValue != contextualKey {
+        return contextualValue
+    }
+
+    let plainValue = bundle.localizedString(forKey: en, value: nil, table: "Localizable")
+    if plainValue != en {
+        return plainValue
+    }
+
+    return fallback
 }

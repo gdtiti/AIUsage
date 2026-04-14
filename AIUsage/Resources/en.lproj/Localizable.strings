@@ -1,0 +1,1298 @@
+/* Generated from static L(en, zh) calls. */
+/* Dynamic interpolation-based strings still use the runtime fallback path. */
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Open Cost Tracking" = "Open Cost Tracking";
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Open Dashboard" = "Open Dashboard";
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Quit AIUsage" = "Quit AIUsage";
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Refresh All" = "Refresh All";
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Refresh Claude Code" = "Refresh Claude Code";
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Settings..." = "Settings...";
+
+/* Views/AccountNoteEditorView.swift */
+"AIUsage/Views/AccountNoteEditorView.swift::Cancel" = "Cancel";
+
+/* Views/AccountNoteEditorView.swift */
+"AIUsage/Views/AccountNoteEditorView.swift::Edit Account Note" = "Edit Account Note";
+
+/* Views/AccountNoteEditorView.swift */
+"AIUsage/Views/AccountNoteEditorView.swift::Save" = "Save";
+
+/* Views/AccountNoteEditorView.swift */
+"AIUsage/Views/AccountNoteEditorView.swift::e.g. Main account / Work account / Test machine" = "e.g. Main account / Work account / Test machine";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Claude Code Proxy" = "Claude Code Proxy";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Claude Code Stats" = "Claude Code Stats";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Dashboard" = "Dashboard";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Inbox" = "Inbox";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Providers" = "Providers";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Proxy Stats" = "Proxy Stats";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Refresh All" = "Refresh All";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Refresh every app and every account" = "Refresh every app and every account";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Settings" = "Settings";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::All Models" = "All Models";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::All Models (Combined)" = "All Models (Combined)";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::Clear Selection" = "Clear Selection";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::Daily" = "Daily";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::Hourly" = "Hourly";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::No data" = "No data";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::Spend Trend" = "Spend Trend";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::models" = "models";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::All" = "All";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::Model Distribution" = "Model Distribution";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::Month" = "Month";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::No data for this period" = "No data for this period";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::Today" = "Today";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::Week" = "Week";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Cache Read" = "Cache Read";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Cache Write" = "Cache Write";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Compare" = "Compare";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Cost" = "Cost";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Input" = "Input";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Model" = "Model";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Model Details" = "Model Details";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::No model data" = "No model data";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Output" = "Output";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Share" = "Share";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Trend" = "Trend";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::Models" = "Models";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::Overall" = "Overall";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::This Month" = "This Month";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::This Week" = "This Week";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::Today" = "Today";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::Total Tokens" = "Total Tokens";
+
+/* Views/CostTrackingView.swift */
+"AIUsage/Views/CostTrackingView.swift::Claude Code usage logs will appear here." = "Claude Code usage logs will appear here.";
+
+/* Views/CostTrackingView.swift */
+"AIUsage/Views/CostTrackingView.swift::No cost data found" = "No cost data found";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Alerts" = "Alerts";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Choose Sources" = "Choose Sources";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Choose apps to start scanning" = "Choose apps to start scanning";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Choose the apps and sources you want to scan first." = "Choose the apps and sources you want to scan first.";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Claude Code Stats" = "Claude Code Stats";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Cost" = "Cost";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Error" = "Error";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Everything is within a healthy range" = "Everything is within a healthy range";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Live Accounts" = "Live Accounts";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Loading dashboard..." = "Loading dashboard...";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::No Claude Code stats source yet" = "No Claude Code stats source yet";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::No account has been saved yet" = "No account has been saved yet";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::No data available" = "No data available";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::No proxy requests recorded yet" = "No proxy requests recorded yet";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::No sources selected" = "No sources selected";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Overview" = "Overview";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Providers" = "Providers";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Proxy Stats" = "Proxy Stats";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Refresh" = "Refresh";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Requests" = "Requests";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Retry" = "Retry";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Start the backend server and refresh" = "Start the backend server and refresh";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Status Alerts" = "Status Alerts";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Success" = "Success";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Tracked Services" = "Tracked Services";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::View Details" = "View Details";
+
+/* Views/InboxView.swift */
+"AIUsage/Views/InboxView.swift::Alerts" = "Alerts";
+
+/* Views/InboxView.swift */
+"AIUsage/Views/InboxView.swift::All clear" = "All clear";
+
+/* Views/InboxView.swift */
+"AIUsage/Views/InboxView.swift::Mark all read" = "Mark all read";
+
+/* Views/InboxView.swift */
+"AIUsage/Views/InboxView.swift::No alerts or notifications right now." = "No alerts or notifications right now.";
+
+/* Views/InboxView.swift */
+"AIUsage/Views/InboxView.swift::Resetting Soon" = "Resetting Soon";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Active" = "Active";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Cost" = "Cost";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Dashboard" = "Dashboard";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Loading..." = "Loading...";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::No providers" = "No providers";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Not refreshed yet" = "Not refreshed yet";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Quit" = "Quit";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Settings" = "Settings";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Switch" = "Switch";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Switch failed" = "Switch failed";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Switched to " = "Switched to ";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Account connected." = "Account connected.";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Fresh Google login" = "Fresh Google login";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Google sign-in succeeded, but AIUsage could not find the Gemini auth file." = "Google sign-in succeeded, but AIUsage could not find the Gemini auth file.";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Login started. Finish sign-in and it will connect automatically." = "Login started. Finish sign-in and it will connect automatically.";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Login succeeded in the browser, but AIUsage could not find the new Codex session yet." = "Login succeeded in the browser, but AIUsage could not find the new Codex session yet.";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Still waiting. Click login again to retry." = "Still waiting. Click login again to retry.";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::Completing Codex login…" = "Completing Codex login…";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::Copy Link" = "Copy Link";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::If nothing appears in a moment, use the button above to open the page in your browser." = "If nothing appears in a moment, use the button above to open the page in your browser.";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::Open in Browser" = "Open in Browser";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::OpenAI Sign-In" = "OpenAI Sign-In";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::Preparing the official login page…" = "Preparing the official login page…";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::You can return to AIUsage now. The account will connect automatically after Codex finishes." = "You can return to AIUsage now. The account will connect automatically after Codex finishes.";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::AIUsage found local login state for this provider. Connect one of the sessions below directly." = "AIUsage found local login state for this provider. Connect one of the sessions below directly.";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::AIUsage has opened Gemini's official Google sign-in page in your browser. Finish the browser step, then return here and the account will connect automatically." = "AIUsage has opened Gemini's official Google sign-in page in your browser. Finish the browser step, then return here and the account will connect automatically.";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Cancel Login" = "Cancel Login";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Complete sign-in below" = "Complete sign-in below";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Connect" = "Connect";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Connect Account" = "Connect Account";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Connecting..." = "Connecting...";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Detected Sessions" = "Detected Sessions";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Finish the browser sign-in" = "Finish the browser sign-in";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Google sign-in completed" = "Google sign-in completed";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::If the current Droid login is not the account you want, switch it in your browser first, then click connect again." = "If the current Droid login is not the account you want, switch it in your browser first, then click connect again.";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Link copied." = "Link copied.";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Login completed" = "Login completed";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Need to switch accounts or refresh the local login?" = "Need to switch accounts or refresh the local login?";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Open Browser Again" = "Open Browser Again";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Preparing Google sign-in…" = "Preparing Google sign-in…";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Refresh" = "Refresh";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Secure Google Sign-In" = "Secure Google Sign-In";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Sign In" = "Sign In";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Starting..." = "Starting...";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Waiting for Google callback…" = "Waiting for Google callback…";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Waiting for authentication..." = "Waiting for authentication...";
+
+/* Views/ProviderAccountEditorView.swift */
+"AIUsage/Views/ProviderAccountEditorView.swift::Cancel" = "Cancel";
+
+/* Views/ProviderAccountEditorView.swift */
+"AIUsage/Views/ProviderAccountEditorView.swift::Stored in Keychain" = "Stored in Keychain";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Connect Account" = "Connect Account";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::No account connected yet" = "No account connected yet";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Pause Scan" = "Pause Scan";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Paused" = "Paused";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Refresh App" = "Refresh App";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Refreshing App" = "Refreshing App";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Resume Scan" = "Resume Scan";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Scanning" = "Scanning";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::This app is already in your scan list. Connect one account and AIUsage will start monitoring it here." = "This app is already in your scan list. Connect one account and AIUsage will start monitoring it here.";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::This app updated" = "This app updated";
+
+/* Views/ProviderCard+QuotaIndicator.swift */
+"AIUsage/Views/ProviderCard+QuotaIndicator.swift::Remaining" = "Remaining";
+
+/* Views/ProviderCard+QuotaIndicator.swift */
+"AIUsage/Views/ProviderCard+QuotaIndicator.swift::Used" = "Used";
+
+/* Views/ProviderCard+ResetCountdown.swift */
+"AIUsage/Views/ProviderCard+ResetCountdown.swift::D" = "D";
+
+/* Views/ProviderCard+ResetCountdown.swift */
+"AIUsage/Views/ProviderCard+ResetCountdown.swift::H" = "H";
+
+/* Views/ProviderCard+ResetCountdown.swift */
+"AIUsage/Views/ProviderCard+ResetCountdown.swift::M" = "M";
+
+/* Views/ProviderCard+ResetCountdown.swift */
+"AIUsage/Views/ProviderCard+ResetCountdown.swift::Next reset" = "Next reset";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Account Switch" = "Account Switch";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Activate" = "Activate";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Active" = "Active";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Active Account" = "Active Account";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Copy Account" = "Copy Account";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Open Details" = "Open Details";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Refresh This Account" = "Refresh This Account";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Refresh only this account" = "Refresh only this account";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Set as Active Account" = "Set as Active Account";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Set as active CLI account" = "Set as active CLI account";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::About This Provider" = "About This Provider";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::About This Tracker" = "About This Tracker";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Account Management" = "Account Management";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Cancel" = "Cancel";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Claude Code Stats" = "Claude Code Stats";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Copied" = "Copied";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Copy" = "Copy";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Delete" = "Delete";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Edit Note" = "Edit Note";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Metrics" = "Metrics";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Models" = "Models";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::No note yet. Add one to make this account easier to recognize later." = "No note yet. Add one to make this account easier to recognize later.";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Quota Windows" = "Quota Windows";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Refresh Account" = "Refresh Account";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Refreshing Account" = "Refreshing Account";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Remove Account" = "Remove Account";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Remove from Monitor" = "Remove from Monitor";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::This Month" = "This Month";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::This Week" = "This Week";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::This removes the account from your monitor list. If a credential is linked, it will also be removed from Keychain. Hidden accounts can be restored from the Providers toolbar." = "This removes the account from your monitor list. If a credential is linked, it will also be removed from Keychain. Hidden accounts can be restored from the Providers toolbar.";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Today" = "Today";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Updated" = "Updated";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::tokens" = "tokens";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Add More Sources" = "Add More Sources";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Add Selected" = "Add Selected";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Add newly installed apps at any time without changing your current setup." = "Add newly installed apps at any time without changing your current setup.";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::All supported sources are already part of your scan list." = "All supported sources are already part of your scan list.";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Apply Changes" = "Apply Changes";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Cancel" = "Cancel";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Choose Sources to Scan" = "Choose Sources to Scan";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Claude Code Stats" = "Claude Code Stats";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Clear" = "Clear";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Clear Search" = "Clear Search";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Close" = "Close";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Everything is already added" = "Everything is already added";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Hover or click a tile to preview it here." = "Hover or click a tile to preview it here.";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Local" = "Local";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Local ledgers derived from usage logs" = "Local ledgers derived from usage logs";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Manage Scan Sources" = "Manage Scan Sources";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::No matching apps" = "No matching apps";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Official" = "Official";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Official Providers" = "Official Providers";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Only checked apps and sources will be scanned when the dashboard refreshes." = "Only checked apps and sources will be scanned when the dashboard refreshes.";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Search apps" = "Search apps";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Select All" = "Select All";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Start Scanning" = "Start Scanning";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Subscription and account-based quotas" = "Subscription and account-based quotas";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Try another keyword or clear the current filter." = "Try another keyword or clear the current filter.";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Turn sources on or off without deleting saved accounts. Disabled sources stay in your account list but stop refreshing." = "Turn sources on or off without deleting saved accounts. Disabled sources stay in your account list but stop refreshing.";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Add App" = "Add App";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Add a provider app first, then each app can keep multiple accounts under the same group." = "Add a provider app first, then each app can keep multiple accounts under the same group.";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::All" = "All";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::All Apps" = "All Apps";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Channel" = "Channel";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Hidden Accounts" = "Hidden Accounts";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Manage Sources" = "Manage Sources";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::No accounts found" = "No accounts found";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Search accounts..." = "Search accounts...";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Try another app filter or search keyword." = "Try another app filter or search keyword.";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::/ M tokens" = "/ M tokens";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::0 = unlimited" = "0 = unlimited";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::ANTHROPIC_BASE_URL will point to the local proxy. Requests are forwarded to the upstream API as-is." = "ANTHROPIC_BASE_URL will point to the local proxy. Requests are forwarded to the upstream API as-is.";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Add" = "Add";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Allow LAN Access (0.0.0.0)" = "Allow LAN Access (0.0.0.0)";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Anthropic API" = "Anthropic API";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Base URL" = "Base URL";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Basic Information" = "Basic Information";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Cache" = "Cache";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Cancel" = "Cancel";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Connect directly to Anthropic or compatible API. No proxy process needed." = "Connect directly to Anthropic or compatible API. No proxy process needed.";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Create" = "Create";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Default Model" = "Default Model";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Delete" = "Delete";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Edit Node" = "Edit Node";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Expected Client API Key (Optional)" = "Expected Client API Key (Optional)";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Fetch Models" = "Fetch Models";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Host" = "Host";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::If set, clients must provide this key in x-api-key or Authorization header" = "If set, clients must provide this key in x-api-key or Authorization header";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Input" = "Input";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Leave empty to accept any key" = "Leave empty to accept any key";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Local Proxy" = "Local Proxy";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Max Output Tokens" = "Max Output Tokens";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model" = "Model";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model Configuration" = "Model Configuration";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model Pricing" = "Model Pricing";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model Slots" = "Model Slots";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model name, e.g. sonnet" = "Model name, e.g. sonnet";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model names are matched by substring (e.g. \"sonnet\" matches \"claude-sonnet-4-20250514\")." = "Model names are matched by substring (e.g. \"sonnet\" matches \"claude-sonnet-4-20250514\").";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Name" = "Name";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::New Node" = "New Node";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Node Type" = "Node Type";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Output" = "Output";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Port" = "Port";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Pricing" = "Pricing";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Route requests through a local proxy to log token usage without modifying the API format." = "Route requests through a local proxy to log token usage without modifying the API format.";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Save" = "Save";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Security" = "Security";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::The model field in settings.json. Claude Code uses this as the active model." = "The model field in settings.json. Claude Code uses this as the active model.";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::These model names will be written to ~/.claude/settings.json and used directly by Claude Code for requests and statistics." = "These model names will be written to ~/.claude/settings.json and used directly by Claude Code for requests and statistics.";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::These values will be written to ~/.claude/settings.json when activated." = "These values will be written to ~/.claude/settings.json when activated.";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Translate Claude API to OpenAI-compatible API via local proxy." = "Translate Claude API to OpenAI-compatible API via local proxy.";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Transparent Proxy (Log Usage)" = "Transparent Proxy (Log Usage)";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Upstream Provider" = "Upstream Provider";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Warning: This will expose the proxy to your local network" = "Warning: This will expose the proxy to your local network";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::e.g., Anthropic Official" = "e.g., Anthropic Official";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::e.g., OpenAI Proxy" = "e.g., OpenAI Proxy";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::(Copy)" = "(Copy)";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Activate" = "Activate";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Active" = "Active";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Add Anthropic Direct or OpenAI Proxy nodes to manage Claude Code endpoints." = "Add Anthropic Direct or OpenAI Proxy nodes to manage Claude Code endpoints.";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Add Node" = "Add Node";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Avg Response" = "Avg Response";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Cache Tokens" = "Cache Tokens";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Clear" = "Clear";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Deactivate" = "Deactivate";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Delete" = "Delete";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Disabled" = "Disabled";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Duplicate" = "Duplicate";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Edit" = "Edit";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Enabled" = "Enabled";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Estimated Cost" = "Estimated Cost";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Failed" = "Failed";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Input Tokens" = "Input Tokens";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::LAN Access" = "LAN Access";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Last Used" = "Last Used";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Local Proxy" = "Local Proxy";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Model Mapping" = "Model Mapping";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::New Node" = "New Node";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::No Nodes" = "No Nodes";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::No requests yet" = "No requests yet";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Node Configurations" = "Node Configurations";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Nodes" = "Nodes";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Output Tokens" = "Output Tokens";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Recent Requests" = "Recent Requests";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Statistics" = "Statistics";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Success Rate" = "Success Rate";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Successful" = "Successful";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Total Cost" = "Total Cost";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Total Requests" = "Total Requests";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Total Tokens" = "Total Tokens";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Upstream" = "Upstream";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Add a proxy node in Claude Code Proxy to start tracking usage." = "Add a proxy node in Claude Code Proxy to start tracking usage.";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::All Models" = "All Models";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::All Nodes" = "All Nodes";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Cache" = "Cache";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Cost" = "Cost";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Daily" = "Daily";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Hourly" = "Hourly";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Input" = "Input";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Model" = "Model";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Model Details" = "Model Details";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Model Distribution" = "Model Distribution";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Models" = "Models";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::No data yet" = "No data yet";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::No proxy nodes configured" = "No proxy nodes configured";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Node" = "Node";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Output" = "Output";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Proxy Stats" = "Proxy Stats";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Request Count" = "Request Count";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Requests" = "Requests";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Spend Trend" = "Spend Trend";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Success Rate" = "Success Rate";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Account Note" = "Account Note";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Account record stored locally" = "Account record stored locally";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Account saved locally. Will auto-match when the app session appears." = "Account saved locally. Will auto-match when the app session appears.";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Awaiting a live session" = "Awaiting a live session";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Cancel" = "Cancel";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Credential may have expired" = "Credential may have expired";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Credential stored in Keychain" = "Credential stored in Keychain";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Delete" = "Delete";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Done" = "Done";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Edit Note" = "Edit Note";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::No note yet." = "No note yet.";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Offline" = "Offline";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Reconnect" = "Reconnect";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Remove Account" = "Remove Account";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Remove from Monitor" = "Remove from Monitor";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Retry" = "Retry";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Retry Fetch" = "Retry Fetch";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Saved" = "Saved";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Storage" = "Storage";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::The stored credential could not fetch live data. Try refreshing or reconnecting." = "The stored credential could not fetch live data. Try refreshing or reconnecting.";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::This removes the account and its Keychain credential." = "This removes the account and its Keychain credential.";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::This removes the account from the monitor list." = "This removes the account from the monitor list.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::14 days" = "14 days";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::180 days" = "180 days";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::30 days" = "30 days";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::365 days" = "365 days";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::7 days" = "7 days";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::90 days" = "90 days";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::About" = "About";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Adjust how quota cards present information." = "Adjust how quota cards present information.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Appearance" = "Appearance";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Applies instantly to all provider cards." = "Applies instantly to all provider cards.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Apply" = "Apply";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Automatic Updates" = "Automatic Updates";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Automatically delete proxy request logs older than the specified number of days." = "Automatically delete proxy request logs older than the specified number of days.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Backend" = "Backend";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Check for Updates" = "Check for Updates";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Choose app appearance: follow system, light, or dark." = "Choose app appearance: follow system, light, or dark.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Choose whether AIUsage reads data locally or from a remote QuotaServer." = "Choose whether AIUsage reads data locally or from a remote QuotaServer.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Claude Code auto-refresh" = "Claude Code auto-refresh";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Claude Code daily cost alert" = "Claude Code daily cost alert";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Connect to a QuotaServer running on another machine. Start server: swift run QuotaServer --host 0.0.0.0 --port 4318" = "Connect to a QuotaServer running on another machine. Start server: swift run QuotaServer --host 0.0.0.0 --port 4318";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Control refresh cadence and language." = "Control refresh cadence and language.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Currency for cost display across the app." = "Currency for cost display across the app.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Dark" = "Dark";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Decide when AIUsage should proactively nudge you." = "Decide when AIUsage should proactively nudge you.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Display Currency" = "Display Currency";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Enable Notifications" = "Enable Notifications";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::General" = "General";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Get notified when daily spending exceeds threshold (0 = off)" = "Get notified when daily spending exceeds threshold (0 = off)";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Hide Dock Icon" = "Hide Dock Icon";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Host" = "Host";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Keep AIUsage in the menu bar only." = "Keep AIUsage in the menu bar only.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Language" = "Language";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Launch at Login" = "Launch at Login";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Light" = "Light";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Local" = "Local";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Low Quota Alert" = "Low Quota Alert";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Mode" = "Mode";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Notifications" = "Notifications";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Open AIUsage automatically after login." = "Open AIUsage automatically after login.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Periodically check for new versions in the background." = "Periodically check for new versions in the background.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Port" = "Port";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Preview" = "Preview";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Progress meaning" = "Progress meaning";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Providers auto-refresh" = "Providers auto-refresh";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Proxy Log Retention" = "Proxy Log Retention";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Quota card style" = "Quota card style";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Refresh interval for API-based providers (OpenAI, Anthropic, etc.)" = "Refresh interval for API-based providers (OpenAI, Anthropic, etc.)";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Refresh interval for local Claude Code stats (faster intervals available)" = "Refresh interval for local Claude Code stats (faster intervals available)";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Remote" = "Remote";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Show desktop alerts for low quota and other status changes." = "Show desktop alerts for low quota and other status changes.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::System" = "System";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Test Connection" = "Test Connection";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::The app will only appear in the menu bar" = "The app will only appear in the menu bar";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Theme" = "Theme";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Trigger when remaining quota drops below the selected threshold." = "Trigger when remaining quota drops below the selected threshold.";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::USD" = "USD";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Version" = "Version";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Version information and update checks." = "Version information and update checks.";
+
+/* Views/SettingsView+QuotaPreview.swift */
+"AIUsage/Views/SettingsView+QuotaPreview.swift::Healthy reserve for the current cycle" = "Healthy reserve for the current cycle";
+
+/* Views/SettingsView+QuotaPreview.swift */
+"AIUsage/Views/SettingsView+QuotaPreview.swift::Sample Card" = "Sample Card";
+
+/* Views/SettingsView+QuotaPreview.swift */
+"AIUsage/Views/SettingsView+QuotaPreview.swift::Usage is visible without feeling alarming" = "Usage is visible without feeling alarming";
+
+/* Views/SettingsView+Remote.swift */
+"AIUsage/Views/SettingsView+Remote.swift::Connection failed" = "Connection failed";
+
+/* Views/SettingsView+Remote.swift */
+"AIUsage/Views/SettingsView+Remote.swift::Connection not tested" = "Connection not tested";
+
+/* Views/SettingsView+Remote.swift */
+"AIUsage/Views/SettingsView+Remote.swift::Remote server reachable" = "Remote server reachable";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::1 hour" = "1 hour";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::1 minute" = "1 minute";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::10 minutes" = "10 minutes";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::10 seconds" = "10 seconds";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::15 minutes" = "15 minutes";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::3 minutes" = "3 minutes";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::30 minutes" = "30 minutes";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::30 seconds" = "30 seconds";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::5 minutes" = "5 minutes";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Bar" = "Bar";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Off" = "Off";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Remaining" = "Remaining";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Ring" = "Ring";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Segments" = "Segments";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Used" = "Used";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Auto Refresh" = "Auto Refresh";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Backend" = "Backend";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Dark" = "Dark";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Light" = "Light";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Local" = "Local";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Remote" = "Remote";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::System" = "System";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Theme" = "Theme";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Version" = "Version";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Your AI Quota Command Center" = "Your AI Quota Command Center";
+
+/* Views/WebLoginView.swift */
+"AIUsage/Views/WebLoginView.swift::Cancel" = "Cancel";
+
+/* Views/WebLoginView.swift */
+"AIUsage/Views/WebLoginView.swift::Use This Account" = "Use This Account";

@@ -297,7 +297,8 @@ struct ProviderData: Identifiable, Codable {
         }
     }
 
-    /// Base provider ID for grouping (strips account suffix)
+    /// Grouping key for providers. Normalized summaries already use the base provider ID,
+    /// while account-level uniqueness lives in `id` / `accountId`.
     var baseProviderId: String {
         providerId
     }
@@ -465,13 +466,45 @@ struct OverviewStat: Identifiable, Codable {
 }
 
 struct Alert: Identifiable, Codable {
+    let id: String
     let tone: String
     let providerId: String
     let title: String
     let body: String
-    
-    var id: String { "\(providerId)-\(title)" }
-    
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case tone
+        case providerId
+        case title
+        case body
+    }
+
+    init(id: String, tone: String, providerId: String, title: String, body: String) {
+        self.id = id
+        self.tone = tone
+        self.providerId = providerId
+        self.title = title
+        self.body = body
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let tone = try container.decode(String.self, forKey: .tone)
+        let providerId = try container.decode(String.self, forKey: .providerId)
+        let title = try container.decode(String.self, forKey: .title)
+        let body = try container.decode(String.self, forKey: .body)
+
+        self.id = try container.decodeIfPresent(String.self, forKey: .id)
+            // Legacy payloads did not include IDs. Prefer collision-free rendering over
+            // cross-refresh identity stability for that compatibility path.
+            ?? UUID().uuidString
+        self.tone = tone
+        self.providerId = providerId
+        self.title = title
+        self.body = body
+    }
+
     var color: String {
         switch tone {
         case "critical": return "red"

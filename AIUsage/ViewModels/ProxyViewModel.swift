@@ -1,9 +1,12 @@
 import SwiftUI
 import Combine
 import Foundation
+import os.log
 import QuotaBackend
 
 // MARK: - Proxy ViewModel
+
+internal let proxyPersistenceLog = Logger(subsystem: "com.aiusage.desktop", category: "ProxyPersistence")
 
 class ProxyViewModel: ObservableObject {
     @Published var configurations: [ProxyConfiguration] = []
@@ -34,15 +37,26 @@ class ProxyViewModel: ObservableObject {
     // MARK: - Configuration Management
 
     func loadConfigurations() {
-        if let data = UserDefaults.standard.data(forKey: DefaultsKey.proxyConfigurations),
-           let configs = try? JSONDecoder().decode([ProxyConfiguration].self, from: data) {
-            configurations = configs
+        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.proxyConfigurations) else {
+            return
+        }
+
+        do {
+            configurations = try JSONDecoder().decode([ProxyConfiguration].self, from: data)
+        } catch {
+            logPersistenceError("load proxy configurations", error: error)
         }
     }
 
-    func saveConfigurations() {
-        if let data = try? JSONEncoder().encode(configurations) {
+    @discardableResult
+    func saveConfigurations() -> Bool {
+        do {
+            let data = try JSONEncoder().encode(configurations)
             UserDefaults.standard.set(data, forKey: DefaultsKey.proxyConfigurations)
+            return true
+        } catch {
+            logPersistenceError("save proxy configurations", error: error)
+            return false
         }
     }
 
@@ -161,6 +175,10 @@ class ProxyViewModel: ObservableObject {
         } else {
             activateConfiguration(id)
         }
+    }
+
+    func logPersistenceError(_ action: String, error: Error) {
+        proxyPersistenceLog.error("Failed to \(action, privacy: .public): \(String(describing: error), privacy: .public)")
     }
 }
 

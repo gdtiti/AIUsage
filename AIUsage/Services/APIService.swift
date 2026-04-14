@@ -7,7 +7,7 @@ class APIService {
     private var baseURL: String
     private let session: URLSession
     
-    init() {
+    private init() {
         let defaults = UserDefaults.standard
         let host = defaults.string(forKey: DefaultsKey.remoteHost) ?? "127.0.0.1"
         let port = defaults.integer(forKey: DefaultsKey.remotePort) == 0 ? 4318 : defaults.integer(forKey: DefaultsKey.remotePort)
@@ -50,10 +50,23 @@ class APIService {
         guard let url = URL(string: "\(baseURL)/health") else {
             throw APIError.invalidURL
         }
-        return try await decode(HealthResponse.self, from: url)
+        let data = try await requestData(from: url)
+        let decoder = JSONDecoder()
+
+        do {
+            return try decoder.decode(HealthResponse.self, from: data)
+        } catch let decodeError {
+            if let legacy = try? decoder.decode(LegacyHealthResponse.self, from: data) {
+                return HealthResponse(
+                    ok: legacy.status?.lowercased() == "ok",
+                    generatedAt: legacy.time ?? SharedFormatters.iso8601String(from: Date())
+                )
+            }
+            throw APIError.decodingError(decodeError)
+        }
     }
 
-    private func decode<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {
+    private func requestData(from url: URL) async throws -> Data {
         let (data, response) = try await session.data(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -63,6 +76,12 @@ class APIService {
         guard (200...299).contains(httpResponse.statusCode) else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
+
+        return data
+    }
+
+    private func decode<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {
+        let data = try await requestData(from: url)
 
         do {
             return try JSONDecoder().decode(type, from: data)
@@ -78,33 +97,15 @@ struct HealthResponse: Decodable {
     let ok: Bool
     let generatedAt: String
 
-    private enum CodingKeys: String, CodingKey {
-        case ok
-        case generatedAt
-        case status
-        case time
-    }
-
     init(ok: Bool, generatedAt: String) {
         self.ok = ok
         self.generatedAt = generatedAt
     }
+}
 
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        if let ok = try container.decodeIfPresent(Bool.self, forKey: .ok),
-           let generatedAt = try container.decodeIfPresent(String.self, forKey: .generatedAt) {
-            self.ok = ok
-            self.generatedAt = generatedAt
-            return
-        }
-
-        let status = try container.decodeIfPresent(String.self, forKey: .status)
-        let time = try container.decodeIfPresent(String.self, forKey: .time)
-        self.ok = status?.lowercased() == "ok"
-        self.generatedAt = time ?? SharedFormatters.iso8601String(from: Date())
-    }
+private struct LegacyHealthResponse: Decodable {
+    let status: String?
+    let time: String?
 }
 
 // MARK: - Errors

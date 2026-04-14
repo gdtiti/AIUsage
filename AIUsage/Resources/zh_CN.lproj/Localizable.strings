@@ -1,0 +1,1298 @@
+/* Generated from static L(en, zh) calls. */
+/* Dynamic interpolation-based strings still use the runtime fallback path. */
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Open Cost Tracking" = "打开费用追踪";
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Open Dashboard" = "打开仪表盘";
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Quit AIUsage" = "退出 AIUsage";
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Refresh All" = "全部刷新";
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Refresh Claude Code" = "刷新 Claude Code";
+
+/* AIUsageApp.swift */
+"AIUsage/AIUsageApp.swift::Settings..." = "设置...";
+
+/* Views/AccountNoteEditorView.swift */
+"AIUsage/Views/AccountNoteEditorView.swift::Cancel" = "取消";
+
+/* Views/AccountNoteEditorView.swift */
+"AIUsage/Views/AccountNoteEditorView.swift::Edit Account Note" = "编辑账号注释";
+
+/* Views/AccountNoteEditorView.swift */
+"AIUsage/Views/AccountNoteEditorView.swift::Save" = "保存";
+
+/* Views/AccountNoteEditorView.swift */
+"AIUsage/Views/AccountNoteEditorView.swift::e.g. Main account / Work account / Test machine" = "例如：主账号 / 工作账号 / 测试机器";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Claude Code Proxy" = "Claude Code 代理";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Claude Code Stats" = "Claude Code 统计";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Dashboard" = "仪表盘";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Inbox" = "消息";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Providers" = "服务商";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Proxy Stats" = "代理统计";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Refresh All" = "全部刷新";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Refresh every app and every account" = "刷新所有应用和所有账号";
+
+/* Views/ContentView.swift */
+"AIUsage/Views/ContentView.swift::Settings" = "设置";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::All Models" = "全部模型";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::All Models (Combined)" = "全部模型（合计）";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::Clear Selection" = "清除选择";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::Daily" = "每日";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::Hourly" = "小时";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::No data" = "暂无数据";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::Spend Trend" = "消费趋势";
+
+/* Views/CostTrackingView+Chart.swift */
+"AIUsage/Views/CostTrackingView+Chart.swift::models" = "个模型";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::All" = "全部";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::Model Distribution" = "模型分布";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::Month" = "本月";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::No data for this period" = "该时段暂无数据";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::Today" = "今日";
+
+/* Views/CostTrackingView+Distribution.swift */
+"AIUsage/Views/CostTrackingView+Distribution.swift::Week" = "本周";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Cache Read" = "缓存读取";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Cache Write" = "缓存写入";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Compare" = "对比";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Cost" = "费用";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Input" = "输入";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Model" = "模型";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Model Details" = "模型详情";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::No model data" = "暂无模型数据";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Output" = "输出";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Share" = "占比";
+
+/* Views/CostTrackingView+ModelTable.swift */
+"AIUsage/Views/CostTrackingView+ModelTable.swift::Trend" = "趋势";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::Models" = "模型数";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::Overall" = "总计";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::This Month" = "本月";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::This Week" = "本周";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::Today" = "今天";
+
+/* Views/CostTrackingView+Summary.swift */
+"AIUsage/Views/CostTrackingView+Summary.swift::Total Tokens" = "总 Tokens";
+
+/* Views/CostTrackingView.swift */
+"AIUsage/Views/CostTrackingView.swift::Claude Code usage logs will appear here." = "Claude Code 使用日志将在这里显示。";
+
+/* Views/CostTrackingView.swift */
+"AIUsage/Views/CostTrackingView.swift::No cost data found" = "未发现费用数据";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Alerts" = "告警";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Choose Sources" = "选择来源";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Choose apps to start scanning" = "选择应用后开始扫描";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Choose the apps and sources you want to scan first." = "先选择你想扫描的应用和来源。";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Claude Code Stats" = "Claude Code 统计";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Cost" = "费用";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Error" = "错误";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Everything is within a healthy range" = "目前都在正常范围内";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Live Accounts" = "在线账号";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Loading dashboard..." = "加载中...";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::No Claude Code stats source yet" = "还没有 Claude Code 统计来源";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::No account has been saved yet" = "还没有保存账号";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::No data available" = "暂无数据";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::No proxy requests recorded yet" = "暂无代理请求记录";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::No sources selected" = "尚未选择扫描来源";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Overview" = "概览";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Providers" = "服务商";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Proxy Stats" = "代理统计";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Refresh" = "刷新";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Requests" = "请求";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Retry" = "重试";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Start the backend server and refresh" = "请启动后端服务后刷新";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Status Alerts" = "状态提醒";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Success" = "成功率";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::Tracked Services" = "监控服务";
+
+/* Views/DashboardView.swift */
+"AIUsage/Views/DashboardView.swift::View Details" = "查看详情";
+
+/* Views/InboxView.swift */
+"AIUsage/Views/InboxView.swift::Alerts" = "告警";
+
+/* Views/InboxView.swift */
+"AIUsage/Views/InboxView.swift::All clear" = "一切正常";
+
+/* Views/InboxView.swift */
+"AIUsage/Views/InboxView.swift::Mark all read" = "全部已读";
+
+/* Views/InboxView.swift */
+"AIUsage/Views/InboxView.swift::No alerts or notifications right now." = "当前没有任何告警或通知。";
+
+/* Views/InboxView.swift */
+"AIUsage/Views/InboxView.swift::Resetting Soon" = "即将重置";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Active" = "活跃";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Cost" = "费用";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Dashboard" = "面板";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Loading..." = "加载中...";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::No providers" = "暂无服务";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Not refreshed yet" = "尚未刷新";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Quit" = "退出";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Settings" = "设置";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Switch" = "切换";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Switch failed" = "切换失败";
+
+/* Views/MenuBarView.swift */
+"AIUsage/Views/MenuBarView.swift::Switched to " = "已切换至 ";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Account connected." = "账号已连接。";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Fresh Google login" = "新的 Google 登录";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Google sign-in succeeded, but AIUsage could not find the Gemini auth file." = "Google 登录已经成功，但 AIUsage 没有找到 Gemini 的认证文件。";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Login started. Finish sign-in and it will connect automatically." = "登录已启动，完成后会自动连接。";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Login succeeded in the browser, but AIUsage could not find the new Codex session yet." = "网页登录已经成功，但 AIUsage 暂时还没有找到新的 Codex 会话。";
+
+/* Views/ProviderAccountEditorView+Actions.swift */
+"AIUsage/Views/ProviderAccountEditorView+Actions.swift::Still waiting. Click login again to retry." = "仍在等待，再次点击登录重试。";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::Completing Codex login…" = "正在完成 Codex 登录…";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::Copy Link" = "复制链接";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::If nothing appears in a moment, use the button above to open the page in your browser." = "如果稍后仍未出现，请使用上方按钮在浏览器中打开登录页。";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::Open in Browser" = "浏览器打开";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::OpenAI Sign-In" = "OpenAI 登录";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::Preparing the official login page…" = "正在准备官方登录页面…";
+
+/* Views/ProviderAccountEditorView+CodexOAuth.swift */
+"AIUsage/Views/ProviderAccountEditorView+CodexOAuth.swift::You can return to AIUsage now. The account will connect automatically after Codex finishes." = "现在可以回到 AIUsage。Codex 完成收尾后，账号会自动接入。";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::AIUsage found local login state for this provider. Connect one of the sessions below directly." = "AIUsage 检测到了这个服务商的本地登录状态。你可以直接连接下面的会话。";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::AIUsage has opened Gemini's official Google sign-in page in your browser. Finish the browser step, then return here and the account will connect automatically." = "AIUsage 已经在浏览器中打开 Gemini 官方 Google 登录页。你只要在浏览器里完成授权，再回到这里，账号就会自动接入。";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Cancel Login" = "取消登录";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Complete sign-in below" = "请在下方完成登录";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Connect" = "连接";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Connect Account" = "连接账号";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Connecting..." = "连接中...";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Detected Sessions" = "已检测到的会话";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Finish the browser sign-in" = "请完成浏览器登录";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Google sign-in completed" = "Google 登录已完成";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::If the current Droid login is not the account you want, switch it in your browser first, then click connect again." = "如果当前 Droid 登录的不是你要的账号，先在浏览器里切换好，再回来重新连接。";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Link copied." = "链接已复制。";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Login completed" = "登录完成";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Need to switch accounts or refresh the local login?" = "如果需要切换账号，或刷新本地登录状态：";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Open Browser Again" = "重新打开浏览器";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Preparing Google sign-in…" = "正在准备 Google 登录…";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Refresh" = "刷新";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Secure Google Sign-In" = "安全的 Google 登录";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Sign In" = "登录";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Starting..." = "启动中...";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Waiting for Google callback…" = "正在等待 Google 回调…";
+
+/* Views/ProviderAccountEditorView+Sections.swift */
+"AIUsage/Views/ProviderAccountEditorView+Sections.swift::Waiting for authentication..." = "等待认证完成...";
+
+/* Views/ProviderAccountEditorView.swift */
+"AIUsage/Views/ProviderAccountEditorView.swift::Cancel" = "取消";
+
+/* Views/ProviderAccountEditorView.swift */
+"AIUsage/Views/ProviderAccountEditorView.swift::Stored in Keychain" = "存入钥匙串";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Connect Account" = "连接账号";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::No account connected yet" = "还没有连接账号";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Pause Scan" = "暂停扫描";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Paused" = "已暂停";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Refresh App" = "刷新该应用";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Refreshing App" = "刷新该应用中";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Resume Scan" = "恢复扫描";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::Scanning" = "扫描中";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::This app is already in your scan list. Connect one account and AIUsage will start monitoring it here." = "这个应用已经在扫描列表里了。连接任意一个账号后，AIUsage 就会开始在这里监控它。";
+
+/* Views/ProviderAccountGroupSection.swift */
+"AIUsage/Views/ProviderAccountGroupSection.swift::This app updated" = "本应用更新于";
+
+/* Views/ProviderCard+QuotaIndicator.swift */
+"AIUsage/Views/ProviderCard+QuotaIndicator.swift::Remaining" = "剩余";
+
+/* Views/ProviderCard+QuotaIndicator.swift */
+"AIUsage/Views/ProviderCard+QuotaIndicator.swift::Used" = "已用";
+
+/* Views/ProviderCard+ResetCountdown.swift */
+"AIUsage/Views/ProviderCard+ResetCountdown.swift::D" = "天";
+
+/* Views/ProviderCard+ResetCountdown.swift */
+"AIUsage/Views/ProviderCard+ResetCountdown.swift::H" = "时";
+
+/* Views/ProviderCard+ResetCountdown.swift */
+"AIUsage/Views/ProviderCard+ResetCountdown.swift::M" = "分";
+
+/* Views/ProviderCard+ResetCountdown.swift */
+"AIUsage/Views/ProviderCard+ResetCountdown.swift::Next reset" = "下次刷新";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Account Switch" = "账号切换";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Activate" = "激活";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Active" = "当前";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Active Account" = "当前账号";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Copy Account" = "复制账号";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Open Details" = "查看详情";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Refresh This Account" = "刷新此账号";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Refresh only this account" = "只刷新这个账号";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Set as Active Account" = "设为当前账号";
+
+/* Views/ProviderCard.swift */
+"AIUsage/Views/ProviderCard.swift::Set as active CLI account" = "设为当前 CLI 账号";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::About This Provider" = "关于此服务商";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::About This Tracker" = "关于此追踪源";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Account Management" = "账号管理";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Cancel" = "取消";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Claude Code Stats" = "Claude Code 统计";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Copied" = "已复制";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Copy" = "复制";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Delete" = "删除";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Edit Note" = "编辑注释";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Metrics" = "指标";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Models" = "模型";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::No note yet. Add one to make this account easier to recognize later." = "当前还没有注释。你可以补一条，后面就更容易区分这个账号。";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Quota Windows" = "配额窗口";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Refresh Account" = "刷新账号";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Refreshing Account" = "刷新账号中";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Remove Account" = "删除账号";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Remove from Monitor" = "移出监控";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::This Month" = "本月";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::This Week" = "本周";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::This removes the account from your monitor list. If a credential is linked, it will also be removed from Keychain. Hidden accounts can be restored from the Providers toolbar." = "这会把该账号从监控列表中移除；如果绑定了凭证，也会一并从钥匙串删除。已隐藏账号可以在服务商顶部工具栏恢复。";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Today" = "今天";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::Updated" = "更新于";
+
+/* Views/ProviderDetailView.swift */
+"AIUsage/Views/ProviderDetailView.swift::tokens" = "个 tokens";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Add More Sources" = "添加更多来源";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Add Selected" = "添加所选";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Add newly installed apps at any time without changing your current setup." = "以后安装了新应用，也可以随时追加，不会影响当前配置。";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::All supported sources are already part of your scan list." = "当前支持的来源都已经加入扫描列表了。";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Apply Changes" = "应用变更";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Cancel" = "取消";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Choose Sources to Scan" = "选择要扫描的来源";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Claude Code Stats" = "Claude Code 统计";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Clear" = "清空";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Clear Search" = "清空搜索";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Close" = "关闭";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Everything is already added" = "已全部添加完成";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Hover or click a tile to preview it here." = "悬停或点击下方磁贴，可以在这里查看简介。";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Local" = "本地";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Local ledgers derived from usage logs" = "基于本地日志推导的费用账本";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Manage Scan Sources" = "管理扫描来源";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::No matching apps" = "没有匹配的应用";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Official" = "官方";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Official Providers" = "官方服务";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Only checked apps and sources will be scanned when the dashboard refreshes." = "只有勾选的应用和来源会在刷新时被扫描。";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Search apps" = "搜索应用";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Select All" = "全选";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Start Scanning" = "开始扫描";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Subscription and account-based quotas" = "订阅制与账号制配额";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Try another keyword or clear the current filter." = "试试别的关键词，或者清空当前筛选。";
+
+/* Views/ProviderPickerView.swift */
+"AIUsage/Views/ProviderPickerView.swift::Turn sources on or off without deleting saved accounts. Disabled sources stay in your account list but stop refreshing." = "你可以随时启用或停用扫描来源，而不必删除已保存账号。停用后账号仍会保留，但不会继续刷新。";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Add App" = "添加应用";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Add a provider app first, then each app can keep multiple accounts under the same group." = "先添加服务应用，之后每个应用都可以在同一分组下管理多个账号。";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::All" = "全部";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::All Apps" = "全部应用";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Channel" = "渠道";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Hidden Accounts" = "已隐藏账号";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Manage Sources" = "管理来源";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::No accounts found" = "未找到账号";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Search accounts..." = "搜索账号...";
+
+/* Views/ProvidersView.swift */
+"AIUsage/Views/ProvidersView.swift::Try another app filter or search keyword." = "试试其他应用筛选或搜索关键词。";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::/ M tokens" = "/ 百万";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::0 = unlimited" = "0 = 不限制";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::ANTHROPIC_BASE_URL will point to the local proxy. Requests are forwarded to the upstream API as-is." = "ANTHROPIC_BASE_URL 将指向本地代理，请求原样转发至上游 API。";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Add" = "添加";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Allow LAN Access (0.0.0.0)" = "允许局域网访问 (0.0.0.0)";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Anthropic API" = "Anthropic API";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Base URL" = "基础 URL";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Basic Information" = "基本信息";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Cache" = "缓存";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Cancel" = "取消";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Connect directly to Anthropic or compatible API. No proxy process needed." = "直接连接 Anthropic 或兼容 API，无需代理进程。";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Create" = "创建";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Default Model" = "主模型";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Delete" = "删除";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Edit Node" = "编辑节点";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Expected Client API Key (Optional)" = "客户端 API Key（可选）";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Fetch Models" = "获取模型";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Host" = "主机";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::If set, clients must provide this key in x-api-key or Authorization header" = "设置后，客户端需在 x-api-key 或 Authorization 头中提供此 Key";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Input" = "输入";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Leave empty to accept any key" = "留空则接受任意 Key";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Local Proxy" = "本地代理";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Max Output Tokens" = "最大输出 Token";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model" = "模型";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model Configuration" = "模型配置";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model Pricing" = "模型定价";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model Slots" = "模型槽位";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model name, e.g. sonnet" = "模型名，如 sonnet";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Model names are matched by substring (e.g. \"sonnet\" matches \"claude-sonnet-4-20250514\")." = "模型名按子串匹配（如 \"sonnet\" 可匹配 \"claude-sonnet-4-20250514\"）。";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Name" = "名称";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::New Node" = "新建节点";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Node Type" = "节点类型";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Output" = "输出";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Port" = "端口";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Pricing" = "定价";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Route requests through a local proxy to log token usage without modifying the API format." = "请求经由本地代理透传，记录 Token 用量但不修改 API 格式。";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Save" = "保存";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Security" = "安全设置";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::The model field in settings.json. Claude Code uses this as the active model." = "settings.json 中的 model 字段，Claude Code 以此作为当前使用的模型。";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::These model names will be written to ~/.claude/settings.json and used directly by Claude Code for requests and statistics." = "这些模型名将写入 ~/.claude/settings.json，Claude Code 会直接使用它们发起请求和统计用量。";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::These values will be written to ~/.claude/settings.json when activated." = "激活时会将这些值写入 ~/.claude/settings.json。";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Translate Claude API to OpenAI-compatible API via local proxy." = "通过本地代理将 Claude API 转换为 OpenAI 兼容 API。";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Transparent Proxy (Log Usage)" = "透明代理（记录用量）";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Upstream Provider" = "上游服务";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::Warning: This will expose the proxy to your local network" = "警告：这将把代理暴露到你的局域网";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::e.g., Anthropic Official" = "例如：Anthropic 官方";
+
+/* Views/ProxyConfigEditorView.swift */
+"AIUsage/Views/ProxyConfigEditorView.swift::e.g., OpenAI Proxy" = "例如：OpenAI 代理";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::(Copy)" = "(副本)";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Activate" = "激活";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Active" = "已激活";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Add Anthropic Direct or OpenAI Proxy nodes to manage Claude Code endpoints." = "添加 Anthropic 直连或 OpenAI 代理节点来管理 Claude Code 端点。";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Add Node" = "添加节点";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Avg Response" = "平均响应";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Cache Tokens" = "缓存 Tokens";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Clear" = "清除";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Deactivate" = "停用";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Delete" = "删除";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Disabled" = "已禁用";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Duplicate" = "复制节点";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Edit" = "编辑";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Enabled" = "已启用";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Estimated Cost" = "预估费用";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Failed" = "失败";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Input Tokens" = "输入 Tokens";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::LAN Access" = "局域网访问";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Last Used" = "最后使用";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Local Proxy" = "本地代理";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Model Mapping" = "模型映射";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::New Node" = "新建节点";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::No Nodes" = "暂无节点";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::No requests yet" = "暂无请求";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Node Configurations" = "节点配置";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Nodes" = "节点数";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Output Tokens" = "输出 Tokens";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Recent Requests" = "最近请求";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Statistics" = "统计信息";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Success Rate" = "成功率";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Successful" = "成功";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Total Cost" = "总费用";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Total Requests" = "总请求";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Total Tokens" = "总 Tokens";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Upstream" = "上游";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Add a proxy node in Claude Code Proxy to start tracking usage." = "在 Claude Code 代理中添加节点后即可开始统计用量。";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::All Models" = "全部模型";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::All Nodes" = "全部节点";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Cache" = "缓存";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Cost" = "费用";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Daily" = "每日";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Hourly" = "小时";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Input" = "输入";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Model" = "模型";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Model Details" = "模型明细";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Model Distribution" = "模型分布";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Models" = "模型数";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::No data yet" = "暂无数据";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::No proxy nodes configured" = "尚未配置代理节点";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Node" = "节点";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Output" = "输出";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Proxy Stats" = "代理统计";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Request Count" = "请求数";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Requests" = "请求";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Spend Trend" = "消费趋势";
+
+/* Views/ProxyStatsView.swift */
+"AIUsage/Views/ProxyStatsView.swift::Success Rate" = "成功率";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Account Note" = "账号注释";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Account record stored locally" = "账号记录已保存到本地";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Account saved locally. Will auto-match when the app session appears." = "账号已保存到本地。对应应用出现在线会话后会自动匹配。";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Awaiting a live session" = "等待在线会话";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Cancel" = "取消";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Credential may have expired" = "凭证可能已过期";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Credential stored in Keychain" = "凭证已存入钥匙串";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Delete" = "删除";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Done" = "完成";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Edit Note" = "编辑注释";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::No note yet." = "当前还没有注释。";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Offline" = "离线";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Reconnect" = "重新连接";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Remove Account" = "删除账号";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Remove from Monitor" = "移出监控";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Retry" = "重试";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Retry Fetch" = "重试拉取";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Saved" = "已保存";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::Storage" = "存储";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::The stored credential could not fetch live data. Try refreshing or reconnecting." = "已存储的凭证未能获取实时数据。可尝试刷新或重新连接。";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::This removes the account and its Keychain credential." = "这会移除账号及其钥匙串凭证。";
+
+/* Views/SavedAccountViews.swift */
+"AIUsage/Views/SavedAccountViews.swift::This removes the account from the monitor list." = "这会从监控列表中移除该账号。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::14 days" = "14 天";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::180 days" = "180 天";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::30 days" = "30 天";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::365 days" = "365 天";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::7 days" = "7 天";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::90 days" = "90 天";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::About" = "关于";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Adjust how quota cards present information." = "调整额度卡片的呈现方式。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Appearance" = "外观";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Applies instantly to all provider cards." = "会立即应用到所有服务卡片。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Apply" = "应用";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Automatic Updates" = "自动检查更新";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Automatically delete proxy request logs older than the specified number of days." = "自动删除超过指定天数的代理请求日志。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Backend" = "后端";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Check for Updates" = "检查更新";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Choose app appearance: follow system, light, or dark." = "选择外观模式：跟随系统、浅色或深色。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Choose whether AIUsage reads data locally or from a remote QuotaServer." = "选择 AIUsage 从本地还是远程 QuotaServer 读取数据。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Claude Code auto-refresh" = "Claude Code 自动刷新";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Claude Code daily cost alert" = "Claude Code 每日消费提醒";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Connect to a QuotaServer running on another machine. Start server: swift run QuotaServer --host 0.0.0.0 --port 4318" = "连接到其他机器上的 QuotaServer。启动命令：swift run QuotaServer --host 0.0.0.0 --port 4318";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Control refresh cadence and language." = "控制刷新频率和界面语言。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Currency for cost display across the app." = "应用中费用显示的货币单位。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Dark" = "深色";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Decide when AIUsage should proactively nudge you." = "设置 AIUsage 在什么情况下主动提醒你。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Display Currency" = "显示货币";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Enable Notifications" = "启用通知";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::General" = "通用";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Get notified when daily spending exceeds threshold (0 = off)" = "当每日消费超过阈值时通知（0 = 关闭）";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Hide Dock Icon" = "隐藏 Dock 图标";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Host" = "地址";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Keep AIUsage in the menu bar only." = "让 AIUsage 只出现在菜单栏。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Language" = "语言";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Launch at Login" = "开机启动";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Light" = "浅色";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Local" = "本地";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Low Quota Alert" = "低额度提醒";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Mode" = "模式";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Notifications" = "通知";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Open AIUsage automatically after login." = "登录系统后自动打开 AIUsage。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Periodically check for new versions in the background." = "后台定期检查是否有新版本。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Port" = "端口";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Preview" = "预览";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Progress meaning" = "进度语义";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Providers auto-refresh" = "服务商自动刷新";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Proxy Log Retention" = "代理日志保留";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Quota card style" = "额度卡片样式";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Refresh interval for API-based providers (OpenAI, Anthropic, etc.)" = "API 服务商的刷新间隔（OpenAI、Anthropic 等）";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Refresh interval for local Claude Code stats (faster intervals available)" = "本地 Claude Code 统计的刷新间隔（支持更短间隔）";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Remote" = "远程";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Show desktop alerts for low quota and other status changes." = "为低额度和状态变化显示桌面提醒。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::System" = "系统";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Test Connection" = "测试连接";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::The app will only appear in the menu bar" = "应用将只显示在菜单栏";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Theme" = "主题";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Trigger when remaining quota drops below the selected threshold." = "当剩余额度低于阈值时触发提醒。";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::USD" = "美元";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Version" = "版本";
+
+/* Views/SettingsView+Cards.swift */
+"AIUsage/Views/SettingsView+Cards.swift::Version information and update checks." = "版本信息与更新检查。";
+
+/* Views/SettingsView+QuotaPreview.swift */
+"AIUsage/Views/SettingsView+QuotaPreview.swift::Healthy reserve for the current cycle" = "当前周期余量依然充足";
+
+/* Views/SettingsView+QuotaPreview.swift */
+"AIUsage/Views/SettingsView+QuotaPreview.swift::Sample Card" = "示例卡片";
+
+/* Views/SettingsView+QuotaPreview.swift */
+"AIUsage/Views/SettingsView+QuotaPreview.swift::Usage is visible without feeling alarming" = "使用趋势清晰，但还不紧张";
+
+/* Views/SettingsView+Remote.swift */
+"AIUsage/Views/SettingsView+Remote.swift::Connection failed" = "连接失败";
+
+/* Views/SettingsView+Remote.swift */
+"AIUsage/Views/SettingsView+Remote.swift::Connection not tested" = "尚未测试连接";
+
+/* Views/SettingsView+Remote.swift */
+"AIUsage/Views/SettingsView+Remote.swift::Remote server reachable" = "远程服务可连接";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::1 hour" = "1 小时";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::1 minute" = "1 分钟";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::10 minutes" = "10 分钟";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::10 seconds" = "10 秒";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::15 minutes" = "15 分钟";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::3 minutes" = "3 分钟";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::30 minutes" = "30 分钟";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::30 seconds" = "30 秒";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::5 minutes" = "5 分钟";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Bar" = "条形";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Off" = "关闭";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Remaining" = "剩余";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Ring" = "圆环";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Segments" = "分段";
+
+/* Views/SettingsView+Titles.swift */
+"AIUsage/Views/SettingsView+Titles.swift::Used" = "已用";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Auto Refresh" = "自动刷新";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Backend" = "后端";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Dark" = "深色";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Light" = "浅色";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Local" = "本地";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Remote" = "远程";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::System" = "系统";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Theme" = "主题";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Version" = "版本";
+
+/* Views/SettingsView.swift */
+"AIUsage/Views/SettingsView.swift::Your AI Quota Command Center" = "您的 AI 额度指挥中心";
+
+/* Views/WebLoginView.swift */
+"AIUsage/Views/WebLoginView.swift::Cancel" = "取消";
+
+/* Views/WebLoginView.swift */
+"AIUsage/Views/WebLoginView.swift::Use This Account" = "使用此账号";

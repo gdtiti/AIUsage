@@ -15,9 +15,23 @@ extension ProxyViewModel {
             if migrated { saveConfigurations() }
         }
 
-        guard let id = activatedConfigId,
-              let config = configurations.first(where: { $0.id == id }) else {
+        guard let id = activatedConfigId else {
             settingsManager.clearEnv()
+            clearPricingOverrides()
+            return
+        }
+
+        guard let config = configurations.first(where: { $0.id == id }) else {
+            var migrated = false
+            for i in configurations.indices where configurations[i].isEnabled {
+                configurations[i].isEnabled = false
+                migrated = true
+            }
+            activatedConfigId = nil
+            if migrated { saveConfigurations() }
+            saveActivatedId()
+            settingsManager.clearEnv()
+            clearPricingOverrides()
             return
         }
 
@@ -175,15 +189,28 @@ extension ProxyViewModel {
 
         let result: [String: Any] = ["pricing": pricing]
 
-        let dir = (pricingOverridePath as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]) {
-            try? data.write(to: URL(fileURLWithPath: pricingOverridePath))
+        do {
+            let url = URL(fileURLWithPath: pricingOverridePath)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: url)
+        } catch {
+            logPersistenceError("write proxy pricing overrides", error: error)
         }
     }
 
     func clearPricingOverrides() {
-        try? FileManager.default.removeItem(atPath: pricingOverridePath)
+        do {
+            try FileManager.default.removeItem(atPath: pricingOverridePath)
+        } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+            return
+        } catch {
+            logPersistenceError("clear proxy pricing overrides", error: error)
+        }
     }
 
     func isProxyRunning(_ configId: String) -> Bool {

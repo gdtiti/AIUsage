@@ -82,7 +82,9 @@ extension ProviderRefreshCoordinator {
             localCostMonthUsd: o.localCostMonthUsd,
             localWeekTokens: o.localWeekTokens,
             stats: o.stats.map { OverviewStat(label: $0.label, value: $0.value, note: $0.note) },
-            alerts: o.alerts.map { Alert(tone: $0.tone, providerId: $0.providerId, title: $0.title, body: $0.body) }
+            alerts: o.alerts.map {
+                Alert(id: $0.id, tone: $0.tone, providerId: $0.providerId, title: $0.title, body: $0.body)
+            }
         )
     }
 
@@ -201,6 +203,7 @@ extension ProviderRefreshCoordinator {
             },
             alerts: overview.alerts.map {
                 Alert(
+                    id: $0.id,
                     tone: $0.tone,
                     providerId: $0.providerId,
                     title: localizedDynamicText($0.title),

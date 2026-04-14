@@ -6,15 +6,26 @@ extension ProxyViewModel {
     // MARK: - Statistics Management
 
     func loadStatistics() {
-        if let data = UserDefaults.standard.data(forKey: DefaultsKey.proxyStatistics),
-           let stats = try? JSONDecoder().decode([String: ProxyStatistics].self, from: data) {
-            statistics = stats
+        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.proxyStatistics) else {
+            return
+        }
+
+        do {
+            statistics = try JSONDecoder().decode([String: ProxyStatistics].self, from: data)
+        } catch {
+            logPersistenceError("load proxy statistics", error: error)
         }
     }
 
-    func saveStatistics() {
-        if let data = try? JSONEncoder().encode(statistics) {
+    @discardableResult
+    func saveStatistics() -> Bool {
+        do {
+            let data = try JSONEncoder().encode(statistics)
             UserDefaults.standard.set(data, forKey: DefaultsKey.proxyStatistics)
+            return true
+        } catch {
+            logPersistenceError("save proxy statistics", error: error)
+            return false
         }
     }
 
@@ -93,24 +104,42 @@ extension ProxyViewModel {
 
     func loadLogs() {
         let url = URL(fileURLWithPath: logsFilePath)
-        if let data = try? Data(contentsOf: url),
-           let logs = try? JSONDecoder().decode([String: [ProxyRequestLog]].self, from: data) {
-            recentLogs = logs
-        } else if let data = UserDefaults.standard.data(forKey: DefaultsKey.proxyLogs),
-                  let logs = try? JSONDecoder().decode([String: [ProxyRequestLog]].self, from: data) {
-            recentLogs = logs
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.proxyLogs)
-            saveLogs()
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            do {
+                let data = try Data(contentsOf: url)
+                recentLogs = try JSONDecoder().decode([String: [ProxyRequestLog]].self, from: data)
+            } catch {
+                logPersistenceError("load proxy logs", error: error)
+            }
+        } else if let data = UserDefaults.standard.data(forKey: DefaultsKey.proxyLogs) {
+            do {
+                recentLogs = try JSONDecoder().decode([String: [ProxyRequestLog]].self, from: data)
+                UserDefaults.standard.removeObject(forKey: DefaultsKey.proxyLogs)
+                saveLogs()
+            } catch {
+                logPersistenceError("migrate legacy proxy logs", error: error)
+            }
         }
         pruneOldLogs()
     }
 
-    func saveLogs() {
+    @discardableResult
+    func saveLogs() -> Bool {
         let url = URL(fileURLWithPath: logsFilePath)
-        let dir = (logsFilePath as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        if let data = try? JSONEncoder().encode(recentLogs) {
-            try? data.write(to: url, options: .atomic)
+
+        do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            let data = try JSONEncoder().encode(recentLogs)
+            try data.write(to: url, options: .atomic)
+            return true
+        } catch {
+            logPersistenceError("save proxy logs", error: error)
+            return false
         }
     }
 

@@ -1,214 +1,176 @@
-# Architecture
+# AIUsage Architecture
 
 ## Overview
 
-AIUsage is a macOS menu bar + windowed application for monitoring AI tool quota usage across multiple providers (Cursor, Codex, Gemini CLI, Copilot, Amp, etc.).
+AIUsage is a macOS-native SwiftUI application that monitors AI subscription quotas across multiple providers, with an integrated Claude Code proxy for using third-party models. The codebase consists of two main modules: the **AIUsage app** (SwiftUI frontend + state management) and the **QuotaBackend** SwiftPM package (provider engines, normalizers, proxy runtime).
 
-It has two layers:
-
-- **`AIUsage`** — macOS SwiftUI frontend (menu bar popover + main window)
-- **`QuotaBackend`** — Swift Package for data collection, credential management, and normalization
-
-The same backend can run:
-
-- embedded inside the app in **Local** mode
-- as an HTTP service through `QuotaServer` in **Remote** mode
-
-## Project Structure
+## Directory Structure
 
 ```
 AIUsage/
-├── AIUsageApp.swift          # App entry, Sparkle updater, AppDelegate (menu bar)
+├── AIUsageApp.swift              # @main, scene setup, EnvironmentObject wiring
 ├── Models/
-│   ├── AppState.swift        # Global state coordinator (UI, accounts, refresh)
-│   └── ProviderModels.swift  # Display models, grouping, catalog metadata
-├── Views/
-│   ├── ContentView.swift     # NavigationSplitView shell
-│   ├── DashboardView.swift   # Overview cards grid
-│   ├── MenuBarView.swift     # Menu bar popover (quota rings, account switching)
-│   ├── ProviderCard.swift    # Individual provider card with quota indicators
-│   ├── SettingsView.swift    # Preferences (theme, backend, Sparkle updates)
-│   └── ...
+│   ├── AppState.swift            # Thin facade: UI navigation + coordinator references
+│   ├── AppSettings.swift         # UserDefaults-backed preferences (ObservableObject)
+│   ├── AccountStore.swift        # Account registry & credential management
+│   ├── ProviderModels.swift      # App-side ProviderData, alerts, etc.
+│   └── ProxyConfiguration.swift  # Proxy node config model
 ├── Services/
-│   ├── APIService.swift      # HTTP client for remote backend
-│   ├── SecureAccountVault.swift  # Keychain storage for account records
-│   └── ProviderAuthManager.swift # Account import/activation workflows
-└── Resources/
-    ├── Assets.xcassets/      # App icon, provider icons
-    └── {Base,zh_CN}.lproj/   # Custom Sparkle localization strings
+│   ├── APIService.swift          # HTTP client for remote QuotaServer
+│   ├── SecureAccountVault.swift  # Keychain read/write for account metadata
+│   ├── ProviderAuthManager.swift # Auth flow orchestration (slim router)
+│   └── ProviderAuth/
+│       ├── ProviderAuthTypes.swift
+│       ├── ProviderManagedImportStore.swift
+│       ├── CLIExecutableResolver.swift
+│       ├── CodexLoginCoordinator.swift
+│       ├── GeminiLoginCoordinator.swift
+│       ├── ProviderAuthCandidateDiscovery.swift
+│       └── ProviderAuthParsing.swift
+├── ViewModels/
+│   ├── ProviderRefreshCoordinator.swift  # Refresh engine, timers, data pipeline
+│   ├── ProviderActivationManager.swift   # CLI active account detection
+│   └── ProxyViewModel.swift              # Proxy node lifecycle & process management
+└── Views/
+    ├── ContentView.swift           # NavigationSplitView shell
+    ├── DashboardView.swift         # Main dashboard
+    ├── ProviderCard.swift          # Rich quota card UI
+    ├── CostTrackingView.swift      # Claude Code cost charts
+    ├── ProxyManagementView.swift   # Proxy node list
+    ├── ProxyStatsView.swift        # Proxy usage statistics
+    ├── SettingsView.swift          # Preferences UI
+    └── ...
 
-QuotaBackend/
-├── Sources/QuotaBackend/
-│   ├── ProviderProtocol.swift    # ProviderFetcher, CredentialAcceptingProvider protocols
+QuotaBackend/Sources/
+├── QuotaBackend/
+│   ├── ProviderProtocol.swift    # Core protocols & types
 │   ├── Engine/
-│   │   ├── ProviderEngine.swift       # Concurrent fetcher + result merger
-│   │   ├── ProviderRegistry.swift     # Static provider catalog (cached dict)
-│   │   ├── AccountCredentialStore.swift # Keychain credential vault (v2)
-│   │   └── BrowserDiscovery.swift     # Dynamic Chromium profile discovery
+│   │   ├── ProviderEngine.swift          # Concurrent provider orchestration
+│   │   ├── ProviderRegistry.swift        # Static provider list
+│   │   ├── AccountCredentialStore.swift  # Keychain credential storage
+│   │   └── BrowserDiscovery.swift        # Browser profile helpers
+│   ├── Providers/
+│   │   ├── ClaudeProvider.swift    # Local JSONL log scanner
+│   │   ├── CodexProvider.swift     # OpenAI Codex API
+│   │   ├── CopilotProvider.swift   # GitHub Copilot
+│   │   ├── CursorProvider.swift    # Cursor IDE
+│   │   ├── GeminiProvider.swift    # Google Gemini CLI
+│   │   ├── AmpProvider.swift       # Amp
+│   │   ├── DroidProvider.swift     # Droid
+│   │   ├── KiroProvider.swift      # Kiro
+│   │   ├── WarpProvider.swift      # Warp
+│   │   └── AntigravityProvider.swift
 │   ├── Normalizer/
-│   │   ├── UsageNormalizer.swift  # Raw → normalized summary
-│   │   └── ProviderSummary.swift  # Normalized data types
-│   └── Providers/
-│       ├── CursorProvider.swift   # Cookie-based
-│       ├── CodexProvider.swift    # Auth file + token
-│       ├── GeminiProvider.swift   # OAuth + token refresh
-│       ├── CopilotProvider.swift  # GitHub token
-│       └── ...                    # Amp, Antigravity, Claude, Droid, Kiro, Warp
-└── Sources/QuotaServer/          # Standalone HTTP server (Remote mode)
+│   │   ├── UsageNormalizer.swift   # Raw → ProviderSummary + DashboardOverview
+│   │   └── ProviderSummary.swift   # Normalized summary structs
+│   ├── ClaudeProxy/
+│   │   ├── Runtime/                # Proxy service, upstream client
+│   │   ├── Conversion/            # Claude <-> OpenAI format converters
+│   │   ├── Models/                # API model definitions
+│   │   └── Utilities/             # SSE encoder
+│   └── Utilities/
+│       └── DateFormatting.swift   # Shared formatters (SharedFormatters, DateFormat)
+└── QuotaServer/
+    ├── main.swift                 # CLI entry point
+    └── QuotaHTTPServer.swift      # NWListener HTTP server
 ```
 
-## Main Frontend Types
+## Singleton Architecture
 
-### `AppState`
+```mermaid
+graph TD
+    AppState["AppState (facade)"] --> AppSettings
+    AppState --> AccountStore
+    AppState --> RefreshCoordinator["ProviderRefreshCoordinator"]
+    AppState --> ActivationManager["ProviderActivationManager"]
 
-File: `AIUsage/Models/AppState.swift`
+    RefreshCoordinator --> AccountStore
+    RefreshCoordinator --> AppSettings
+    RefreshCoordinator --> Engine["ProviderEngine"]
+    ActivationManager --> AccountStore
+    ActivationManager --> AppSettings
+```
 
-Central coordinator. Responsibilities:
+| Singleton | Responsibility |
+|-----------|---------------|
+| **AppState** | UI navigation state, selected providers, read-through forwarding, `objectWillChange` aggregation |
+| **AppSettings** | UserDefaults-backed preferences: theme, language, refresh intervals, backend mode |
+| **AccountStore** | Account registry, credential lifecycle, normalization/dedup, Keychain persistence |
+| **ProviderRefreshCoordinator** | Refresh timers, `ProviderEngine` orchestration, local/remote fetch, data merging |
+| **ProviderActivationManager** | CLI active account detection (Codex/Gemini), auth file I/O |
 
-- Global UI state (selected section, loading flags, theme mode)
-- Provider account registry and Keychain credential coordination
-- Scan scope management (first-run selection, source toggling)
-- Per-account visibility (hidden-account tombstones for removed cards)
-- Local vs. remote backend selection
-- Dashboard and provider data refresh orchestration
-- Account activation for Codex CLI and Gemini CLI (auth file format conversion)
-- Active account detection (`detectActiveCodexAccount`, `detectActiveGeminiAccount`)
+All singletons forward `objectWillChange` to `AppState`, so views observing `@EnvironmentObject var appState` refresh automatically.
 
-> **Known technical debt**: This is a large file (~2700 lines). Future work should split it into focused coordinators: `AccountStore`, `ProviderRefreshCoordinator`, `AppSettings`.
+## Data Flow: Provider Refresh
 
-### `ProviderData` And Related Models
+```mermaid
+sequenceDiagram
+    participant UI as View
+    participant AS as AppState
+    participant RC as RefreshCoordinator
+    participant ENG as ProviderEngine
+    participant P as Provider
+    participant N as UsageNormalizer
 
-File: `AIUsage/Models/ProviderModels.swift`
+    UI->>AS: refreshAllProviders()
+    AS->>RC: refreshAllProviders()
+    RC->>RC: set isRefreshingAllProviders
+    RC->>ENG: fetchAll(ids:)
+    ENG->>P: fetch(credential:)
+    P-->>ENG: ProviderUsage
+    ENG->>N: normalize(usages:)
+    N-->>ENG: [ProviderSummary] + DashboardOverview
+    ENG-->>RC: results
+    RC->>RC: merge providers, reconcile AccountStore
+    RC-->>AS: objectWillChange
+    AS-->>UI: SwiftUI re-render
+```
 
-- App-facing display model with computed labels (`cardTitle`, `cardSubtitle`, `footerAccountLabel`)
-- `ProviderAccountEntry` / `ProviderAccountGroup` for grouped provider display
-- `CostSummary` / `CostPeriod` for cost tracking data
-- Provider catalog metadata for onboarding and filtering
+## Proxy Subsystem
 
-### Menu Bar (`MenuBarView`)
+**Process lifecycle** (managed by `ProxyViewModel`):
 
-File: `AIUsage/Views/MenuBarView.swift`
+1. User activates a proxy node in the UI
+2. `ProxyViewModel` writes `~/.claude/settings.json` with proxy endpoint + model env vars
+3. Spawns `QuotaServer` process with appropriate environment variables
+4. Pipes stdout/stderr, parses `PROXY_LOG:` JSON lines for stats
+5. On deactivation: kills process, restores settings.json
 
-- `NSPopover`-based menu bar UI shown on left-click of status item
-- Grouped by provider with `MenuBarProviderSection` and `MenuBarAccountRow`
-- `MiniQuotaRing` for compact quota visualization
-- One-click account switching for supported providers (Codex, Gemini CLI)
-- Active account badge display
+**Proxy modes**:
+- **OpenAI Proxy**: Claude API requests → converted to OpenAI format → upstream provider
+- **Anthropic Passthrough**: Transparent proxy logging input/output/cache tokens without format changes
 
-## Backend Core
+## Storage Locations
 
-### `ProviderRegistry`
+| Location | Content |
+|----------|---------|
+| **UserDefaults** | App preferences, selected providers, proxy configurations, stats |
+| **Keychain** (`SecureAccountVault`) | Account registry metadata (emails, notes, IDs) |
+| **Keychain** (`AccountCredentialStore`) | Provider credentials (cookies, tokens, API keys) |
+| `~/.claude/settings.json` | Claude Code configuration (managed env vars + model) |
+| `~/.config/aiusage/proxy-logs.json` | Proxy request logs (with day-based retention) |
+| `~/.config/aiusage/proxy-pricing.json` | Model pricing overrides |
+| `~/.config/claude/projects/**/*.jsonl` | Claude Code usage logs (read-only by ClaudeProvider) |
 
-Uses a static dictionary for O(1) provider lookup (no per-call allocation).
+## Supported Providers
 
-### `ProviderEngine`
-
-Actor-based concurrent fetcher. Key behaviors:
-
-- `fetchAll(ids:)` — full dashboard refresh with overview generation
-- `fetchMultiAccountProvider(id:)` — per-provider account-aware refresh
-- Merges auto-discovered accounts with credential-backed accounts
-- Deduplicates results when multiple discovery paths resolve to the same account
-- Uses `os.Logger` for structured logging (no credential paths in production logs)
-
-### `UsageNormalizer`
-
-Maps raw `ProviderUsage` → normalized `ProviderSummary` with status, headline, metrics, quota windows (including `resetAt`), and cost information.
-
-### `AccountCredentialStore`
-
-Keychain-backed credential vault (v2 format — single vault entry instead of per-credential items). Supports deduplication and canonical credential selection based on scoring.
-
-### `BrowserDiscovery`
-
-Dynamically discovers Chromium-based browser profiles by enumerating directories under each browser's Application Support path. Supports Chrome, Arc, Edge, Brave, and Cursor. No longer limited to hardcoded profile names.
-
-## Data Flow
-
-### Local Mode
-
-1. `ContentView` triggers refresh → `AppState`
-2. `AppState` → `ProviderEngine.fetchAll()`
-3. Each provider fetches raw usage concurrently
-4. `UsageNormalizer` creates summaries and overview
-5. `AppState` localizes, converts to `ProviderData`, groups into `ProviderAccountGroup`
-6. SwiftUI renders dashboard, provider groups, menu bar popover, and cost tracking
-
-### Remote Mode
-
-1. `ContentView` triggers refresh → `AppState` → `APIService`
-2. `APIService` → `QuotaServer` (HTTP)
-3. `QuotaServer` → `ProviderEngine` (same pipeline)
-4. App decodes the remote snapshot and renders it
-
-## Multi-Account Architecture
-
-Identity layers:
-
-1. Stable account ID (from provider API)
-2. Normalized email or label
-3. Locally stored account records + Keychain credentials
-4. Hidden-account tombstones (suppress rediscovered cards user removed)
-
-Matching priority: stable ID → email → limited fallback to unmatched credential.
-
-## Account Activation
-
-Supported providers for file-based account switching:
-
-- **Codex CLI**: Converts `cli-proxy-api` flat JSON → nested `tokens` format in `~/.codex/auth.json`
-- **Gemini CLI**: Converts token format to `~/.gemini/oauth_creds.json`, preserves `client_id`/`client_secret` for token refresh
-
-Antigravity IDE relies on Chromium browser profiles and is not activatable via file replacement.
-
-## Storage Boundaries
-
-### `SecureAccountVault`
-
-App-side Keychain storage for account records (provider ID, email, note, credential linkage). Logs Keychain errors via `os.Logger`.
-
-### `AccountCredentialStore`
-
-Backend-side Keychain vault for secrets (cookies, tokens, auth file references, API keys). Uses a single vault entry (v2 format) to avoid repeated Keychain access prompts.
-
-## Auto-Updates
-
-Uses [Sparkle](https://sparkle-project.org/) framework with EdDSA signing:
-
-- Custom localized strings injected during release packaging (`scripts/package-release.sh`)
-- `appcast.xml` updated via CI after each tagged release
-- Supports both automatic background checks and manual "Check for Updates"
+| ID | Provider | Channel | Auth Method |
+|----|----------|---------|-------------|
+| codex | Codex (OpenAI) | CLI | `codex login` flow |
+| copilot | GitHub Copilot | IDE | Browser session / gh CLI |
+| cursor | Cursor | IDE | Browser session |
+| antigravity | Antigravity | IDE | Browser session |
+| kiro | Kiro | IDE | Auth file |
+| warp | Warp | IDE | Auth file |
+| gemini | Gemini CLI | CLI | Google OAuth |
+| amp | Amp | CLI | Browser session |
+| droid | Droid | CLI | Browser session / API |
+| claude | Claude Code Spend | Local | JSONL log scan |
 
 ## CI/CD
 
-GitHub Actions workflow (`release.yml`):
+Single GitHub Actions workflow (`.github/workflows/release.yml`):
+- **Trigger**: push tag `v*.*.*` or manual dispatch
+- **Steps**: checkout → validate version consistency (Info.plist + project.pbxproj + tag) → SPM resolve → build release → sign with Sparkle → upload DMG/ZIP → publish GitHub Release → update appcast.xml
 
-1. Validates version consistency (Info.plist, project.pbxproj, git tag)
-2. Resolves SPM dependencies
-3. Builds Release configuration with `package-release.sh`
-4. Injects custom Sparkle strings, signs with EdDSA
-5. Publishes `.zip` + `.dmg` to GitHub Releases
-6. Updates `appcast.xml` via PR (not direct push to main)
-
-## Extension Points
-
-### Add A New Provider
-
-1. Create a fetcher in `QuotaBackend/Sources/QuotaBackend/Providers/`
-2. Register it in `ProviderRegistry.all` array
-3. Add normalization rules in `UsageNormalizer`
-4. Add frontend catalog metadata in `AppState.providerCatalogItems`
-5. Add icon assets and any provider-specific UI
-6. Add browser discovery capability if cookie-based
-7. Update tests
-
-### Add Credential Support
-
-1. Conform provider to `CredentialAcceptingProvider`
-2. Implement `supportedAuthMethods` and `fetchUsage(with:)`
-3. Ensure consistent account identity in results
-
-### Add Multi-Account Auto Discovery
-
-1. Conform provider to `MultiAccountProviderFetcher`
-2. Return one `AccountFetchResult` per account with strongest available stable identity
+**Version must match in three places**: `Info.plist` (CFBundleShortVersionString + CFBundleVersion), `project.pbxproj` (MARKETING_VERSION), and Git tag.

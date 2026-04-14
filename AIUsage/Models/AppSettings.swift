@@ -124,9 +124,44 @@ final class AppSettings: ObservableObject {
     @Published var remoteHost: String = UserDefaults.standard.string(forKey: DefaultsKey.remoteHost) ?? "127.0.0.1"
     @Published var remotePort: Int = UserDefaults.standard.integer(forKey: DefaultsKey.remotePort) == 0 ? 4318 : UserDefaults.standard.integer(forKey: DefaultsKey.remotePort)
 
+    private var cancellables = Set<AnyCancellable>()
+
     private init() {
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
         claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
+
+        setupAutoPersist()
+    }
+
+    private func setupAutoPersist() {
+        let defaults = UserDefaults.standard
+
+        $themeMode.dropFirst().sink { defaults.set($0, forKey: DefaultsKey.themeMode) }.store(in: &cancellables)
+        $language.dropFirst().sink { defaults.set($0, forKey: DefaultsKey.appLanguage) }.store(in: &cancellables)
+        $quotaIndicatorStyle.dropFirst().sink { defaults.set($0.rawValue, forKey: DefaultsKey.quotaIndicatorStyle) }.store(in: &cancellables)
+        $quotaIndicatorMetric.dropFirst().sink { defaults.set($0.rawValue, forKey: DefaultsKey.quotaIndicatorMetric) }.store(in: &cancellables)
+        $claudeCodeDailyThreshold.dropFirst().sink { defaults.set($0, forKey: DefaultsKey.claudeCodeDailyThreshold) }.store(in: &cancellables)
+        $backendMode.dropFirst().sink { defaults.set($0, forKey: DefaultsKey.backendMode) }.store(in: &cancellables)
+        $autoRefreshInterval.dropFirst().sink { [weak self] val in
+            let normalized = Self.normalizedAutoRefreshInterval(val)
+            if normalized != val { self?.autoRefreshInterval = normalized }
+            defaults.set(normalized, forKey: DefaultsKey.autoRefreshInterval)
+        }.store(in: &cancellables)
+        $claudeCodeRefreshInterval.dropFirst().sink { [weak self] val in
+            let normalized = Self.normalizedClaudeCodeRefreshInterval(val)
+            if normalized != val { self?.claudeCodeRefreshInterval = normalized }
+            defaults.set(normalized, forKey: DefaultsKey.claudeCodeRefreshInterval)
+        }.store(in: &cancellables)
+        $remoteHost.dropFirst().sink { [weak self] host in
+            defaults.set(host, forKey: DefaultsKey.remoteHost)
+            guard let self else { return }
+            self.onRemoteSettingsChanged?("http://\(host):\(self.remotePort)")
+        }.store(in: &cancellables)
+        $remotePort.dropFirst().sink { [weak self] port in
+            defaults.set(port, forKey: DefaultsKey.remotePort)
+            guard let self else { return }
+            self.onRemoteSettingsChanged?("http://\(self.remoteHost):\(port)")
+        }.store(in: &cancellables)
     }
 
     static func normalizedAutoRefreshInterval(_ value: Int) -> Int {
@@ -149,21 +184,10 @@ final class AppSettings: ObservableObject {
             ?? defaultClaudeCodeRefreshInterval
     }
 
+    /// Kept for backward compatibility; auto-persist via Combine now handles all @Published properties.
     func saveSettings() {
-        let defaults = UserDefaults.standard
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
         claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
-        defaults.set(autoRefreshInterval, forKey: DefaultsKey.autoRefreshInterval)
-        defaults.set(claudeCodeRefreshInterval, forKey: DefaultsKey.claudeCodeRefreshInterval)
-        defaults.set(claudeCodeDailyThreshold, forKey: DefaultsKey.claudeCodeDailyThreshold)
-        defaults.set(themeMode, forKey: DefaultsKey.themeMode)
-        defaults.set(language, forKey: DefaultsKey.appLanguage)
-        defaults.set(quotaIndicatorStyle.rawValue, forKey: DefaultsKey.quotaIndicatorStyle)
-        defaults.set(quotaIndicatorMetric.rawValue, forKey: DefaultsKey.quotaIndicatorMetric)
-        defaults.set(backendMode, forKey: DefaultsKey.backendMode)
-        defaults.set(remoteHost, forKey: DefaultsKey.remoteHost)
-        defaults.set(remotePort, forKey: DefaultsKey.remotePort)
-        onRemoteSettingsChanged?("http://\(remoteHost):\(remotePort)")
     }
 
     /// Called when remote backend URL changes. Wired in AppState init.
@@ -172,4 +196,12 @@ final class AppSettings: ObservableObject {
     func t(_ en: String, _ zh: String) -> String {
         language == "zh" ? zh : en
     }
+
+    static func localized(_ en: String, _ zh: String) -> String {
+        AppSettings.shared.language == "zh" ? zh : en
+    }
+}
+
+func L(_ en: String, _ zh: String) -> String {
+    AppSettings.localized(en, zh)
 }

@@ -5,11 +5,7 @@ struct ProviderAccountGroupSection: View {
     let onAddAccount: () -> Void
 
     @EnvironmentObject var appState: AppState
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
+    @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 14) {
@@ -32,34 +28,34 @@ struct ProviderAccountGroupSection: View {
                 VStack(alignment: .trailing, spacing: 8) {
                     HStack(spacing: 8) {
                         pill(
-                            text: group.isScanningEnabled ? t("Scanning", "扫描中") : t("Paused", "已暂停"),
+                            text: group.isScanningEnabled ? L("Scanning", "扫描中") : L("Paused", "已暂停"),
                             tint: group.isScanningEnabled ? .green : .orange
                         )
-                        pill(text: t("\(group.connectedCount) live", "\(group.connectedCount) 个在线"), tint: .green)
-                        pill(text: t("\(group.accounts.count) accounts", "\(group.accounts.count) 个账号"), tint: .blue)
+                        pill(text: L("\(group.connectedCount) live", "\(group.connectedCount) 个在线"), tint: .green)
+                        pill(text: L("\(group.accounts.count) accounts", "\(group.accounts.count) 个账号"), tint: .blue)
                     }
 
                     HStack(spacing: 10) {
                         Button {
-                            appState.refreshProvider(group.providerId)
+                            refreshCoordinator.refreshProvider(group.providerId)
                         } label: {
                             Label(
-                                appState.isProviderRefreshInFlight(group.providerId)
-                                    ? t("Refreshing App", "刷新该应用中")
-                                    : t("Refresh App", "刷新该应用"),
+                                refreshCoordinator.isProviderRefreshInFlight(group.providerId)
+                                    ? L("Refreshing App", "刷新该应用中")
+                                    : L("Refresh App", "刷新该应用"),
                                 systemImage: "arrow.clockwise"
                             )
                                 .font(.caption.weight(.semibold))
                         }
                         .buttonStyle(.borderless)
-                        .disabled(appState.isProviderRefreshInFlight(group.providerId))
-                        .help(t("Refresh every account under \(group.title)", "刷新 \(group.title) 下的所有账号"))
+                        .disabled(refreshCoordinator.isProviderRefreshInFlight(group.providerId))
+                        .help(L("Refresh every account under \(group.title)", "刷新 \(group.title) 下的所有账号"))
 
                         Button {
                             appState.setProviderScanningEnabled(group.providerId, isEnabled: !group.isScanningEnabled)
                         } label: {
                             Label(
-                                group.isScanningEnabled ? t("Pause Scan", "暂停扫描") : t("Resume Scan", "恢复扫描"),
+                                group.isScanningEnabled ? L("Pause Scan", "暂停扫描") : L("Resume Scan", "恢复扫描"),
                                 systemImage: group.isScanningEnabled ? "pause.circle" : "play.circle"
                             )
                             .font(.caption.weight(.semibold))
@@ -67,15 +63,15 @@ struct ProviderAccountGroupSection: View {
                         .buttonStyle(.borderless)
 
                         Button(action: onAddAccount) {
-                            Label(t("Connect Account", "连接账号"), systemImage: "plus")
+                            Label(L("Connect Account", "连接账号"), systemImage: "plus")
                                 .font(.caption.weight(.semibold))
                         }
                         .buttonStyle(.borderless)
                     }
 
-                    if let refreshedAt = appState.providerRefreshDate(for: group.providerId) {
+                    if let refreshedAt = refreshCoordinator.providerRefreshDate(for: group.providerId) {
                         HStack(spacing: 4) {
-                            Text(t("This app updated", "本应用更新于"))
+                            Text(L("This app updated", "本应用更新于"))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                             RefreshableTimeView(
@@ -124,18 +120,13 @@ struct EmptyProviderAccountState: View {
 
     @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) private var colorScheme
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(t("No account connected yet", "还没有连接账号"))
+            Text(L("No account connected yet", "还没有连接账号"))
                 .font(.headline)
 
             Text(
-                t(
+                L(
                     "This app is already in your scan list. Connect one account and AIUsage will start monitoring it here.",
                     "这个应用已经在扫描列表里了。连接任意一个账号后，AIUsage 就会开始在这里监控它。"
                 )
@@ -144,7 +135,7 @@ struct EmptyProviderAccountState: View {
             .foregroundStyle(.secondary)
 
             Button(action: onAddAccount) {
-                Label(t("Connect Account", "连接账号"), systemImage: "plus.circle")
+                Label(L("Connect Account", "连接账号"), systemImage: "plus.circle")
             }
             .buttonStyle(.borderedProminent)
         }
@@ -166,6 +157,7 @@ struct ManagedProviderAccountCard: View {
     let provider: ProviderData
 
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
 
     var body: some View {
         ProviderCard(
@@ -179,6 +171,6 @@ struct ManagedProviderAccountCard: View {
     }
 
     private func refreshThisAccount() async {
-        await appState.refreshProviderCardNow(provider)
+        await refreshCoordinator.refreshProviderCardNow(provider)
     }
 }

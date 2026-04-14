@@ -19,11 +19,6 @@ struct ProxyStatsView: View {
     }
     private var selectedNodeId: String? { selectedNodeIdRaw.isEmpty ? nil : selectedNodeIdRaw }
     private var selectedModel: String? { selectedModelRaw.isEmpty ? nil : selectedModelRaw }
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     private func validateSelections() {
         if !selectedNodeIdRaw.isEmpty,
            !viewModel.configurations.contains(where: { $0.id == selectedNodeIdRaw }) {
@@ -69,10 +64,10 @@ struct ProxyStatsView: View {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .font(.system(size: 48))
                 .foregroundStyle(.tertiary)
-            Text(t("No proxy nodes configured", "尚未配置代理节点"))
+            Text(L("No proxy nodes configured", "尚未配置代理节点"))
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.secondary)
-            Text(t("Add a proxy node in Claude Code Proxy to start tracking usage.",
+            Text(L("Add a proxy node in Claude Code Proxy to start tracking usage.",
                    "在 Claude Code 代理中添加节点后即可开始统计用量。"))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -84,21 +79,21 @@ struct ProxyStatsView: View {
 
     private var filterBar: some View {
         HStack(spacing: 12) {
-            Text(t("Proxy Stats", "代理统计"))
+            Text(L("Proxy Stats", "代理统计"))
                 .font(.title2.weight(.bold))
 
             Spacer()
 
-            Picker(t("Node", "节点"), selection: nodeBinding) {
-                Text(t("All Nodes", "全部节点")).tag("")
+            Picker(L("Node", "节点"), selection: nodeBinding) {
+                Text(L("All Nodes", "全部节点")).tag("")
                 ForEach(viewModel.configurations, id: \.id) { config in
                     Text(config.name).tag(config.id)
                 }
             }
             .frame(width: 160)
 
-            Picker(t("Model", "模型"), selection: modelBinding) {
-                Text(t("All Models", "全部模型")).tag("")
+            Picker(L("Model", "模型"), selection: modelBinding) {
+                Text(L("All Models", "全部模型")).tag("")
                 ForEach(viewModel.allUpstreamModels(nodeFilter: selectedNodeId), id: \.self) { model in
                     Text(model).tag(model)
                 }
@@ -134,7 +129,7 @@ struct ProxyStatsView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.secondary)
-                    Text(t("Data covers \(range.days) day(s) (\(df.string(from: earliest)) – \(df.string(from: range.latest ?? Date()))). Logs auto-clean after \(effectiveDays) days.",
+                    Text(L("Data covers \(range.days) day(s) (\(df.string(from: earliest)) – \(df.string(from: range.latest ?? Date()))). Logs auto-clean after \(effectiveDays) days.",
                            "数据覆盖 \(range.days) 天（\(df.string(from: earliest)) – \(df.string(from: range.latest ?? Date()))）。日志 \(effectiveDays) 天后自动清理。"))
                 }
                 .font(.caption)
@@ -152,16 +147,16 @@ struct ProxyStatsView: View {
         return VStack(spacing: 8) {
             HStack(spacing: 12) {
                 summaryCell(icon: "dollarsign.circle.fill",
-                            title: t("Cost (\(dateRange.days)d)", "费用（\(dateRange.days)天）"),
+                            title: L("Cost (\(dateRange.days)d)", "费用（\(dateRange.days)天）"),
                             value: formatCurrency(s.cost), tint: .orange)
                 summaryCell(icon: "bolt.fill",
-                            title: t("Tokens (\(dateRange.days)d)", "Tokens（\(dateRange.days)天）"),
+                            title: L("Tokens (\(dateRange.days)d)", "Tokens（\(dateRange.days)天）"),
                             value: formatCompactNumber(Double(s.tokens)), tint: .purple)
-                summaryCell(icon: "arrow.up.arrow.down", title: t("Requests", "请求数"),
+                summaryCell(icon: "arrow.up.arrow.down", title: L("Requests", "请求数"),
                             value: "\(s.requests)", tint: .blue)
-                summaryCell(icon: "checkmark.seal.fill", title: t("Success Rate", "成功率"),
+                summaryCell(icon: "checkmark.seal.fill", title: L("Success Rate", "成功率"),
                             value: String(format: "%.1f%%", s.successRate), tint: .green)
-                summaryCell(icon: "cpu", title: t("Models", "模型数"),
+                summaryCell(icon: "cpu", title: L("Models", "模型数"),
                             value: "\(viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: selectedModel).count)",
                             tint: .pink)
             }
@@ -202,19 +197,19 @@ struct ProxyStatsView: View {
     private var trendChart: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(t("Spend Trend", "消费趋势"))
+                Text(L("Spend Trend", "消费趋势"))
                     .font(.headline.weight(.bold))
                 Spacer()
                 Picker("", selection: $metric) {
-                    Text(t("Cost", "费用")).tag(StatMetric.cost)
+                    Text(L("Cost", "费用")).tag(StatMetric.cost)
                     Text("Tokens").tag(StatMetric.tokens)
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 140)
 
                 Picker("", selection: $granularity) {
-                    Text(t("Hourly", "小时")).tag(StatGranularity.hourly)
-                    Text(t("Daily", "每日")).tag(StatGranularity.daily)
+                    Text(L("Hourly", "小时")).tag(StatGranularity.hourly)
+                    Text(L("Daily", "每日")).tag(StatGranularity.daily)
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 140)
@@ -223,7 +218,7 @@ struct ProxyStatsView: View {
             let data = modelTimeSeries
             let models = Array(Set(data.map(\.model))).sorted()
             if data.isEmpty {
-                Text(t("No data yet", "暂无数据"))
+                Text(L("No data yet", "暂无数据"))
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, minHeight: 200, alignment: .center)
             } else {
@@ -304,12 +299,12 @@ struct ProxyStatsView: View {
 
     private var modelDistribution: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(t("Model Distribution", "模型分布"))
+            Text(L("Model Distribution", "模型分布"))
                 .font(.headline.weight(.bold))
 
             let data = modelData
             if data.isEmpty {
-                Text(t("No data yet", "暂无数据"))
+                Text(L("No data yet", "暂无数据"))
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, minHeight: 180, alignment: .center)
             } else {
@@ -351,24 +346,24 @@ struct ProxyStatsView: View {
 
     private var modelTable: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(t("Model Details", "模型明细"))
+            Text(L("Model Details", "模型明细"))
                 .font(.headline.weight(.bold))
 
             let data = modelData
             if data.isEmpty {
-                Text(t("No data yet", "暂无数据"))
+                Text(L("No data yet", "暂无数据"))
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, minHeight: 180, alignment: .center)
             } else {
                 VStack(spacing: 0) {
                     // Header
                     HStack(spacing: 0) {
-                        Text(t("Model", "模型")).frame(maxWidth: .infinity, alignment: .leading)
-                        Text(t("Requests", "请求")).frame(width: 60, alignment: .trailing)
-                        Text(t("Input", "输入")).frame(width: 70, alignment: .trailing)
-                        Text(t("Output", "输出")).frame(width: 70, alignment: .trailing)
-                        Text(t("Cache", "缓存")).frame(width: 70, alignment: .trailing)
-                        Text(t("Cost", "费用")).frame(width: 80, alignment: .trailing)
+                        Text(L("Model", "模型")).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(L("Requests", "请求")).frame(width: 60, alignment: .trailing)
+                        Text(L("Input", "输入")).frame(width: 70, alignment: .trailing)
+                        Text(L("Output", "输出")).frame(width: 70, alignment: .trailing)
+                        Text(L("Cache", "缓存")).frame(width: 70, alignment: .trailing)
+                        Text(L("Cost", "费用")).frame(width: 80, alignment: .trailing)
                     }
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)

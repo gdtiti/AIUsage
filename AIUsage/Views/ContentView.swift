@@ -2,11 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
+    @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
     private var sectionBinding: Binding<AppSection> {
         Binding(
             get: { appState.selectedSection },
@@ -16,7 +12,7 @@ struct ContentView: View {
 
     private var inboxLabel: some View {
         HStack {
-            Label(t("Inbox", "消息"), systemImage: appState.unreadAlertCount > 0 ? "bell.badge.fill" : "bell.fill")
+            Label(L("Inbox", "消息"), systemImage: appState.unreadAlertCount > 0 ? "bell.badge.fill" : "bell.fill")
             Spacer()
             if appState.unreadAlertCount > 0 {
                 Text("\(appState.unreadAlertCount)")
@@ -34,19 +30,19 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: sectionBinding) {
-                Label(t("Dashboard", "仪表盘"), systemImage: "chart.bar.doc.horizontal")
+                Label(L("Dashboard", "仪表盘"), systemImage: "chart.bar.doc.horizontal")
                     .tag(AppSection.dashboard)
 
-                Label(t("Providers", "服务商"), systemImage: "square.grid.2x2")
+                Label(L("Providers", "服务商"), systemImage: "square.grid.2x2")
                     .tag(AppSection.providers)
 
-                Label(t("Claude Code Stats", "Claude Code 统计"), systemImage: "chart.bar.xaxis")
+                Label(L("Claude Code Stats", "Claude Code 统计"), systemImage: "chart.bar.xaxis")
                     .tag(AppSection.costTracking)
 
-                Label(t("Claude Code Proxy", "Claude Code 代理"), systemImage: "server.rack")
+                Label(L("Claude Code Proxy", "Claude Code 代理"), systemImage: "server.rack")
                     .tag(AppSection.proxyManagement)
 
-                Label(t("Proxy Stats", "代理统计"), systemImage: "chart.line.uptrend.xyaxis")
+                Label(L("Proxy Stats", "代理统计"), systemImage: "chart.line.uptrend.xyaxis")
                     .tag(AppSection.proxyStats)
 
                 inboxLabel
@@ -54,7 +50,7 @@ struct ContentView: View {
 
                 Divider()
 
-                Label(t("Settings", "设置"), systemImage: "gearshape")
+                Label(L("Settings", "设置"), systemImage: "gearshape")
                     .tag(AppSection.settings)
             }
             .listStyle(.sidebar)
@@ -92,19 +88,19 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
-                Button(action: { appState.refreshAllProviders() }) {
+                Button(action: { refreshCoordinator.refreshAllProviders() }) {
                     HStack(spacing: 5) {
-                        if appState.isLoading || appState.isRefreshingAllProviders {
+                        if refreshCoordinator.isLoading || refreshCoordinator.isRefreshingAllProviders {
                             SmallProgressView().frame(width: 14, height: 14)
                         } else {
                             Image(systemName: "arrow.clockwise")
                         }
-                        Text(t("Refresh All", "全部刷新"))
+                        Text(L("Refresh All", "全部刷新"))
                             .font(.subheadline)
                     }
                 }
-                .help(t("Refresh every app and every account", "刷新所有应用和所有账号"))
-                .disabled(appState.isLoading || appState.isRefreshingAllProviders)
+                .help(L("Refresh every app and every account", "刷新所有应用和所有账号"))
+                .disabled(refreshCoordinator.isLoading || refreshCoordinator.isRefreshingAllProviders)
             }
         }
     }
@@ -113,5 +109,11 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environmentObject(AppState.shared)
+        .environmentObject(ProviderRefreshCoordinator.shared)
+        .environmentObject(AccountStore.shared)
+        .environmentObject(ProviderActivationManager.shared)
+        .environmentObject(AppSettings.shared)
+        .environmentObject(ProxyViewModel())
+        .environmentObject(SparkleController())
         .frame(width: 1100, height: 700)
 }

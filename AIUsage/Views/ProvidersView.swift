@@ -3,15 +3,11 @@ import QuotaBackend
 
 struct ProvidersView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var accountStore: AccountStore
     @State private var searchText = ""
     @State private var selectedChannel: String = "all"
     @State private var selectedProviderFilter: String = "all"
     @State private var accountEditorTarget: ProviderEditorTarget?
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             toolbar
@@ -105,7 +101,7 @@ struct ProvidersView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
 
-                TextField(t("Search accounts...", "搜索账号..."), text: $searchText)
+                TextField(L("Search accounts...", "搜索账号..."), text: $searchText)
                     .textFieldStyle(.plain)
 
                 if !searchText.isEmpty {
@@ -120,8 +116,8 @@ struct ProvidersView: View {
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(8)
 
-            Picker(t("Channel", "渠道"), selection: $selectedChannel) {
-                Text(t("All", "全部")).tag("all")
+            Picker(L("Channel", "渠道"), selection: $selectedChannel) {
+                Text(L("All", "全部")).tag("all")
                 Text("CLI").tag("cli")
                 Text("IDE").tag("ide")
             }
@@ -133,13 +129,13 @@ struct ProvidersView: View {
             Button {
                 appState.presentManageProviderPicker()
             } label: {
-                Label(t("Manage Sources", "管理来源"), systemImage: "slider.horizontal.3")
+                Label(L("Manage Sources", "管理来源"), systemImage: "slider.horizontal.3")
             }
             .buttonStyle(.bordered)
 
-            if !appState.hiddenAccounts.isEmpty {
+            if !accountStore.hiddenAccounts().isEmpty {
                 Menu {
-                    ForEach(appState.hiddenAccounts) { storedAccount in
+                    ForEach(accountStore.hiddenAccounts()) { storedAccount in
                         Button {
                             appState.restoreAccount(storedAccount.id)
                         } label: {
@@ -152,7 +148,7 @@ struct ProvidersView: View {
                         }
                     }
                 } label: {
-                    Label(t("Hidden Accounts", "已隐藏账号"), systemImage: "eye.slash")
+                    Label(L("Hidden Accounts", "已隐藏账号"), systemImage: "eye.slash")
                 }
             }
 
@@ -163,7 +159,7 @@ struct ProvidersView: View {
                     appState.presentAddProviderPicker()
                 }
             } label: {
-                Label(t("Add App", "添加应用"), systemImage: "plus")
+                Label(L("Add App", "添加应用"), systemImage: "plus")
             }
             .buttonStyle(.borderedProminent)
         }
@@ -174,7 +170,7 @@ struct ProvidersView: View {
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                providerFilterChip(id: "all", title: t("All Apps", "全部应用"))
+                providerFilterChip(id: "all", title: L("All Apps", "全部应用"))
 
                 ForEach(availableProviderFilters) { group in
                     providerFilterChip(id: group.providerId, title: group.title, providerId: group.providerId)
@@ -224,16 +220,16 @@ struct ProvidersView: View {
                 .font(.system(size: 56))
                 .foregroundColor(.secondary)
 
-            Text(t("No accounts found", "未找到账号"))
+            Text(L("No accounts found", "未找到账号"))
                 .font(.title2)
                 .bold()
 
             if !searchText.isEmpty {
-                Text(t("Try another app filter or search keyword.", "试试其他应用筛选或搜索关键词。"))
+                Text(L("Try another app filter or search keyword.", "试试其他应用筛选或搜索关键词。"))
                     .font(.body)
                     .foregroundColor(.secondary)
             } else {
-                Text(t("Add a provider app first, then each app can keep multiple accounts under the same group.", "先添加服务应用，之后每个应用都可以在同一分组下管理多个账号。"))
+                Text(L("Add a provider app first, then each app can keep multiple accounts under the same group.", "先添加服务应用，之后每个应用都可以在同一分组下管理多个账号。"))
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -242,7 +238,7 @@ struct ProvidersView: View {
                 Button {
                     appState.presentAddProviderPicker()
                 } label: {
-                    Label(t("Add App", "添加应用"), systemImage: "plus")
+                    Label(L("Add App", "添加应用"), systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
             }

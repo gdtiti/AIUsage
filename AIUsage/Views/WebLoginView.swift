@@ -17,11 +17,6 @@ struct WebLoginView: View {
     @State private var currentURL: URL?
     @State private var capturedCookie: String?
     @State private var pageTitle: String = ""
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     private var canConnectCapturedAccount: Bool {
         guard capturedCookie != nil else { return false }
         return ProviderLoginURLs.isReadyToUseCapturedAccount(for: providerId, currentURL: currentURL)
@@ -35,7 +30,7 @@ struct WebLoginView: View {
                     .frame(width: 22, height: 22)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(t("Sign in to \(providerId.capitalized)", "登录 \(providerId.capitalized)"))
+                    Text(L("Sign in to \(providerId.capitalized)", "登录 \(providerId.capitalized)"))
                         .font(.headline)
                     if !pageTitle.isEmpty {
                         Text(pageTitle)
@@ -53,7 +48,7 @@ struct WebLoginView: View {
                 }
 
                 if canConnectCapturedAccount {
-                    Button(t("Use This Account", "使用此账号")) {
+                    Button(L("Use This Account", "使用此账号")) {
                         if let cookie = capturedCookie {
                             onComplete(cookie)
                             dismiss()
@@ -63,7 +58,7 @@ struct WebLoginView: View {
                     .controlSize(.small)
                 }
 
-                Button(t("Cancel", "取消")) {
+                Button(L("Cancel", "取消")) {
                     dismiss()
                 }
                 .buttonStyle(.borderless)

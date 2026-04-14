@@ -9,6 +9,7 @@ struct ProviderDetailView: View {
     let accountDisplayOverride: String?
     let accountEntry: ProviderAccountEntry?
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) var dismiss
     @State private var copiedMessage: String?
@@ -28,17 +29,12 @@ struct ProviderDetailView: View {
         self.accountDisplayOverride = accountDisplayOverride
         self.accountEntry = accountEntry
     }
-    
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     private var isRefreshing: Bool {
-        appState.isRefreshInProgress(for: provider)
+        refreshCoordinator.isRefreshInProgress(for: provider)
     }
 
     private var refreshTimestamp: Date? {
-        appState.accountRefreshDate(for: provider)
+        refreshCoordinator.accountRefreshDate(for: provider)
     }
     
     var body: some View {
@@ -104,19 +100,19 @@ struct ProviderDetailView: View {
             }
         }
         .alert(
-            t("Remove Account", "删除账号"),
+            L("Remove Account", "删除账号"),
             isPresented: $showingRemovalAlert
         ) {
-            Button(t("Delete", "删除"), role: .destructive) {
+            Button(L("Delete", "删除"), role: .destructive) {
                 if let accountEntry {
                     appState.deleteAccount(accountEntry)
                 }
                 dismiss()
             }
-            Button(t("Cancel", "取消"), role: .cancel) {}
+            Button(L("Cancel", "取消"), role: .cancel) {}
         } message: {
             Text(
-                t(
+                L(
                     "This removes the account from your monitor list. If a credential is linked, it will also be removed from Keychain. Hidden accounts can be restored from the Providers toolbar.",
                     "这会把该账号从监控列表中移除；如果绑定了凭证，也会一并从钥匙串删除。已隐藏账号可以在服务商顶部工具栏恢复。"
                 )
@@ -165,7 +161,7 @@ struct ProviderDetailView: View {
 
                 if let refreshTimestamp {
                     HStack(spacing: 4) {
-                        Text(t("Updated", "更新于"))
+                        Text(L("Updated", "更新于"))
                             .font(.caption2)
                             .foregroundColor(.secondary)
                         RefreshableTimeView(
@@ -180,11 +176,11 @@ struct ProviderDetailView: View {
                 HStack(spacing: 8) {
                     Button {
                         Task {
-                            await appState.refreshProviderCardNow(provider)
+                            await refreshCoordinator.refreshProviderCardNow(provider)
                         }
                     } label: {
                         Label(
-                            isRefreshing ? t("Refreshing Account", "刷新账号中") : t("Refresh Account", "刷新账号"),
+                            isRefreshing ? L("Refreshing Account", "刷新账号中") : L("Refresh Account", "刷新账号"),
                             systemImage: "arrow.clockwise"
                         )
                     }
@@ -194,12 +190,12 @@ struct ProviderDetailView: View {
                     if let copyTarget = copyTargetValue {
                         Button {
                             copyToPasteboard(copyTarget)
-                            copiedMessage = t("Copied", "已复制")
+                            copiedMessage = L("Copied", "已复制")
                             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                                 copiedMessage = nil
                             }
                         } label: {
-                            Label(t("Copy", "复制"), systemImage: "doc.on.doc")
+                            Label(L("Copy", "复制"), systemImage: "doc.on.doc")
                         }
                         .buttonStyle(.bordered)
                     }
@@ -244,7 +240,7 @@ struct ProviderDetailView: View {
 
     private var accountManagementSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(t("Account Management", "账号管理"))
+            Text(L("Account Management", "账号管理"))
                 .font(.title2)
                 .bold()
 
@@ -265,7 +261,7 @@ struct ProviderDetailView: View {
 
                     Text(
                         accountEntry.accountNote?.nilIfBlank
-                            ?? t("No note yet. Add one to make this account easier to recognize later.", "当前还没有注释。你可以补一条，后面就更容易区分这个账号。")
+                            ?? L("No note yet. Add one to make this account easier to recognize later.", "当前还没有注释。你可以补一条，后面就更容易区分这个账号。")
                     )
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -276,14 +272,14 @@ struct ProviderDetailView: View {
                     Button {
                         showingNoteEditor = true
                     } label: {
-                        Label(t("Edit Note", "编辑注释"), systemImage: "square.and.pencil")
+                        Label(L("Edit Note", "编辑注释"), systemImage: "square.and.pencil")
                     }
                     .buttonStyle(.bordered)
 
                     Button(role: .destructive) {
                         showingRemovalAlert = true
                     } label: {
-                        Label(t("Remove from Monitor", "移出监控"), systemImage: "trash")
+                        Label(L("Remove from Monitor", "移出监控"), systemImage: "trash")
                     }
                     .buttonStyle(.bordered)
                 }
@@ -299,7 +295,7 @@ struct ProviderDetailView: View {
     
     private var windowsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(t("Quota Windows", "配额窗口"))
+            Text(L("Quota Windows", "配额窗口"))
                 .font(.title2)
                 .bold()
             
@@ -315,7 +311,7 @@ struct ProviderDetailView: View {
     
     private var metricsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(t("Metrics", "指标"))
+            Text(L("Metrics", "指标"))
                 .font(.title2)
                 .bold()
             
@@ -331,19 +327,19 @@ struct ProviderDetailView: View {
     
     private func costSection(_ costSummary: CostSummary) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(t("Claude Code Stats", "Claude Code 统计"))
+            Text(L("Claude Code Stats", "Claude Code 统计"))
                 .font(.title2)
                 .bold()
             
             HStack(spacing: 16) {
                 if let today = costSummary.today {
-                    CostPeriodCard(label: t("Today", "今天"), period: today)
+                    CostPeriodCard(label: L("Today", "今天"), period: today)
                 }
                 if let week = costSummary.week {
-                    CostPeriodCard(label: t("This Week", "本周"), period: week)
+                    CostPeriodCard(label: L("This Week", "本周"), period: week)
                 }
                 if let month = costSummary.month {
-                    CostPeriodCard(label: t("This Month", "本月"), period: month)
+                    CostPeriodCard(label: L("This Month", "本月"), period: month)
                 }
             }
         }
@@ -353,7 +349,7 @@ struct ProviderDetailView: View {
     
     private func modelsSection(_ models: [ModelInfo]) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(t("Models", "模型"))
+            Text(L("Models", "模型"))
                 .font(.title2)
                 .bold()
             
@@ -392,8 +388,8 @@ struct ProviderDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label(
                 provider.category == "local-cost"
-                    ? t("About This Tracker", "关于此追踪源")
-                    : t("About This Provider", "关于此服务商"),
+                    ? L("About This Tracker", "关于此追踪源")
+                    : L("About This Provider", "关于此服务商"),
                 systemImage: "lightbulb.fill"
             )
                 .font(.headline)
@@ -470,15 +466,7 @@ struct ProviderDetailView: View {
         }
     }
     
-    private var statusColor: Color {
-        switch provider.status {
-        case .healthy: return .green
-        case .watch: return .orange
-        case .critical: return .red
-        case .error: return .gray
-        case .tracking: return .blue
-        case .idle: return .secondary
-        }
+    private var statusColor: Color { provider.statusColor
     }
 
     private var shouldShowStatusBadge: Bool {
@@ -608,11 +596,6 @@ struct CostPeriodCard: View {
     let label: String
     let period: CostPeriod
     @EnvironmentObject var appState: AppState
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
@@ -625,7 +608,7 @@ struct CostPeriodCard: View {
                 .bold()
 
             if let tokens = period.tokens {
-                Text("\(formatNumber(tokens)) \(t("tokens", "个 tokens"))")
+                Text("\(formatNumber(tokens)) \(L("tokens", "个 tokens"))")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -688,4 +671,6 @@ struct CostPeriodCard: View {
     )
     
     ProviderDetailView(provider: sampleProvider)
+        .environmentObject(AppState.shared)
+        .environmentObject(ProviderRefreshCoordinator.shared)
 }

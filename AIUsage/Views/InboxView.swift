@@ -3,18 +3,14 @@ import QuotaBackend
 
 struct InboxView: View {
     @EnvironmentObject var appState: AppState
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
+    @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
     private var alerts: [Alert] {
-        appState.overview?.alerts ?? []
+        refreshCoordinator.overview?.alerts ?? []
     }
 
     // 即将重置的 provider
     private var resettingSoon: [ProviderData] {
-        appState.providers.filter { p in
+        refreshCoordinator.providers.filter { p in
             guard let next = p.nextResetAt else { return false }
             guard let date = SharedFormatters.parseISO8601(next) else { return false }
             let diff = date.timeIntervalSinceNow
@@ -30,10 +26,10 @@ struct InboxView: View {
                 } else {
                     // 告警
                     if !alerts.isEmpty {
-                        sectionHeader(t("Alerts", "告警"), icon: "exclamationmark.triangle.fill", color: .orange) {
+                        sectionHeader(L("Alerts", "告警"), icon: "exclamationmark.triangle.fill", color: .orange) {
                             if appState.unreadAlertCount > 0 {
                                 Button(action: { appState.markAllAlertsRead() }) {
-                                    Label(t("Mark all read", "全部已读"), systemImage: "checkmark.circle")
+                                    Label(L("Mark all read", "全部已读"), systemImage: "checkmark.circle")
                                         .font(.caption)
                                 }
                                 .buttonStyle(.plain)
@@ -51,7 +47,7 @@ struct InboxView: View {
 
                     // 即将重置
                     if !resettingSoon.isEmpty {
-                        sectionHeader(t("Resetting Soon", "即将重置"), icon: "clock.fill", color: .teal)
+                        sectionHeader(L("Resetting Soon", "即将重置"), icon: "clock.fill", color: .teal)
                         VStack(spacing: 10) {
                             ForEach(resettingSoon) { p in
                                 ResetSoonRow(provider: p)
@@ -84,11 +80,11 @@ struct InboxView: View {
             Image(systemName: "tray.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(.quaternary)
-            Text(t("All clear", "一切正常"))
+            Text(L("All clear", "一切正常"))
                 .font(.title2)
                 .bold()
                 .foregroundStyle(.secondary)
-            Text(t("No alerts or notifications right now.", "当前没有任何告警或通知。"))
+            Text(L("No alerts or notifications right now.", "当前没有任何告警或通知。"))
                 .font(.body)
                 .foregroundStyle(.tertiary)
             Spacer()

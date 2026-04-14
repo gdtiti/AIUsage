@@ -9,7 +9,28 @@
 /* Begin PBXBuildFile section */
 		5EF87F012F8D0E9E002FE291 /* ProxyConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F002F8D0E9E002FE291 /* ProxyConfiguration.swift */; };
 		5EF87F042F8D0ED3002FE291 /* ProxyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F022F8D0ED3002FE291 /* ProxyViewModel.swift */; };
+		A2B3C4D22F96001000A15674 /* ClaudeSettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D12F96001000A15674 /* ClaudeSettingsManager.swift */; };
+		A2B3C4D42F96001000A15674 /* ProxyViewModel+LogManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D32F96001000A15674 /* ProxyViewModel+LogManagement.swift */; };
+		A2B3C4D62F96001000A15674 /* ProxyViewModel+ProxyServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D52F96001000A15674 /* ProxyViewModel+ProxyServer.swift */; };
+		A2B3C4D82F96001000A15674 /* ProxyViewModel+Aggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D72F96001000A15674 /* ProxyViewModel+Aggregation.swift */; };
+		A2B3C4DA2F96001000A15674 /* ProviderAccountEditorView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D92F96001000A15674 /* ProviderAccountEditorView+Sections.swift */; };
+		A2B3C4DC2F96001000A15674 /* ProviderAccountEditorView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4DB2F96001000A15674 /* ProviderAccountEditorView+Actions.swift */; };
+		A2B3C4DE2F96001000A15674 /* ProviderAccountEditorView+CodexOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4DD2F96001000A15674 /* ProviderAccountEditorView+CodexOAuth.swift */; };
+		A2B3C4E02F96001000A15674 /* CostTrackingView+Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4DF2F96001000A15674 /* CostTrackingView+Types.swift */; };
+		A2B3C4E22F96001000A15674 /* CostTrackingView+Summary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4E12F96001000A15674 /* CostTrackingView+Summary.swift */; };
+		A2B3C4E42F96001000A15674 /* CostTrackingView+Chart.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4E32F96001000A15674 /* CostTrackingView+Chart.swift */; };
+		A2B3C4E62F96001000A15674 /* CostTrackingView+Distribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4E52F96001000A15674 /* CostTrackingView+Distribution.swift */; };
+		A2B3C4E82F96001000A15674 /* CostTrackingView+ModelTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4E72F96001000A15674 /* CostTrackingView+ModelTable.swift */; };
+		A2B3C4EA2F96001000A15674 /* CostTrackingView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4E92F96001000A15674 /* CostTrackingView+Helpers.swift */; };
+		A2B3C4EC2F96001000A15674 /* CostTrackingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4EB2F96001000A15674 /* CostTrackingCard.swift */; };
+		A2B3C4EE2F96001000A15674 /* SettingsView+Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4ED2F96001000A15674 /* SettingsView+Cards.swift */; };
+		A2B3C4F02F96001000A15674 /* SettingsView+Chrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4EF2F96001000A15674 /* SettingsView+Chrome.swift */; };
+		A2B3C4F22F96001000A15674 /* SettingsView+Titles.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4F12F96001000A15674 /* SettingsView+Titles.swift */; };
+		A2B3C4F42F96001000A15674 /* SettingsView+QuotaPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4F32F96001000A15674 /* SettingsView+QuotaPreview.swift */; };
+		A2B3C4F62F96001000A15674 /* SettingsView+Remote.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4F52F96001000A15674 /* SettingsView+Remote.swift */; };
 		5EFREF012F93000100A15674 /* ProviderRefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFREF002F93000100A15674 /* ProviderRefreshCoordinator.swift */; };
+		5EFREF222F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFREF212F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift */; };
+		5EFREF322F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFREF312F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift */; };
 		5EFACT012F94000100A15674 /* ProviderActivationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFACT002F94000100A15674 /* ProviderActivationManager.swift */; };
 		5EF87F072F8D0EED002FE291 /* ProxyConfigEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F052F8D0EED002FE291 /* ProxyConfigEditorView.swift */; };
 		5EF87F082F8D0EED002FE291 /* ProxyManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F062F8D0EED002FE291 /* ProxyManagementView.swift */; };
@@ -19,9 +40,14 @@
 		5EFAD7732F87AFE700A15674 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7472F87AC7100A15674 /* DashboardView.swift */; };
 		5EFAD7742F87AFE700A15674 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7442F87AC7100A15674 /* APIService.swift */; };
 		5EFAD7752F87AFE700A15674 /* ProviderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7492F87AC7100A15674 /* ProviderCard.swift */; };
+		5EF0C0D22F95000100A15674 /* ProviderCard+MultiWindowQuota.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0C0D12F95000100A15674 /* ProviderCard+MultiWindowQuota.swift */; };
+		5EF0C0D42F95000100A15674 /* ProviderCard+QuotaIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0C0D32F95000100A15674 /* ProviderCard+QuotaIndicator.swift */; };
+		5EF0C0D62F95000100A15674 /* ProviderCard+ResetCountdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0C0D52F95000100A15674 /* ProviderCard+ResetCountdown.swift */; };
 		5EFAD7762F87AFE700A15674 /* ProvidersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD74A2F87AC7100A15674 /* ProvidersView.swift */; };
 		5EFAD7772F87AFE700A15674 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD73D2F87AC7100A15674 /* AppState.swift */; };
 		A1ACCS022F92000000A15674 /* AccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCS012F92000000A15674 /* AccountStore.swift */; };
+		A1ACCS122F92000000A15674 /* AccountStore+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCS112F92000000A15674 /* AccountStore+Persistence.swift */; };
+		A1ACCS142F92000000A15674 /* AccountStore+Matching.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCS132F92000000A15674 /* AccountStore+Matching.swift */; };
 		7EFAD0022F87AC7100A15674 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFAD0012F87AC7100A15674 /* AppSettings.swift */; };
 		5EFAD7782F87AFE700A15674 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD74B2F87AC7100A15674 /* SettingsView.swift */; };
 		5EFAD7792F87AFE700A15674 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7462F87AC7100A15674 /* ContentView.swift */; };
@@ -56,7 +82,28 @@
 /* Begin PBXFileReference section */
 		5EF87F002F8D0E9E002FE291 /* ProxyConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyConfiguration.swift; sourceTree = "<group>"; };
 		5EF87F022F8D0ED3002FE291 /* ProxyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyViewModel.swift; sourceTree = "<group>"; };
+		A2B3C4D12F96001000A15674 /* ClaudeSettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSettingsManager.swift; sourceTree = "<group>"; };
+		A2B3C4D32F96001000A15674 /* ProxyViewModel+LogManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProxyViewModel+LogManagement.swift"; sourceTree = "<group>"; };
+		A2B3C4D52F96001000A15674 /* ProxyViewModel+ProxyServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProxyViewModel+ProxyServer.swift"; sourceTree = "<group>"; };
+		A2B3C4D72F96001000A15674 /* ProxyViewModel+Aggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProxyViewModel+Aggregation.swift"; sourceTree = "<group>"; };
+		A2B3C4D92F96001000A15674 /* ProviderAccountEditorView+Sections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderAccountEditorView+Sections.swift"; sourceTree = "<group>"; };
+		A2B3C4DB2F96001000A15674 /* ProviderAccountEditorView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderAccountEditorView+Actions.swift"; sourceTree = "<group>"; };
+		A2B3C4DD2F96001000A15674 /* ProviderAccountEditorView+CodexOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderAccountEditorView+CodexOAuth.swift"; sourceTree = "<group>"; };
+		A2B3C4DF2F96001000A15674 /* CostTrackingView+Types.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CostTrackingView+Types.swift"; sourceTree = "<group>"; };
+		A2B3C4E12F96001000A15674 /* CostTrackingView+Summary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CostTrackingView+Summary.swift"; sourceTree = "<group>"; };
+		A2B3C4E32F96001000A15674 /* CostTrackingView+Chart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CostTrackingView+Chart.swift"; sourceTree = "<group>"; };
+		A2B3C4E52F96001000A15674 /* CostTrackingView+Distribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CostTrackingView+Distribution.swift"; sourceTree = "<group>"; };
+		A2B3C4E72F96001000A15674 /* CostTrackingView+ModelTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CostTrackingView+ModelTable.swift"; sourceTree = "<group>"; };
+		A2B3C4E92F96001000A15674 /* CostTrackingView+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CostTrackingView+Helpers.swift"; sourceTree = "<group>"; };
+		A2B3C4EB2F96001000A15674 /* CostTrackingCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CostTrackingCard.swift; sourceTree = "<group>"; };
+		A2B3C4ED2F96001000A15674 /* SettingsView+Cards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Cards.swift"; sourceTree = "<group>"; };
+		A2B3C4EF2F96001000A15674 /* SettingsView+Chrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Chrome.swift"; sourceTree = "<group>"; };
+		A2B3C4F12F96001000A15674 /* SettingsView+Titles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Titles.swift"; sourceTree = "<group>"; };
+		A2B3C4F32F96001000A15674 /* SettingsView+QuotaPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+QuotaPreview.swift"; sourceTree = "<group>"; };
+		A2B3C4F52F96001000A15674 /* SettingsView+Remote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Remote.swift"; sourceTree = "<group>"; };
 		5EFREF002F93000100A15674 /* ProviderRefreshCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderRefreshCoordinator.swift; sourceTree = "<group>"; };
+		5EFREF212F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderRefreshCoordinator+FetchPipeline.swift"; sourceTree = "<group>"; };
+		5EFREF312F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderRefreshCoordinator+Conversion.swift"; sourceTree = "<group>"; };
 		5EFACT002F94000100A15674 /* ProviderActivationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderActivationManager.swift; sourceTree = "<group>"; };
 		5EF87F052F8D0EED002FE291 /* ProxyConfigEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyConfigEditorView.swift; sourceTree = "<group>"; };
 		5EF87F062F8D0EED002FE291 /* ProxyManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyManagementView.swift; sourceTree = "<group>"; };
@@ -64,6 +111,8 @@
 		5EFAD72F2F87AC3300A15674 /* AIUsage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIUsage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5EFAD73D2F87AC7100A15674 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		A1ACCS012F92000000A15674 /* AccountStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStore.swift; sourceTree = "<group>"; };
+		A1ACCS112F92000000A15674 /* AccountStore+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AccountStore+Persistence.swift"; sourceTree = "<group>"; };
+		A1ACCS132F92000000A15674 /* AccountStore+Matching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AccountStore+Matching.swift"; sourceTree = "<group>"; };
 		7EFAD0012F87AC7100A15674 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		5EFAD73E2F87AC7100A15674 /* ProviderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderModels.swift; sourceTree = "<group>"; };
 		5EFAD7402F87AC7100A15674 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -73,6 +122,9 @@
 		5EFAD7472F87AC7100A15674 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		5EFAD7482F87AC7100A15674 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		5EFAD7492F87AC7100A15674 /* ProviderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCard.swift; sourceTree = "<group>"; };
+		5EF0C0D12F95000100A15674 /* ProviderCard+MultiWindowQuota.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderCard+MultiWindowQuota.swift"; sourceTree = "<group>"; };
+		5EF0C0D32F95000100A15674 /* ProviderCard+QuotaIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderCard+QuotaIndicator.swift"; sourceTree = "<group>"; };
+		5EF0C0D52F95000100A15674 /* ProviderCard+ResetCountdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderCard+ResetCountdown.swift"; sourceTree = "<group>"; };
 		5EFAD74A2F87AC7100A15674 /* ProvidersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersView.swift; sourceTree = "<group>"; };
 		5EFAD74B2F87AC7100A15674 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5EFAD74D2F87AC7100A15674 /* AIUsage.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AIUsage.entitlements; sourceTree = "<group>"; };
@@ -117,8 +169,14 @@
 		5EF87F032F8D0ED3002FE291 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				A2B3C4D12F96001000A15674 /* ClaudeSettingsManager.swift */,
 				5EF87F022F8D0ED3002FE291 /* ProxyViewModel.swift */,
+				A2B3C4D32F96001000A15674 /* ProxyViewModel+LogManagement.swift */,
+				A2B3C4D52F96001000A15674 /* ProxyViewModel+ProxyServer.swift */,
+				A2B3C4D72F96001000A15674 /* ProxyViewModel+Aggregation.swift */,
 				5EFREF002F93000100A15674 /* ProviderRefreshCoordinator.swift */,
+				5EFREF212F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift */,
+				5EFREF312F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift */,
 				5EFACT002F94000100A15674 /* ProviderActivationManager.swift */,
 			);
 			path = ViewModels;
@@ -147,6 +205,8 @@
 				7EFAD0012F87AC7100A15674 /* AppSettings.swift */,
 				5EFAD73D2F87AC7100A15674 /* AppState.swift */,
 				A1ACCS012F92000000A15674 /* AccountStore.swift */,
+				A1ACCS112F92000000A15674 /* AccountStore+Persistence.swift */,
+				A1ACCS132F92000000A15674 /* AccountStore+Matching.swift */,
 				5EFAD73E2F87AC7100A15674 /* ProviderModels.swift */,
 			);
 			path = Models;
@@ -203,19 +263,37 @@
 				5EFAD7472F87AC7100A15674 /* DashboardView.swift */,
 				5EFAD7482F87AC7100A15674 /* MenuBarView.swift */,
 				5EFAD7492F87AC7100A15674 /* ProviderCard.swift */,
+				5EF0C0D12F95000100A15674 /* ProviderCard+MultiWindowQuota.swift */,
+				5EF0C0D32F95000100A15674 /* ProviderCard+QuotaIndicator.swift */,
+				5EF0C0D52F95000100A15674 /* ProviderCard+ResetCountdown.swift */,
 				5EFAD7512F87AC7200A15674 /* ProviderDetailView.swift */,
 				5EFAD7522F87AC7200A15674 /* ProviderIconView.swift */,
 				5EFAD7532F87AC7200A15674 /* InboxView.swift */,
 				5EFAD7542F87AC7200A15674 /* SmallProgressView.swift */,
 				5EFAD7552F87AC7200A15674 /* CostTrackingView.swift */,
+				A2B3C4DF2F96001000A15674 /* CostTrackingView+Types.swift */,
+				A2B3C4E12F96001000A15674 /* CostTrackingView+Summary.swift */,
+				A2B3C4E32F96001000A15674 /* CostTrackingView+Chart.swift */,
+				A2B3C4E52F96001000A15674 /* CostTrackingView+Distribution.swift */,
+				A2B3C4E72F96001000A15674 /* CostTrackingView+ModelTable.swift */,
+				A2B3C4E92F96001000A15674 /* CostTrackingView+Helpers.swift */,
+				A2B3C4EB2F96001000A15674 /* CostTrackingCard.swift */,
 				5EFAD7562F87AC7200A15674 /* ProviderPickerView.swift */,
 				5EFAD74A2F87AC7100A15674 /* ProvidersView.swift */,
 				5EFAD78A2F87B10300A15674 /* ProviderAccountGroupSection.swift */,
 				5EFAD7882F87B10200A15674 /* ProviderAccountEditorView.swift */,
+				A2B3C4D92F96001000A15674 /* ProviderAccountEditorView+Sections.swift */,
+				A2B3C4DB2F96001000A15674 /* ProviderAccountEditorView+Actions.swift */,
+				A2B3C4DD2F96001000A15674 /* ProviderAccountEditorView+CodexOAuth.swift */,
 				5EFAD78C2F87B10400A15674 /* SavedAccountViews.swift */,
 				5EFAD78E2F87B10500A15674 /* AccountNoteEditorView.swift */,
 				5EFAD7902F87B10600A15674 /* Utilities.swift */,
 				5EFAD74B2F87AC7100A15674 /* SettingsView.swift */,
+				A2B3C4ED2F96001000A15674 /* SettingsView+Cards.swift */,
+				A2B3C4EF2F96001000A15674 /* SettingsView+Chrome.swift */,
+				A2B3C4F12F96001000A15674 /* SettingsView+Titles.swift */,
+				A2B3C4F32F96001000A15674 /* SettingsView+QuotaPreview.swift */,
+				A2B3C4F52F96001000A15674 /* SettingsView+Remote.swift */,
 				5EFAD7582F87B00100A15674 /* WebLoginView.swift */,
 			);
 			path = Views;
@@ -321,10 +399,15 @@
 				5EFAD7732F87AFE700A15674 /* DashboardView.swift in Sources */,
 				5EFAD7742F87AFE700A15674 /* APIService.swift in Sources */,
 				5EFAD7752F87AFE700A15674 /* ProviderCard.swift in Sources */,
+				5EF0C0D22F95000100A15674 /* ProviderCard+MultiWindowQuota.swift in Sources */,
+				5EF0C0D42F95000100A15674 /* ProviderCard+QuotaIndicator.swift in Sources */,
+				5EF0C0D62F95000100A15674 /* ProviderCard+ResetCountdown.swift in Sources */,
 				5EFAD7762F87AFE700A15674 /* ProvidersView.swift in Sources */,
 				7EFAD0022F87AC7100A15674 /* AppSettings.swift in Sources */,
 				5EFAD7772F87AFE700A15674 /* AppState.swift in Sources */,
 				A1ACCS022F92000000A15674 /* AccountStore.swift in Sources */,
+				A1ACCS122F92000000A15674 /* AccountStore+Persistence.swift in Sources */,
+				A1ACCS142F92000000A15674 /* AccountStore+Matching.swift in Sources */,
 				5EFAD7782F87AFE700A15674 /* SettingsView.swift in Sources */,
 				5EFAD7792F87AFE700A15674 /* ContentView.swift in Sources */,
 				5EFAD77A2F87AFE700A15674 /* AIUsageApp.swift in Sources */,
@@ -356,7 +439,28 @@
 				5EFAD78D2F87B10500A15674 /* AccountNoteEditorView.swift in Sources */,
 				5EFAD78F2F87B10600A15674 /* Utilities.swift in Sources */,
 				5EF87F042F8D0ED3002FE291 /* ProxyViewModel.swift in Sources */,
+				A2B3C4D22F96001000A15674 /* ClaudeSettingsManager.swift in Sources */,
+				A2B3C4D42F96001000A15674 /* ProxyViewModel+LogManagement.swift in Sources */,
+				A2B3C4D62F96001000A15674 /* ProxyViewModel+ProxyServer.swift in Sources */,
+				A2B3C4D82F96001000A15674 /* ProxyViewModel+Aggregation.swift in Sources */,
+				A2B3C4DA2F96001000A15674 /* ProviderAccountEditorView+Sections.swift in Sources */,
+				A2B3C4DC2F96001000A15674 /* ProviderAccountEditorView+Actions.swift in Sources */,
+				A2B3C4DE2F96001000A15674 /* ProviderAccountEditorView+CodexOAuth.swift in Sources */,
+				A2B3C4E02F96001000A15674 /* CostTrackingView+Types.swift in Sources */,
+				A2B3C4E22F96001000A15674 /* CostTrackingView+Summary.swift in Sources */,
+				A2B3C4E42F96001000A15674 /* CostTrackingView+Chart.swift in Sources */,
+				A2B3C4E62F96001000A15674 /* CostTrackingView+Distribution.swift in Sources */,
+				A2B3C4E82F96001000A15674 /* CostTrackingView+ModelTable.swift in Sources */,
+				A2B3C4EA2F96001000A15674 /* CostTrackingView+Helpers.swift in Sources */,
+				A2B3C4EC2F96001000A15674 /* CostTrackingCard.swift in Sources */,
+				A2B3C4EE2F96001000A15674 /* SettingsView+Cards.swift in Sources */,
+				A2B3C4F02F96001000A15674 /* SettingsView+Chrome.swift in Sources */,
+				A2B3C4F22F96001000A15674 /* SettingsView+Titles.swift in Sources */,
+				A2B3C4F42F96001000A15674 /* SettingsView+QuotaPreview.swift in Sources */,
+				A2B3C4F62F96001000A15674 /* SettingsView+Remote.swift in Sources */,
 				5EFREF012F93000100A15674 /* ProviderRefreshCoordinator.swift in Sources */,
+				5EFREF222F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift in Sources */,
+				5EFREF322F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift in Sources */,
 				5EFACT012F94000100A15674 /* ProviderActivationManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

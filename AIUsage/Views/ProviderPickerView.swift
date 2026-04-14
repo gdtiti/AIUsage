@@ -9,11 +9,6 @@ struct ProviderPickerView: View {
     @State private var selection: Set<String> = []
     @State private var searchText = ""
     @State private var hoveredProviderID: String?
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     private var items: [ProviderCatalogItem] {
         switch mode {
         case .initialSetup:
@@ -75,16 +70,16 @@ struct ProviderPickerView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         if !officialItems.isEmpty {
                             sectionView(
-                                title: t("Official Providers", "官方服务"),
-                                subtitle: t("Subscription and account-based quotas", "订阅制与账号制配额"),
+                                title: L("Official Providers", "官方服务"),
+                                subtitle: L("Subscription and account-based quotas", "订阅制与账号制配额"),
                                 items: officialItems
                             )
                         }
 
                         if !costTrackingItems.isEmpty {
                             sectionView(
-                                title: t("Claude Code Stats", "Claude Code 统计"),
-                                subtitle: t("Local ledgers derived from usage logs", "基于本地日志推导的费用账本"),
+                                title: L("Claude Code Stats", "Claude Code 统计"),
+                                subtitle: L("Local ledgers derived from usage logs", "基于本地日志推导的费用账本"),
                                 items: costTrackingItems
                             )
                         }
@@ -127,13 +122,13 @@ struct ProviderPickerView: View {
 
                 if !items.isEmpty {
                     HStack(spacing: 8) {
-                        Button(t("Select All", "全选")) {
+                        Button(L("Select All", "全选")) {
                             selection = Set(items.map(\.id))
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
 
-                        Button(t("Clear", "清空")) {
+                        Button(L("Clear", "清空")) {
                             selection.removeAll()
                         }
                         .buttonStyle(.bordered)
@@ -145,12 +140,12 @@ struct ProviderPickerView: View {
 
             HStack(spacing: 10) {
                 summaryBadge(
-                    text: t("\(selection.count) selected", "已选 \(selection.count) 项"),
+                    text: L("\(selection.count) selected", "已选 \(selection.count) 项"),
                     tint: .blue
                 )
 
                 summaryBadge(
-                    text: t("\(filteredItems.count) visible", "显示 \(filteredItems.count) 项"),
+                    text: L("\(filteredItems.count) visible", "显示 \(filteredItems.count) 项"),
                     tint: .secondary
                 )
 
@@ -184,7 +179,7 @@ struct ProviderPickerView: View {
 
                 Spacer()
 
-                Text(t("\(items.count) apps", "\(items.count) 个应用"))
+                Text(L("\(items.count) apps", "\(items.count) 个应用"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
@@ -219,15 +214,15 @@ struct ProviderPickerView: View {
                 .font(.system(size: 54))
                 .foregroundStyle(.secondary)
 
-            Text(t("Everything is already added", "已全部添加完成"))
+            Text(L("Everything is already added", "已全部添加完成"))
                 .font(.title3)
                 .bold()
 
-            Text(t("All supported sources are already part of your scan list.", "当前支持的来源都已经加入扫描列表了。"))
+            Text(L("All supported sources are already part of your scan list.", "当前支持的来源都已经加入扫描列表了。"))
                 .font(.body)
                 .foregroundStyle(.secondary)
 
-            Button(t("Close", "关闭")) {
+            Button(L("Close", "关闭")) {
                 close()
             }
             .buttonStyle(.borderedProminent)
@@ -246,15 +241,15 @@ struct ProviderPickerView: View {
                 .font(.system(size: 42))
                 .foregroundStyle(.secondary)
 
-            Text(t("No matching apps", "没有匹配的应用"))
+            Text(L("No matching apps", "没有匹配的应用"))
                 .font(.title3)
                 .bold()
 
-            Text(t("Try another keyword or clear the current filter.", "试试别的关键词，或者清空当前筛选。"))
+            Text(L("Try another keyword or clear the current filter.", "试试别的关键词，或者清空当前筛选。"))
                 .font(.body)
                 .foregroundStyle(.secondary)
 
-            Button(t("Clear Search", "清空搜索")) {
+            Button(L("Clear Search", "清空搜索")) {
                 searchText = ""
             }
             .buttonStyle(.bordered)
@@ -268,7 +263,7 @@ struct ProviderPickerView: View {
     private var footer: some View {
         HStack {
             if mode == .add || mode == .manage {
-                Button(t("Cancel", "取消")) {
+                Button(L("Cancel", "取消")) {
                     close()
                 }
                 .buttonStyle(.borderless)
@@ -327,7 +322,7 @@ struct ProviderPickerView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            TextField(t("Search apps", "搜索应用"), text: $searchText)
+            TextField(L("Search apps", "搜索应用"), text: $searchText)
                 .textFieldStyle(.plain)
 
             if !searchText.isEmpty {
@@ -370,7 +365,7 @@ struct ProviderPickerView: View {
                     )
 
                     compactTag(
-                        text: item.kind == .official ? t("Official", "官方") : t("Local", "本地"),
+                        text: item.kind == .official ? L("Official", "官方") : L("Local", "本地"),
                         tint: item.kind == .official ? .secondary : .orange
                     )
                 }
@@ -380,7 +375,7 @@ struct ProviderPickerView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
 
-                Text(t("Hover or click a tile to preview it here.", "悬停或点击下方磁贴，可以在这里查看简介。"))
+                Text(L("Hover or click a tile to preview it here.", "悬停或点击下方磁贴，可以在这里查看简介。"))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -434,7 +429,7 @@ struct ProviderPickerView: View {
         case "ide":
             return "IDE"
         case "local":
-            return t("Local", "本地")
+            return L("Local", "本地")
         default:
             return "CLI"
         }
@@ -443,33 +438,33 @@ struct ProviderPickerView: View {
     private var headerDescription: String {
         switch mode {
         case .initialSetup:
-            return t("Only checked apps and sources will be scanned when the dashboard refreshes.", "只有勾选的应用和来源会在刷新时被扫描。")
+            return L("Only checked apps and sources will be scanned when the dashboard refreshes.", "只有勾选的应用和来源会在刷新时被扫描。")
         case .add:
-            return t("Add newly installed apps at any time without changing your current setup.", "以后安装了新应用，也可以随时追加，不会影响当前配置。")
+            return L("Add newly installed apps at any time without changing your current setup.", "以后安装了新应用，也可以随时追加，不会影响当前配置。")
         case .manage:
-            return t("Turn sources on or off without deleting saved accounts. Disabled sources stay in your account list but stop refreshing.", "你可以随时启用或停用扫描来源，而不必删除已保存账号。停用后账号仍会保留，但不会继续刷新。")
+            return L("Turn sources on or off without deleting saved accounts. Disabled sources stay in your account list but stop refreshing.", "你可以随时启用或停用扫描来源，而不必删除已保存账号。停用后账号仍会保留，但不会继续刷新。")
         }
     }
 
     private var headerTitle: String {
         switch mode {
         case .initialSetup:
-            return t("Choose Sources to Scan", "选择要扫描的来源")
+            return L("Choose Sources to Scan", "选择要扫描的来源")
         case .add:
-            return t("Add More Sources", "添加更多来源")
+            return L("Add More Sources", "添加更多来源")
         case .manage:
-            return t("Manage Scan Sources", "管理扫描来源")
+            return L("Manage Scan Sources", "管理扫描来源")
         }
     }
 
     private var submitButtonTitle: String {
         switch mode {
         case .initialSetup:
-            return t("Start Scanning", "开始扫描")
+            return L("Start Scanning", "开始扫描")
         case .add:
-            return t("Add Selected", "添加所选")
+            return L("Add Selected", "添加所选")
         case .manage:
-            return t("Apply Changes", "应用变更")
+            return L("Apply Changes", "应用变更")
         }
     }
 

@@ -117,14 +117,20 @@ public struct CopilotProvider: ProviderFetcher, CredentialAcceptingProvider {
         ]
         for path in paths {
             guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
-            // Very simple YAML parse: look for "oauth_token:" or "token:"
             for line in content.components(separatedBy: "\n") {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 for prefix in ["oauth_token:", "token:"] {
-                    if trimmed.hasPrefix(prefix) {
-                        let token = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !token.isEmpty && !token.hasPrefix("#") { return token }
+                    guard trimmed.hasPrefix(prefix) else { continue }
+                    var value = String(trimmed.dropFirst(prefix.count))
+                    if let commentRange = value.range(of: " #") {
+                        value = String(value[..<commentRange.lowerBound])
                     }
+                    value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if (value.hasPrefix("\"") && value.hasSuffix("\""))
+                        || (value.hasPrefix("'") && value.hasSuffix("'")) {
+                        value = String(value.dropFirst().dropLast())
+                    }
+                    if !value.isEmpty { return value }
                 }
             }
         }

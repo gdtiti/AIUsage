@@ -35,7 +35,7 @@ struct DashboardView: View {
     
     private func overviewSection(_ overview: DashboardOverview) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(L("Overview", "概览"))
+            Text(L("Overview", "概览", key: "dashboard.overview"))
                 .font(.title2)
                 .bold()
             
@@ -53,7 +53,7 @@ struct DashboardView: View {
         Group {
             if !overview.alerts.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(L("Alerts", "告警"))
+                    Text(L("Alerts", "告警", key: "dashboard.alerts"))
                         .font(.title2)
                         .bold()
                     
@@ -156,21 +156,21 @@ struct DashboardView: View {
 
         return [
             DashboardSummaryCard(
-                title: L("Tracked Services", "监控服务"),
+                title: L("Tracked Services", "监控服务", key: "dashboard.summary.tracked_services"),
                 value: formatInt(selectedOfficialProviderCount),
                 note: servicesNote,
                 icon: "square.stack.3d.up.fill",
                 color: .blue
             ),
             DashboardSummaryCard(
-                title: L("Live Accounts", "在线账号"),
+                title: L("Live Accounts", "在线账号", key: "dashboard.summary.live_accounts"),
                 value: formatInt(connectedAccountCount),
                 note: accountNote,
                 icon: "person.crop.circle.badge.checkmark",
                 color: .green
             ),
             DashboardSummaryCard(
-                title: L("Claude Code Stats", "Claude Code 统计"),
+                title: L("Claude Code Stats", "Claude Code 统计", key: "dashboard.summary.cost_tracking"),
                 value: formatCurrency(overview.localCostMonthUsd),
                 note: costNote,
                 icon: "chart.line.uptrend.xyaxis.circle.fill",
@@ -189,7 +189,7 @@ struct DashboardView: View {
                     )
                 }
                 return DashboardSummaryCard(
-                    title: L("Proxy Stats", "代理统计"),
+                    title: L("Proxy Stats", "代理统计", key: "dashboard.summary.proxy_stats"),
                     value: formatCurrency(proxyStats.cost),
                     note: proxyNote,
                     icon: "server.rack",
@@ -197,7 +197,7 @@ struct DashboardView: View {
                 )
             }(),
             DashboardSummaryCard(
-                title: L("Status Alerts", "状态提醒"),
+                title: L("Status Alerts", "状态提醒", key: "dashboard.summary.status_alerts"),
                 value: formatInt(overview.attentionProviders),
                 note: statusNote,
                 icon: "bell.badge.fill",
@@ -207,9 +207,7 @@ struct DashboardView: View {
     }
 
     private func formatInt(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        formatNumber(value)
     }
 
     private func formatCurrency(_ value: Double) -> String {
@@ -231,7 +229,7 @@ struct DashboardView: View {
 
     private func providersGrid(_ providers: [ProviderData]) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(L("Providers", "服务商"))
+            Text(L("Providers", "服务商", key: "dashboard.providers"))
                 .font(.title2)
                 .bold()
             

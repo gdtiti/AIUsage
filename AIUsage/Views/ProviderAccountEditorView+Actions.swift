@@ -157,7 +157,7 @@ extension ProviderAccountEditorView {
                 refreshCandidates()
             }
             if !shouldSkipImmediateProviderRefresh(for: pid) {
-                await refreshCoordinator.fetchSingleProvider(pid)
+                _ = await refreshCoordinator.fetchSingleProvider(pid)
             }
             await MainActor.run { dismiss() }
         }

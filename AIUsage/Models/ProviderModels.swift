@@ -27,7 +27,7 @@ enum ProviderPickerMode: String, Identifiable {
     var id: String { rawValue }
 }
 
-struct StoredProviderAccount: Identifiable, Codable, Hashable {
+struct StoredProviderAccount: Identifiable, Codable, Hashable, Sendable {
     let id: String
     let providerId: String
     var email: String
@@ -40,7 +40,7 @@ struct StoredProviderAccount: Identifiable, Codable, Hashable {
     var lastSeenAt: String?
     var isHidden: Bool
 
-    init(
+    nonisolated init(
         id: String,
         providerId: String,
         email: String,
@@ -66,7 +66,7 @@ struct StoredProviderAccount: Identifiable, Codable, Hashable {
         self.isHidden = isHidden
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         providerId = try container.decode(String.self, forKey: .providerId)
@@ -81,19 +81,19 @@ struct StoredProviderAccount: Identifiable, Codable, Hashable {
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
     }
 
-    var normalizedEmail: String {
+    nonisolated var normalizedEmail: String {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    var normalizedAccountId: String? {
+    nonisolated var normalizedAccountId: String? {
         accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
     }
 
-    var normalizedProviderResultId: String? {
+    nonisolated var normalizedProviderResultId: String? {
         providerResultId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
     }
 
-    var preferredLabel: String {
+    nonisolated var preferredLabel: String {
         displayName?.nilIfBlank ?? email.nilIfBlank ?? accountId ?? providerId
     }
 }
@@ -181,14 +181,14 @@ extension ProviderCatalogItem {
 }
 
 extension String {
-    var nilIfBlank: String? {
+    nonisolated var nilIfBlank: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 }
 
 extension Optional where Wrapped == String {
-    var nilIfBlank: String? {
+    nonisolated var nilIfBlank: String? {
         switch self {
         case .some(let value):
             return value.nilIfBlank
@@ -198,7 +198,7 @@ extension Optional where Wrapped == String {
     }
 }
 
-struct ProviderData: Identifiable, Codable {
+struct ProviderData: Identifiable, Codable, Sendable {
     let id: String
     let providerId: String
     let accountId: String?
@@ -299,7 +299,7 @@ struct ProviderData: Identifiable, Codable {
 
     /// Grouping key for providers. Normalized summaries already use the base provider ID,
     /// while account-level uniqueness lives in `id` / `accountId`.
-    var baseProviderId: String {
+    nonisolated var baseProviderId: String {
         providerId
     }
 
@@ -308,7 +308,7 @@ struct ProviderData: Identifiable, Codable {
     }
 }
 
-enum ProviderStatus: String, Codable {
+enum ProviderStatus: String, Codable, Sendable {
     case healthy
     case watch
     case critical
@@ -317,19 +317,19 @@ enum ProviderStatus: String, Codable {
     case tracking
 }
 
-struct ProviderTheme: Codable {
+struct ProviderTheme: Codable, Sendable {
     let accent: String
     let glow: String
 }
 
-struct Headline: Codable {
+struct Headline: Codable, Sendable {
     let eyebrow: String
     let primary: String
     let secondary: String
     let supporting: String?
 }
 
-struct Metric: Identifiable, Codable {
+struct Metric: Identifiable, Codable, Sendable {
     let label: String
     let value: String
     let note: String?
@@ -337,7 +337,7 @@ struct Metric: Identifiable, Codable {
     var id: String { label }
 }
 
-struct QuotaWindow: Identifiable, Codable {
+struct QuotaWindow: Identifiable, Codable, Sendable {
     let label: String
     let remainingPercent: Double?
     let usedPercent: Double?
@@ -356,7 +356,7 @@ struct QuotaWindow: Identifiable, Codable {
     }
 }
 
-struct ModelInfo: Identifiable, Codable {
+struct ModelInfo: Identifiable, Codable, Sendable {
     let label: String
     let value: String
     let note: String?
@@ -364,7 +364,7 @@ struct ModelInfo: Identifiable, Codable {
     var id: String { label }
 }
 
-struct CostSummary: Codable {
+struct CostSummary: Codable, Sendable {
     let today: CostPeriod?
     let week: CostPeriod?
     let month: CostPeriod?
@@ -377,7 +377,7 @@ struct CostSummary: Codable {
     let modelTimelines: [ModelTimelineSeries]?
 }
 
-struct ModelCostBreakdown: Codable, Identifiable {
+struct ModelCostBreakdown: Codable, Identifiable, Sendable {
     let model: String
     let totalTokens: Int
     let inputTokens: Int
@@ -390,7 +390,7 @@ struct ModelCostBreakdown: Codable, Identifiable {
     var id: String { model }
 }
 
-struct ModelTimelineSeries: Codable, Identifiable {
+struct ModelTimelineSeries: Codable, Identifiable, Sendable {
     let model: String
     let hourly: [CostTimelinePoint]
     let daily: [CostTimelinePoint]
@@ -398,18 +398,18 @@ struct ModelTimelineSeries: Codable, Identifiable {
     var id: String { model }
 }
 
-struct CostPeriod: Codable {
+struct CostPeriod: Codable, Sendable {
     let usd: Double
     let tokens: Int?
     let rangeLabel: String?
 }
 
-struct CostTimeline: Codable {
+struct CostTimeline: Codable, Sendable {
     let hourly: [CostTimelinePoint]
     let daily: [CostTimelinePoint]
 }
 
-struct CostTimelinePoint: Codable, Identifiable {
+struct CostTimelinePoint: Codable, Identifiable, Sendable {
     let bucket: String
     let label: String
     let usd: Double
@@ -420,13 +420,13 @@ struct CostTimelinePoint: Codable, Identifiable {
 
 // MARK: - Dashboard Response
 
-struct DashboardResponse: Codable {
+struct DashboardResponse: Codable, Sendable {
     let generatedAt: String
     let overview: DashboardOverview
     let providers: [ProviderWrapper]
 }
 
-struct ProviderWrapper: Codable {
+struct ProviderWrapper: Codable, Sendable {
     let id: String
     let providerId: String
     let accountId: String?
@@ -445,7 +445,7 @@ struct ProviderWrapper: Codable {
     }
 }
 
-struct DashboardOverview: Codable {
+struct DashboardOverview: Codable, Sendable {
     let generatedAt: String
     let activeProviders: Int
     let attentionProviders: Int
@@ -457,7 +457,7 @@ struct DashboardOverview: Codable {
     let alerts: [Alert]
 }
 
-struct OverviewStat: Identifiable, Codable {
+struct OverviewStat: Identifiable, Codable, Sendable {
     let label: String
     let value: String
     let note: String
@@ -465,7 +465,7 @@ struct OverviewStat: Identifiable, Codable {
     var id: String { label }
 }
 
-struct Alert: Identifiable, Codable {
+struct Alert: Identifiable, Codable, Sendable {
     let id: String
     let tone: String
     let providerId: String

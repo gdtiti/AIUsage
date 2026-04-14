@@ -1,6 +1,9 @@
 import Foundation
 import Combine
 import QuotaBackend
+import os.log
+
+private let providerActivationLog = Logger(subsystem: "com.aiusage.desktop", category: "ProviderActivation")
 
 // MARK: - Provider Account Activation
 // Manages CLI auth file switching for Codex and Gemini: detection from disk,
@@ -12,14 +15,22 @@ final class ProviderActivationManager: ObservableObject {
     static let activatableProviders: Set<String> = ["codex", "gemini"]
 
     @Published var activeProviderAccountIds: [String: String] = {
-        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.activeProviderAccountIds),
-              let dict = try? JSONDecoder().decode([String: String].self, from: data) else {
+        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.activeProviderAccountIds) else {
             if let legacyCodex = UserDefaults.standard.string(forKey: DefaultsKey.activeCodexAccountId) {
                 return ["codex": legacyCodex]
             }
             return [:]
         }
-        return dict
+
+        do {
+            return try JSONDecoder().decode([String: String].self, from: data)
+        } catch {
+            providerActivationLog.error("Failed to decode persisted active provider ids: \(String(describing: error), privacy: .public)")
+            if let legacyCodex = UserDefaults.standard.string(forKey: DefaultsKey.activeCodexAccountId) {
+                return ["codex": legacyCodex]
+            }
+            return [:]
+        }
     }()
 
     @Published var activationResult: ActivationResult?
@@ -49,8 +60,11 @@ final class ProviderActivationManager: ObservableObject {
     private init() {}
 
     private func persistActiveIds() {
-        if let data = try? JSONEncoder().encode(activeProviderAccountIds) {
+        do {
+            let data = try JSONEncoder().encode(activeProviderAccountIds)
             UserDefaults.standard.set(data, forKey: DefaultsKey.activeProviderAccountIds)
+        } catch {
+            providerActivationLog.error("Failed to persist active provider ids: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -335,10 +349,40 @@ final class ProviderActivationManager: ObservableObject {
 
     // MARK: Detection
 
+    private func applyDetectedActiveId(_ detectedId: String?, for providerId: String, reason: String) {
+        let normalizedDetectedId = detectedId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let previousDetectedId = activeProviderAccountIds[providerId]
+
+        if let normalizedDetectedId {
+            guard normalizedDetectedId != previousDetectedId else { return }
+            activeProviderAccountIds[providerId] = normalizedDetectedId
+            persistActiveIds()
+            return
+        }
+
+        guard previousDetectedId != nil else { return }
+        activeProviderAccountIds.removeValue(forKey: providerId)
+        persistActiveIds()
+        providerActivationLog.info("Cleared active \(providerId, privacy: .public) account detection: \(reason, privacy: .public)")
+    }
+
     func detectActiveCodexAccount() {
         let authPath = NSString(string: "~/.codex/auth.json").expandingTildeInPath
-        guard let data = FileManager.default.contents(atPath: authPath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        guard let data = FileManager.default.contents(atPath: authPath) else {
+            applyDetectedActiveId(nil, for: "codex", reason: "auth file missing")
+            return
+        }
+
+        let json: [String: Any]
+        do {
+            guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                applyDetectedActiveId(nil, for: "codex", reason: "auth file root object is not a dictionary")
+                return
+            }
+            json = object
+        } catch {
+            providerActivationLog.error("Failed to decode Codex auth file: \(String(describing: error), privacy: .public)")
+            applyDetectedActiveId(nil, for: "codex", reason: "auth file contains invalid JSON")
             return
         }
 
@@ -354,10 +398,7 @@ final class ProviderActivationManager: ObservableObject {
         }
 
         let detectedId = email ?? accountId
-        if let detectedId, detectedId != activeProviderAccountIds["codex"] {
-            activeProviderAccountIds["codex"] = detectedId
-            persistActiveIds()
-        }
+        applyDetectedActiveId(detectedId, for: "codex", reason: "auth file has no detectable active account")
     }
 
     private func resolveCodexEmailFromProxy(accountId: String) -> String? {
@@ -377,14 +418,25 @@ final class ProviderActivationManager: ObservableObject {
 
     func detectActiveGeminiAccount() {
         let googleAccountsPath = NSString(string: "~/.gemini/google_accounts.json").expandingTildeInPath
-        guard let data = FileManager.default.contents(atPath: googleAccountsPath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let active = json["active"] as? String else {
+        guard let data = FileManager.default.contents(atPath: googleAccountsPath) else {
+            applyDetectedActiveId(nil, for: "gemini", reason: "google_accounts.json missing")
             return
         }
-        if active != activeProviderAccountIds["gemini"] {
-            activeProviderAccountIds["gemini"] = active
-            persistActiveIds()
+
+        let json: [String: Any]
+        do {
+            guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                applyDetectedActiveId(nil, for: "gemini", reason: "google_accounts.json root object is not a dictionary")
+                return
+            }
+            json = object
+        } catch {
+            providerActivationLog.error("Failed to decode Gemini google_accounts.json: \(String(describing: error), privacy: .public)")
+            applyDetectedActiveId(nil, for: "gemini", reason: "google_accounts.json contains invalid JSON")
+            return
         }
+
+        let active = (json["active"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        applyDetectedActiveId(active, for: "gemini", reason: "google_accounts.json has no active account")
     }
 }

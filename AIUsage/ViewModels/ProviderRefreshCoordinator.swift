@@ -91,7 +91,7 @@ final class ProviderRefreshCoordinator: ObservableObject {
             guard !isRefreshingAllProviders else { return }
             isRefreshingAllProviders = true
             defer { isRefreshingAllProviders = false }
-            await fetchDashboard()
+            _ = await fetchDashboard()
         }
     }
 
@@ -135,8 +135,12 @@ final class ProviderRefreshCoordinator: ObservableObject {
               !refreshingProviderIDs.contains(providerId) else { return }
         refreshingProviderIDs.insert(providerId)
         defer { refreshingProviderIDs.remove(providerId) }
-        await fetchSingleProvider(providerId)
-        completeProviderRefresh(providerId: providerId, at: Date())
+        let refreshedProviders = await fetchSingleProvider(providerId)
+        completeProviderRefresh(
+            providerId: providerId,
+            refreshedProviders: refreshedProviders,
+            at: Date()
+        )
     }
 
     @MainActor
@@ -146,28 +150,29 @@ final class ProviderRefreshCoordinator: ObservableObject {
         guard !refreshingAccountIDs.contains(refreshKey) else { return }
         refreshingAccountIDs.insert(refreshKey)
         defer { refreshingAccountIDs.remove(refreshKey) }
-        await fetchAccountByCredential(credentialId: credentialId, providerId: providerId)
-        let refreshedAt = Date()
-        accountRefreshTimes[refreshKey] = refreshedAt
-        if let refreshedProvider = providers.first(where: {
-            $0.baseProviderId == providerId && credentialID(for: $0) == credentialId
-        }) {
+        if let refreshedProvider = await fetchAccountByCredential(
+            credentialId: credentialId,
+            providerId: providerId
+        ) {
+            let refreshedAt = Date()
+            accountRefreshTimes[refreshKey] = refreshedAt
             markAccountRefreshed(refreshedProvider, at: refreshedAt)
         }
     }
 
     @MainActor
-    func fetchSingleProvider(_ providerId: String) async {
-        guard selectedProviderIds().contains(providerId) else { return }
+    func fetchSingleProvider(_ providerId: String) async -> [ProviderData] {
+        guard selectedProviderIds().contains(providerId) else { return [] }
         if settings.backendMode == "local" {
-            await fetchSingleProviderLocal(providerId)
+            return await fetchSingleProviderLocal(providerId)
         } else {
-            await fetchSingleProviderRemote(providerId)
+            return await fetchSingleProviderRemote(providerId)
         }
     }
 
     @MainActor
-    func fetchDashboard() async {
+    @discardableResult
+    func fetchDashboard() async -> Bool {
         let isInitialLoad = providers.isEmpty && overview == nil
         if isInitialLoad { isLoading = true }
         errorMessage = nil
@@ -179,13 +184,13 @@ final class ProviderRefreshCoordinator: ObservableObject {
                 generatedAt: SharedFormatters.iso8601String(from: Date())
             )))
             isLoading = false
-            return
+            return true
         }
 
         if settings.backendMode == "local" {
-            await fetchDashboardLocal()
+            return await fetchDashboardLocal()
         } else {
-            await fetchDashboardRemote()
+            return await fetchDashboardRemote()
         }
     }
 

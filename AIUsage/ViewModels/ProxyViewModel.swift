@@ -7,12 +7,44 @@ import QuotaBackend
 // MARK: - Proxy ViewModel
 
 internal let proxyPersistenceLog = Logger(subsystem: "com.aiusage.desktop", category: "ProxyPersistence")
+internal let proxyRuntimeLog = Logger(subsystem: "com.aiusage.desktop", category: "ProxyRuntime")
+
+enum ProxyRuntimeError: LocalizedError {
+    case configurationNotFound
+    case quotaServerNotFound
+    case proxyStartFailed(String)
+    case activationStatePersistFailed
+    case deactivationStatePersistFailed
+    case pricingOverridesWriteFailed
+    case pricingOverridesClearFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .configurationNotFound:
+            return AppSettings.shared.t("The selected node could not be found.", "找不到所选节点。")
+        case .quotaServerNotFound:
+            return AppSettings.shared.t("QuotaServer executable not found.", "找不到 QuotaServer 可执行文件。")
+        case .proxyStartFailed(let reason):
+            return AppSettings.shared.t("Failed to start proxy: \(reason)", "启动代理失败：\(reason)")
+        case .activationStatePersistFailed:
+            return AppSettings.shared.t("The node started, but AIUsage could not persist the activated state.", "节点已启动，但 AIUsage 无法保存激活状态。")
+        case .deactivationStatePersistFailed:
+            return AppSettings.shared.t("The node stopped, but AIUsage could not persist the deactivated state.", "节点已停止，但 AIUsage 无法保存停用状态。")
+        case .pricingOverridesWriteFailed:
+            return AppSettings.shared.t("Failed to write proxy pricing overrides.", "写入代理计费覆盖失败。")
+        case .pricingOverridesClearFailed:
+            return AppSettings.shared.t("Failed to clear proxy pricing overrides.", "清理代理计费覆盖失败。")
+        }
+    }
+}
 
 class ProxyViewModel: ObservableObject {
     @Published var configurations: [ProxyConfiguration] = []
     @Published var activatedConfigId: String?
     @Published var statistics: [String: ProxyStatistics] = [:]
     @Published var recentLogs: [String: [ProxyRequestLog]] = [:]
+    @Published var operationErrorMessage: String?
+    @Published var operationInProgressConfigIds: Set<String> = []
 
     var runningProcesses: [String: Process] = [:]
     let settingsManager = ClaudeSettingsManager.shared
@@ -75,23 +107,44 @@ class ProxyViewModel: ObservableObject {
         saveLogs()
     }
 
-    func updateConfiguration(_ config: ProxyConfiguration) {
+    func updateConfiguration(_ config: ProxyConfiguration) async {
         if let index = configurations.firstIndex(where: { $0.id == config.id }) {
             let wasActivated = activatedConfigId == config.id
+            let busyIds: Set<String> = [config.id]
+            setOperationInProgress(busyIds, isActive: true)
+            defer { setOperationInProgress(busyIds, isActive: false) }
             if wasActivated {
-                deactivateConfiguration(config.id)
+                do {
+                    try await performDeactivationTransaction(config.id)
+                } catch {
+                    reportOperationError(error)
+                    return
+                }
             }
             configurations[index] = config
             saveConfigurations()
             if wasActivated {
-                activateConfiguration(config.id)
+                do {
+                    try await performActivationTransaction(config.id)
+                } catch {
+                    reportOperationError(error)
+                }
             }
         }
     }
 
-    func deleteConfiguration(_ id: String) {
+    func deleteConfiguration(_ id: String) async {
+        let busyIds: Set<String> = [id]
+        setOperationInProgress(busyIds, isActive: true)
+        defer { setOperationInProgress(busyIds, isActive: false) }
+
         if activatedConfigId == id {
-            deactivateConfiguration(id)
+            do {
+                try await performDeactivationTransaction(id)
+            } catch {
+                reportOperationError(error)
+                return
+            }
         }
 
         configurations.removeAll { $0.id == id }
@@ -127,54 +180,158 @@ class ProxyViewModel: ObservableObject {
         }
     }
 
-    func activateConfiguration(_ id: String) {
-        guard let config = configurations.first(where: { $0.id == id }) else { return }
+    func activateConfiguration(_ id: String) async {
+        let busyIds = Set([id, activatedConfigId].compactMap { $0 })
+        guard !busyIds.contains(where: { operationInProgressConfigIds.contains($0) }) else { return }
 
-        if let currentId = activatedConfigId, currentId != id {
-            deactivateConfiguration(currentId)
+        setOperationInProgress(busyIds, isActive: true)
+        defer { setOperationInProgress(busyIds, isActive: false) }
+        operationErrorMessage = nil
+
+        do {
+            try await performActivationTransaction(id)
+        } catch {
+            reportOperationError(error)
+        }
+    }
+
+    func deactivateConfiguration(_ id: String) async {
+        guard !operationInProgressConfigIds.contains(id) else { return }
+
+        let busyIds: Set<String> = [id]
+        setOperationInProgress(busyIds, isActive: true)
+        defer { setOperationInProgress(busyIds, isActive: false) }
+        operationErrorMessage = nil
+
+        do {
+            try await performDeactivationTransaction(id)
+        } catch {
+            reportOperationError(error)
+        }
+    }
+
+    func toggleActivation(_ id: String) async {
+        if activatedConfigId == id {
+            await deactivateConfiguration(id)
+        } else {
+            await activateConfiguration(id)
+        }
+    }
+
+    func performActivationTransaction(_ id: String) async throws {
+        guard let config = configurations.first(where: { $0.id == id }) else {
+            throw ProxyRuntimeError.configurationNotFound
         }
 
-        if config.needsProxyProcess {
-            startProxy(config)
+        if activatedConfigId == id {
+            return
         }
-        settingsManager.writeEnv(envConfig(for: config))
-        writePricingOverrides(config)
 
-        activatedConfigId = id
-        if let index = configurations.firstIndex(where: { $0.id == id }) {
-            configurations[index].isEnabled = true
-            configurations[index].lastUsedAt = Date()
+        let previousActiveConfig = activatedConfigId.flatMap { currentId in
+            configurations.first(where: { $0.id == currentId })
         }
-        saveConfigurations()
-        saveActivatedId()
+
+        if let previousActiveConfig {
+            try await deactivateRuntime(for: previousActiveConfig)
+        }
+
+        do {
+            try await activateRuntime(for: config)
+            do {
+                try persistActivationSelection(config.id, touchLastUsedAt: true)
+            } catch {
+                do {
+                    try await deactivateRuntime(for: config)
+                } catch {
+                    proxyRuntimeLog.error("Failed to roll back runtime for newly activated node \(config.name, privacy: .public): \(String(describing: error), privacy: .public)")
+                }
+                if let previousActiveConfig {
+                    do {
+                        try await activateRuntime(for: previousActiveConfig)
+                    } catch {
+                        proxyRuntimeLog.error("Failed to restore previous node \(previousActiveConfig.name, privacy: .public) after persistence failure: \(String(describing: error), privacy: .public)")
+                    }
+                }
+                throw error
+            }
+        } catch {
+            if let previousActiveConfig {
+                do {
+                    try await activateRuntime(for: previousActiveConfig)
+                } catch {
+                    proxyRuntimeLog.error("Failed to restore previous node \(previousActiveConfig.name, privacy: .public) after activation failure: \(String(describing: error), privacy: .public)")
+                }
+            }
+            throw error
+        }
+
         print("✓ Node activated: \(config.name)")
     }
 
-    func deactivateConfiguration(_ id: String) {
-        guard let config = configurations.first(where: { $0.id == id }) else { return }
-
-        if config.needsProxyProcess {
-            stopProxy(config)
+    func performDeactivationTransaction(_ id: String) async throws {
+        guard activatedConfigId == id,
+              let config = configurations.first(where: { $0.id == id }) else {
+            return
         }
 
-        settingsManager.clearEnv()
-        clearPricingOverrides()
+        try await deactivateRuntime(for: config)
 
-        if let index = configurations.firstIndex(where: { $0.id == id }) {
-            configurations[index].isEnabled = false
+        do {
+            try persistActivationSelection(nil, touchLastUsedAt: false)
+        } catch {
+            do {
+                try await activateRuntime(for: config)
+            } catch {
+                proxyRuntimeLog.error("Failed to restore node \(config.name, privacy: .public) after deactivation persistence failure: \(String(describing: error), privacy: .public)")
+            }
+            throw error
         }
-        activatedConfigId = nil
-        saveConfigurations()
-        saveActivatedId()
+
         print("✓ Node deactivated: \(config.name)")
     }
 
-    func toggleActivation(_ id: String) {
-        if activatedConfigId == id {
-            deactivateConfiguration(id)
-        } else {
-            activateConfiguration(id)
+    func persistActivationSelection(_ activeId: String?, touchLastUsedAt: Bool) throws {
+        let previousConfigurations = configurations
+        let previousActivatedConfigId = activatedConfigId
+        let now = touchLastUsedAt ? Date() : nil
+
+        activatedConfigId = activeId
+        for index in configurations.indices {
+            let isActive = configurations[index].id == activeId
+            configurations[index].isEnabled = isActive
+            if isActive, let now {
+                configurations[index].lastUsedAt = now
+            }
         }
+
+        guard saveConfigurations() else {
+            configurations = previousConfigurations
+            activatedConfigId = previousActivatedConfigId
+            if activeId == nil {
+                throw ProxyRuntimeError.deactivationStatePersistFailed
+            }
+            throw ProxyRuntimeError.activationStatePersistFailed
+        }
+
+        saveActivatedId()
+    }
+
+    func setOperationInProgress(_ ids: Set<String>, isActive: Bool) {
+        if isActive {
+            operationInProgressConfigIds.formUnion(ids)
+        } else {
+            operationInProgressConfigIds.subtract(ids)
+        }
+    }
+
+    func isOperationInProgress(_ configId: String) -> Bool {
+        operationInProgressConfigIds.contains(configId)
+    }
+
+    func reportOperationError(_ error: Error) {
+        let redactedMessage = SensitiveDataRedactor.redactedMessage(for: error)
+        operationErrorMessage = redactedMessage
+        proxyRuntimeLog.error("Proxy operation failed: \(redactedMessage, privacy: .public)")
     }
 
     func logPersistenceError(_ action: String, error: Error) {
@@ -238,40 +395,9 @@ extension ProxyViewModel {
             searchDir = (searchDir as NSString).deletingLastPathComponent
         }
 
-        // Fallback: try to build
-        let quotaBackendDir = (projectRootFromSource as NSString).appendingPathComponent("QuotaBackend")
-        guard fileManager.fileExists(atPath: (quotaBackendDir as NSString).appendingPathComponent("Package.swift")) else {
-            print("✗ QuotaBackend package not found at: \(quotaBackendDir)")
-            print("  #filePath resolved to: \(Self.sourceFileDir)")
-            print("  Bundle.main.bundlePath: \(bundlePath)")
-            return nil
-        }
-
-        print("QuotaServer not found, attempting to build...")
-        let buildProcess = Process()
-        buildProcess.executableURL = URL(fileURLWithPath: "/usr/bin/swift")
-        buildProcess.arguments = ["build", "--product", "QuotaServer"]
-        buildProcess.currentDirectoryURL = URL(fileURLWithPath: quotaBackendDir)
-
-        do {
-            try buildProcess.run()
-            buildProcess.waitUntilExit()
-
-            if buildProcess.terminationStatus == 0 {
-                for relPath in relativePaths {
-                    let fullPath = (projectRootFromSource as NSString).appendingPathComponent(relPath)
-                    if fileManager.fileExists(atPath: fullPath) {
-                        print("Built and found QuotaServer at: \(fullPath)")
-                        return fullPath
-                    }
-                }
-            } else {
-                print("Build failed with status: \(buildProcess.terminationStatus)")
-            }
-        } catch {
-            print("Failed to build QuotaServer: \(error)")
-        }
-
+        print("✗ QuotaServer executable not found in expected build outputs")
+        print("  #filePath resolved to: \(Self.sourceFileDir)")
+        print("  Bundle.main.bundlePath: \(bundlePath)")
         return nil
     }
 }

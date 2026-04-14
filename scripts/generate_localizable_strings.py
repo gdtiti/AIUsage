@@ -12,7 +12,7 @@ OUTPUTS = {
 }
 
 PATTERN = re.compile(
-    r'L\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)',
+    r'L\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*(?:,\s*key:\s*"((?:[^"\\]|\\.)*)")?\s*\)',
     re.S,
 )
 
@@ -50,13 +50,14 @@ def collect_pairs() -> list[tuple[str, str, str]]:
         relative = path.relative_to(SOURCE_ROOT).as_posix()
         source = path.read_text()
 
-        for english_raw, chinese_raw in PATTERN.findall(source):
+        for english_raw, chinese_raw, explicit_key_raw in PATTERN.findall(source):
             if should_skip(english_raw) or should_skip(chinese_raw):
                 continue
 
             english = decode_swift_literal(english_raw)
             chinese = decode_swift_literal(chinese_raw)
-            key = f"AIUsage/{relative}::{english}"
+            explicit_key = decode_swift_literal(explicit_key_raw) if explicit_key_raw else None
+            key = explicit_key or f"AIUsage/{relative}::{english}"
             entries.setdefault(key, (relative, english, chinese))
 
     return sorted((key, relative, english, chinese) for key, (relative, english, chinese) in entries.items())

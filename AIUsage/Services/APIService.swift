@@ -42,8 +42,13 @@ class APIService {
     }
     
     func fetchProviders(_ providerId: String) async throws -> [ProviderData] {
+        let results = try await fetchProviderResults(providerId)
+        return results.map(\.summary)
+    }
+
+    func fetchProviderResults(_ providerId: String) async throws -> [ProviderWrapper] {
         let dashboard = try await fetchDashboard(providerIds: [providerId])
-        return dashboard.providers.map(\.summary)
+        return dashboard.providers
     }
     
     func checkHealth() async throws -> HealthResponse {

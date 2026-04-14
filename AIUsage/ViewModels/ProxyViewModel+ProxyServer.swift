@@ -1,9 +1,39 @@
 import Foundation
 import QuotaBackend
+import os.log
+
+private actor ProxyProcessInspector {
+    static let shared = ProxyProcessInspector()
+
+    func killStaleProcesses(port: Int, currentProcessIdentifier: Int32) throws {
+        let lsof = Process()
+        lsof.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        lsof.arguments = ["-ti", "tcp:\(port)"]
+        let pipe = Pipe()
+        lsof.standardOutput = pipe
+        lsof.standardError = FileHandle.nullDevice
+        try lsof.run()
+        lsof.waitUntilExit()
+
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        for pidStr in output.components(separatedBy: .whitespacesAndNewlines) where !pidStr.isEmpty {
+            guard let pid = Int32(pidStr), pid != currentProcessIdentifier else { continue }
+            print("  Killing stale process on port \(port): pid=\(pid)")
+            kill(pid, SIGTERM)
+            usleep(200_000)
+        }
+    }
+}
 
 extension ProxyViewModel {
 
     func restoreActivatedNode() {
+        Task {
+            await restoreActivatedNodeAsync()
+        }
+    }
+
+    private func restoreActivatedNodeAsync() async {
         activatedConfigId = UserDefaults.standard.string(forKey: DefaultsKey.proxyActivatedConfigId)
 
         if activatedConfigId == nil {
@@ -16,8 +46,12 @@ extension ProxyViewModel {
         }
 
         guard let id = activatedConfigId else {
-            settingsManager.clearEnv()
-            clearPricingOverrides()
+            do {
+                try settingsManager.clearEnv()
+                try clearPricingOverrides()
+            } catch {
+                proxyRuntimeLog.error("Failed to clear proxy runtime while restoring empty activation state: \(String(describing: error), privacy: .public)")
+            }
             return
         }
 
@@ -30,18 +64,36 @@ extension ProxyViewModel {
             activatedConfigId = nil
             if migrated { saveConfigurations() }
             saveActivatedId()
-            settingsManager.clearEnv()
-            clearPricingOverrides()
+            do {
+                try settingsManager.clearEnv()
+                try clearPricingOverrides()
+            } catch {
+                proxyRuntimeLog.error("Failed to clear proxy runtime for missing restored node: \(String(describing: error), privacy: .public)")
+            }
             return
         }
 
         print("⟳ Restoring node: \(config.name) (type=\(config.nodeType.rawValue))")
 
-        if config.needsProxyProcess {
-            startProxy(config)
+        do {
+            try await activateRuntime(for: config)
+            try persistActivationSelection(config.id, touchLastUsedAt: false)
+        } catch {
+            proxyRuntimeLog.error("Failed to restore proxy node \(config.name, privacy: .public): \(String(describing: error), privacy: .public)")
+            activatedConfigId = nil
+            for index in configurations.indices {
+                configurations[index].isEnabled = false
+            }
+            saveConfigurations()
+            saveActivatedId()
+            do {
+                try settingsManager.clearEnv()
+                try clearPricingOverrides()
+            } catch {
+                proxyRuntimeLog.error("Failed to clear proxy runtime after restore failure: \(String(describing: error), privacy: .public)")
+            }
+            return
         }
-        settingsManager.writeEnv(envConfig(for: config))
-        writePricingOverrides(config)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self = self else { return }
@@ -55,14 +107,65 @@ extension ProxyViewModel {
 
     // MARK: - Proxy Server Control
 
-    func startProxy(_ config: ProxyConfiguration) {
+    func activateRuntime(for config: ProxyConfiguration) async throws {
+        if config.needsProxyProcess {
+            try await startProxy(config)
+        }
+
+        do {
+            try settingsManager.writeEnv(envConfig(for: config))
+            try writePricingOverrides(config)
+        } catch {
+            if config.needsProxyProcess {
+                stopProxy(config)
+            }
+            do {
+                try settingsManager.clearEnv()
+            } catch {
+                proxyRuntimeLog.error("Failed to clear Claude runtime env while rolling back node \(config.name, privacy: .public): \(String(describing: error), privacy: .public)")
+            }
+            do {
+                try clearPricingOverrides()
+            } catch {
+                proxyRuntimeLog.error("Failed to clear pricing overrides while rolling back node \(config.name, privacy: .public): \(String(describing: error), privacy: .public)")
+            }
+            throw error
+        }
+    }
+
+    func deactivateRuntime(for config: ProxyConfiguration) async throws {
+        if config.needsProxyProcess {
+            stopProxy(config)
+        }
+
+        do {
+            try settingsManager.clearEnv()
+            try clearPricingOverrides()
+        } catch {
+            do {
+                try await activateRuntime(for: config)
+            } catch {
+                proxyRuntimeLog.error("Failed to restore runtime for node \(config.name, privacy: .public) after deactivation rollback: \(String(describing: error), privacy: .public)")
+            }
+            throw error
+        }
+    }
+
+    func startProxy(_ config: ProxyConfiguration) async throws {
         guard config.needsProxyProcess else { return }
         if runningProcesses[config.id]?.isRunning == true {
             print("  Proxy already running for \(config.name)")
             return
         }
 
-        killStaleProcess(port: config.port)
+        do {
+            try await ProxyProcessInspector.shared.killStaleProcesses(
+                port: config.port,
+                currentProcessIdentifier: ProcessInfo.processInfo.processIdentifier
+            )
+        } catch {
+            proxyRuntimeLog.error("Failed to inspect stale proxy process on port \(config.port, privacy: .public): \(String(describing: error), privacy: .public)")
+        }
 
         var environment = ProcessInfo.processInfo.environment
 
@@ -93,7 +196,7 @@ extension ProxyViewModel {
 
         guard let executablePath = quotaServerPath else {
             print("✗ QuotaServer executable not found")
-            return
+            throw ProxyRuntimeError.quotaServerNotFound
         }
 
         let process = Process()
@@ -111,6 +214,7 @@ extension ProxyViewModel {
         let configId = config.id
         let configName = config.name
         outputPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            guard let owner = self else { return }
             let data = handle.availableData
             guard let output = String(data: data, encoding: .utf8), !output.isEmpty else { return }
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -120,13 +224,19 @@ extension ProxyViewModel {
                 if line.hasPrefix("PROXY_LOG:"),
                    let jsonStart = line.firstIndex(of: Character("{")) {
                     let jsonStr = String(line[jsonStart...])
-                    self?.parseProxyLog(jsonStr, configId: configId)
+                    DispatchQueue.main.async {
+                        owner.parseProxyLog(jsonStr, configId: configId)
+                    }
                 }
             }
         }
 
         do {
             try process.run()
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            if !process.isRunning {
+                throw ProxyRuntimeError.proxyStartFailed("process exited with code \(process.terminationStatus)")
+            }
             runningProcesses[config.id] = process
             print("✓ Proxy started: \(config.name) on \(config.displayURL) (pid=\(process.processIdentifier))")
 
@@ -138,25 +248,9 @@ extension ProxyViewModel {
             }
         } catch {
             print("✗ Failed to start proxy: \(error.localizedDescription)")
-        }
-    }
-
-    func killStaleProcess(port: Int) {
-        let lsof = Process()
-        lsof.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
-        lsof.arguments = ["-ti", "tcp:\(port)"]
-        let pipe = Pipe()
-        lsof.standardOutput = pipe
-        lsof.standardError = FileHandle.nullDevice
-        try? lsof.run()
-        lsof.waitUntilExit()
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        for pidStr in output.components(separatedBy: .whitespacesAndNewlines) where !pidStr.isEmpty {
-            if let pid = Int32(pidStr), pid != ProcessInfo.processInfo.processIdentifier {
-                print("  Killing stale process on port \(port): pid=\(pid)")
-                kill(pid, SIGTERM)
-                usleep(200_000)
-            }
+            throw error is ProxyRuntimeError
+                ? error
+                : ProxyRuntimeError.proxyStartFailed(error.localizedDescription)
         }
     }
 
@@ -174,7 +268,7 @@ extension ProxyViewModel {
         return (home as NSString).appendingPathComponent(".config/aiusage/proxy-pricing.json")
     }
 
-    func writePricingOverrides(_ config: ProxyConfiguration) {
+    func writePricingOverrides(_ config: ProxyConfiguration) throws {
         let mapping = config.modelMapping
         var pricing: [String: [String: Double]] = [:]
 
@@ -200,21 +294,28 @@ extension ProxyViewModel {
             try data.write(to: url)
         } catch {
             logPersistenceError("write proxy pricing overrides", error: error)
+            throw ProxyRuntimeError.pricingOverridesWriteFailed
         }
     }
 
-    func clearPricingOverrides() {
+    func clearPricingOverrides() throws {
         do {
             try FileManager.default.removeItem(atPath: pricingOverridePath)
         } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
             return
         } catch {
             logPersistenceError("clear proxy pricing overrides", error: error)
+            throw ProxyRuntimeError.pricingOverridesClearFailed
         }
     }
 
     func isProxyRunning(_ configId: String) -> Bool {
-        return runningProcesses[configId]?.isRunning ?? false
+        guard let process = runningProcesses[configId] else { return false }
+        if !process.isRunning {
+            runningProcesses.removeValue(forKey: configId)
+            return false
+        }
+        return true
     }
 
     // MARK: - Log Parsing

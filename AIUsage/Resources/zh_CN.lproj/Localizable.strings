@@ -31,33 +31,6 @@
 /* Views/AccountNoteEditorView.swift */
 "AIUsage/Views/AccountNoteEditorView.swift::e.g. Main account / Work account / Test machine" = "例如：主账号 / 工作账号 / 测试机器";
 
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Claude Code Proxy" = "Claude Code 代理";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Claude Code Stats" = "Claude Code 统计";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Dashboard" = "仪表盘";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Inbox" = "消息";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Providers" = "服务商";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Proxy Stats" = "代理统计";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Refresh All" = "全部刷新";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Refresh every app and every account" = "刷新所有应用和所有账号";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Settings" = "设置";
-
 /* Views/CostTrackingView+Chart.swift */
 "AIUsage/Views/CostTrackingView+Chart.swift::All Models" = "全部模型";
 
@@ -158,9 +131,6 @@
 "AIUsage/Views/CostTrackingView.swift::No cost data found" = "未发现费用数据";
 
 /* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Alerts" = "告警";
-
-/* Views/DashboardView.swift */
 "AIUsage/Views/DashboardView.swift::Choose Sources" = "选择来源";
 
 /* Views/DashboardView.swift */
@@ -182,9 +152,6 @@
 "AIUsage/Views/DashboardView.swift::Everything is within a healthy range" = "目前都在正常范围内";
 
 /* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Live Accounts" = "在线账号";
-
-/* Views/DashboardView.swift */
 "AIUsage/Views/DashboardView.swift::Loading dashboard..." = "加载中...";
 
 /* Views/DashboardView.swift */
@@ -203,12 +170,6 @@
 "AIUsage/Views/DashboardView.swift::No sources selected" = "尚未选择扫描来源";
 
 /* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Overview" = "概览";
-
-/* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Providers" = "服务商";
-
-/* Views/DashboardView.swift */
 "AIUsage/Views/DashboardView.swift::Proxy Stats" = "代理统计";
 
 /* Views/DashboardView.swift */
@@ -224,13 +185,7 @@
 "AIUsage/Views/DashboardView.swift::Start the backend server and refresh" = "请启动后端服务后刷新";
 
 /* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Status Alerts" = "状态提醒";
-
-/* Views/DashboardView.swift */
 "AIUsage/Views/DashboardView.swift::Success" = "成功率";
-
-/* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Tracked Services" = "监控服务";
 
 /* Views/DashboardView.swift */
 "AIUsage/Views/DashboardView.swift::View Details" = "查看详情";
@@ -620,31 +575,7 @@
 "AIUsage/Views/ProviderPickerView.swift::Turn sources on or off without deleting saved accounts. Disabled sources stay in your account list but stop refreshing." = "你可以随时启用或停用扫描来源，而不必删除已保存账号。停用后账号仍会保留，但不会继续刷新。";
 
 /* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::Add App" = "添加应用";
-
-/* Views/ProvidersView.swift */
 "AIUsage/Views/ProvidersView.swift::Add a provider app first, then each app can keep multiple accounts under the same group." = "先添加服务应用，之后每个应用都可以在同一分组下管理多个账号。";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::All" = "全部";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::All Apps" = "全部应用";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::Channel" = "渠道";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::Hidden Accounts" = "已隐藏账号";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::Manage Sources" = "管理来源";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::No accounts found" = "未找到账号";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::Search accounts..." = "搜索账号...";
 
 /* Views/ProvidersView.swift */
 "AIUsage/Views/ProvidersView.swift::Try another app filter or search keyword." = "试试其他应用筛选或搜索关键词。";
@@ -864,6 +795,9 @@
 
 /* Views/ProxyManagementView.swift */
 "AIUsage/Views/ProxyManagementView.swift::Node Configurations" = "节点配置";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Node Operation Failed" = "节点操作失败";
 
 /* Views/ProxyManagementView.swift */
 "AIUsage/Views/ProxyManagementView.swift::Nodes" = "节点数";
@@ -1296,3 +1230,78 @@
 
 /* Views/WebLoginView.swift */
 "AIUsage/Views/WebLoginView.swift::Use This Account" = "使用此账号";
+
+/* Views/ContentView.swift */
+"actions.refresh_all" = "全部刷新";
+
+/* Views/ProvidersView.swift */
+"common.all" = "全部";
+
+/* Views/DashboardView.swift */
+"dashboard.alerts" = "告警";
+
+/* Views/DashboardView.swift */
+"dashboard.overview" = "概览";
+
+/* Views/DashboardView.swift */
+"dashboard.providers" = "服务商";
+
+/* Views/DashboardView.swift */
+"dashboard.summary.cost_tracking" = "Claude Code 统计";
+
+/* Views/DashboardView.swift */
+"dashboard.summary.live_accounts" = "在线账号";
+
+/* Views/DashboardView.swift */
+"dashboard.summary.proxy_stats" = "代理统计";
+
+/* Views/DashboardView.swift */
+"dashboard.summary.status_alerts" = "状态提醒";
+
+/* Views/DashboardView.swift */
+"dashboard.summary.tracked_services" = "监控服务";
+
+/* Views/ContentView.swift */
+"help.refresh_all" = "刷新所有应用和所有账号";
+
+/* Views/ContentView.swift */
+"nav.cost_tracking" = "Claude Code 统计";
+
+/* Views/ContentView.swift */
+"nav.dashboard" = "仪表盘";
+
+/* Views/ContentView.swift */
+"nav.inbox" = "消息";
+
+/* Views/ContentView.swift */
+"nav.providers" = "服务商";
+
+/* Views/ContentView.swift */
+"nav.proxy_management" = "Claude Code 代理";
+
+/* Views/ContentView.swift */
+"nav.proxy_stats" = "代理统计";
+
+/* Views/ContentView.swift */
+"nav.settings" = "设置";
+
+/* Views/ProvidersView.swift */
+"providers.add_app" = "添加应用";
+
+/* Views/ProvidersView.swift */
+"providers.all_apps" = "全部应用";
+
+/* Views/ProvidersView.swift */
+"providers.channel" = "渠道";
+
+/* Views/ProvidersView.swift */
+"providers.empty.title" = "未找到账号";
+
+/* Views/ProvidersView.swift */
+"providers.hidden_accounts" = "已隐藏账号";
+
+/* Views/ProvidersView.swift */
+"providers.manage_sources" = "管理来源";
+
+/* Views/ProvidersView.swift */
+"providers.search.placeholder" = "搜索账号...";

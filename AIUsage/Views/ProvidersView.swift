@@ -101,7 +101,7 @@ struct ProvidersView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
 
-                TextField(L("Search accounts...", "搜索账号..."), text: $searchText)
+                TextField(L("Search accounts...", "搜索账号...", key: "providers.search.placeholder"), text: $searchText)
                     .textFieldStyle(.plain)
 
                 if !searchText.isEmpty {
@@ -116,8 +116,8 @@ struct ProvidersView: View {
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(8)
 
-            Picker(L("Channel", "渠道"), selection: $selectedChannel) {
-                Text(L("All", "全部")).tag("all")
+            Picker(L("Channel", "渠道", key: "providers.channel"), selection: $selectedChannel) {
+                Text(L("All", "全部", key: "common.all")).tag("all")
                 Text("CLI").tag("cli")
                 Text("IDE").tag("ide")
             }
@@ -129,7 +129,7 @@ struct ProvidersView: View {
             Button {
                 appState.presentManageProviderPicker()
             } label: {
-                Label(L("Manage Sources", "管理来源"), systemImage: "slider.horizontal.3")
+                Label(L("Manage Sources", "管理来源", key: "providers.manage_sources"), systemImage: "slider.horizontal.3")
             }
             .buttonStyle(.bordered)
 
@@ -148,7 +148,7 @@ struct ProvidersView: View {
                         }
                     }
                 } label: {
-                    Label(L("Hidden Accounts", "已隐藏账号"), systemImage: "eye.slash")
+                    Label(L("Hidden Accounts", "已隐藏账号", key: "providers.hidden_accounts"), systemImage: "eye.slash")
                 }
             }
 
@@ -159,7 +159,7 @@ struct ProvidersView: View {
                     appState.presentAddProviderPicker()
                 }
             } label: {
-                Label(L("Add App", "添加应用"), systemImage: "plus")
+                Label(L("Add App", "添加应用", key: "providers.add_app"), systemImage: "plus")
             }
             .buttonStyle(.borderedProminent)
         }
@@ -170,7 +170,7 @@ struct ProvidersView: View {
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                providerFilterChip(id: "all", title: L("All Apps", "全部应用"))
+                providerFilterChip(id: "all", title: L("All Apps", "全部应用", key: "providers.all_apps"))
 
                 ForEach(availableProviderFilters) { group in
                     providerFilterChip(id: group.providerId, title: group.title, providerId: group.providerId)
@@ -220,7 +220,7 @@ struct ProvidersView: View {
                 .font(.system(size: 56))
                 .foregroundColor(.secondary)
 
-            Text(L("No accounts found", "未找到账号"))
+            Text(L("No accounts found", "未找到账号", key: "providers.empty.title"))
                 .font(.title2)
                 .bold()
 
@@ -238,7 +238,7 @@ struct ProvidersView: View {
                 Button {
                     appState.presentAddProviderPicker()
                 } label: {
-                    Label(L("Add App", "添加应用"), systemImage: "plus")
+                    Label(L("Add App", "添加应用", key: "providers.add_app"), systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
             }

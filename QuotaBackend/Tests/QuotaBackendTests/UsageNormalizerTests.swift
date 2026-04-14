@@ -60,6 +60,68 @@ final class UsageNormalizerTests: XCTestCase {
         XCTAssertTrue(overview.alerts.contains(where: { $0.providerId == "claude:local" && $0.tone == "watch" }))
     }
 
+    func testDashboardOverviewUsesStableUniqueAlertIdentifiers() {
+        let overview = UsageNormalizer.createDashboardOverview(
+            summaries: [
+                makeSummary(
+                    id: "cursor:main",
+                    providerId: "cursor",
+                    label: "Cursor",
+                    category: "subscription",
+                    status: "critical",
+                    headlineSecondary: "Immediate action needed"
+                ),
+                makeSummary(
+                    id: "cursor:secondary",
+                    providerId: "cursor",
+                    label: "Cursor",
+                    category: "subscription",
+                    status: "watch",
+                    headlineSecondary: "Quota is getting tight"
+                ),
+                makeSummary(
+                    id: "claude:proxy",
+                    providerId: "claude",
+                    label: "Claude Proxy",
+                    category: "local-cost",
+                    status: "healthy",
+                    unpricedModels: ["claude-preview"]
+                )
+            ],
+            generatedAt: ISO8601DateFormatter().string(from: Date())
+        )
+
+        let ids = overview.alerts.map(\.id)
+        XCTAssertEqual(ids, [
+            "cursor:main:status-critical",
+            "cursor:secondary:status-watch",
+            "claude:proxy:unpriced-models"
+        ])
+        XCTAssertEqual(Set(ids).count, ids.count)
+    }
+
+    func testDashboardOverviewLimitsAlertCountToSix() {
+        let summaries = (0..<8).map { index in
+            makeSummary(
+                id: "provider-\(index)",
+                providerId: "provider-\(index)",
+                label: "Provider \(index)",
+                category: "subscription",
+                status: index.isMultiple(of: 2) ? "critical" : "watch",
+                headlineSecondary: "Alert \(index)"
+            )
+        }
+
+        let overview = UsageNormalizer.createDashboardOverview(
+            summaries: summaries,
+            generatedAt: ISO8601DateFormatter().string(from: Date())
+        )
+
+        XCTAssertEqual(overview.alerts.count, 6)
+        XCTAssertEqual(overview.alerts.first?.id, "provider-0:status-critical")
+        XCTAssertEqual(overview.alerts.last?.id, "provider-5:status-watch")
+    }
+
     private func makeSummary(
         id: String,
         providerId: String,
@@ -69,7 +131,8 @@ final class UsageNormalizerTests: XCTestCase {
         headlineSecondary: String = "Telemetry available",
         nextResetAt: String? = nil,
         monthUsd: Double? = nil,
-        weekTokens: Int? = nil
+        weekTokens: Int? = nil,
+        unpricedModels: [String]? = nil
     ) -> ProviderSummary {
         ProviderSummary(
             id: id,
@@ -108,7 +171,7 @@ final class UsageNormalizerTests: XCTestCase {
                 ),
             models: nil,
             spotlight: "Test spotlight",
-            unpricedModels: nil,
+            unpricedModels: unpricedModels,
             raw: nil
         )
     }

@@ -151,6 +151,18 @@ private enum NumberFormatterCache {
         Thread.current.threadDictionary[key] = formatter
         return formatter
     }
+
+    static func decimalFormatter() -> NumberFormatter {
+        let key = "AIUsage.DecimalFormatter"
+        if let formatter = Thread.current.threadDictionary[key] as? NumberFormatter {
+            return formatter
+        }
+
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        Thread.current.threadDictionary[key] = formatter
+        return formatter
+    }
 }
 
 func formatCurrency(_ value: Double) -> String {
@@ -178,8 +190,7 @@ func formatCompactNumber(_ value: Double) -> String {
 }
 
 func formatNumber(_ value: Int) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .decimal
+    let formatter = NumberFormatterCache.decimalFormatter()
     return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
 }
 

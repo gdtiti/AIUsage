@@ -1,6 +1,449 @@
 import Foundation
 import Combine
 import QuotaBackend
+import os.log
+
+internal let accountPersistenceLog = Logger(subsystem: "com.aiusage.desktop", category: "AccountPersistence")
+
+struct AccountRegistryReconcileResult: Sendable {
+    let accounts: [StoredProviderAccount]
+    let didChange: Bool
+}
+
+actor AccountRegistryRefreshWorker {
+    static let shared = AccountRegistryRefreshWorker()
+
+    private var latestRequestedRevision: UInt64 = 0
+    private var lastPersistedRevision: UInt64 = 0
+    private var lastPersistedAccounts: [StoredProviderAccount]?
+
+    func reconcile(
+        currentRegistry: [StoredProviderAccount],
+        providers: [ProviderData],
+        providerCatalogOrder: [String]
+    ) -> AccountRegistryReconcileResult {
+        let allCredentials = AccountCredentialStore.shared.loadAllCredentials()
+        var snapshot = AccountRegistryRefreshSnapshot(
+            accountRegistry: currentRegistry,
+            providerCatalogOrder: providerCatalogOrder,
+            allCredentials: allCredentials
+        )
+        let didChange = snapshot.reconcile(with: providers)
+        return AccountRegistryReconcileResult(accounts: snapshot.accountRegistry, didChange: didChange)
+    }
+
+    func schedulePersist(_ accounts: [StoredProviderAccount], revision: UInt64) async {
+        latestRequestedRevision = max(latestRequestedRevision, revision)
+
+        try? await Task.sleep(nanoseconds: 350_000_000)
+        guard revision == latestRequestedRevision else { return }
+        guard revision > lastPersistedRevision else { return }
+        guard lastPersistedAccounts != accounts else { return }
+
+        do {
+            try SecureAccountVault.shared.saveAccounts(accounts)
+            lastPersistedRevision = revision
+            lastPersistedAccounts = accounts
+        } catch {
+            Logger(subsystem: "com.aiusage.desktop", category: "AccountPersistence").error(
+                "Failed to persist account registry from background refresh worker (state kept in memory): \(String(describing: error), privacy: .public)"
+            )
+        }
+    }
+
+    func notePersistedSnapshot(_ accounts: [StoredProviderAccount], revision: UInt64) {
+        latestRequestedRevision = max(latestRequestedRevision, revision)
+        if revision >= lastPersistedRevision {
+            lastPersistedRevision = revision
+            lastPersistedAccounts = accounts
+        }
+    }
+}
+
+private struct AccountRegistryRefreshSnapshot {
+    var accountRegistry: [StoredProviderAccount]
+    let providerCatalogOrder: [String]
+    let credentialLookup: [String: AccountCredential]
+    let credentialsByProvider: [String: [AccountCredential]]
+
+    nonisolated init(
+        accountRegistry: [StoredProviderAccount],
+        providerCatalogOrder: [String],
+        allCredentials: [AccountCredential]
+    ) {
+        self.accountRegistry = accountRegistry
+        self.providerCatalogOrder = providerCatalogOrder
+        self.credentialLookup = Dictionary(uniqueKeysWithValues: allCredentials.map { ($0.id, $0) })
+        self.credentialsByProvider = Dictionary(grouping: allCredentials, by: \.providerId)
+    }
+
+    nonisolated mutating func reconcile(with providers: [ProviderData]) -> Bool {
+        var didChange = false
+        let now = SharedFormatters.iso8601String(from: Date())
+        var reservedStoredIDs = Set<String>()
+        let allowUnseenCredentialFallback = providers.count == 1
+        let orderedProviders = providers.sorted { lhs, rhs in
+            let lhsCredentialBacked = extractCredentialId(from: lhs.id) != nil
+            let rhsCredentialBacked = extractCredentialId(from: rhs.id) != nil
+            if lhsCredentialBacked != rhsCredentialBacked {
+                return lhsCredentialBacked && !rhsCredentialBacked
+            }
+            return providerSort(lhs, rhs)
+        }
+
+        for provider in orderedProviders {
+            let label = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+                ?? provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+                ?? provider.label.nilIfBlank
+
+            guard let label else {
+                continue
+            }
+
+            let inferredCredentialId = extractCredentialId(from: provider.id)
+
+            if let hiddenIndex = accountRegistry.firstIndex(where: {
+                !$0.id.isEmpty && !reservedStoredIDs.contains($0.id) && $0.isHidden && storedAccountMatchesLive($0, provider: provider)
+            }) {
+                var hidden = accountRegistry[hiddenIndex]
+                if hidden.providerResultId != provider.id {
+                    hidden.providerResultId = provider.id
+                    didChange = true
+                }
+                if hidden.accountId != provider.accountId {
+                    hidden.accountId = provider.accountId
+                    didChange = true
+                }
+                if hidden.credentialId == nil, let inferredCredentialId {
+                    hidden.credentialId = inferredCredentialId
+                    didChange = true
+                }
+                if hidden.lastSeenAt != now {
+                    hidden.lastSeenAt = now
+                    didChange = true
+                }
+                accountRegistry[hiddenIndex] = hidden
+                reservedStoredIDs.insert(hidden.id)
+                continue
+            }
+
+            if let index = bestStoredAccountIndex(
+                for: provider,
+                excluding: reservedStoredIDs,
+                allowUnseenCredentialFallback: allowUnseenCredentialFallback
+            ) {
+                var updated = accountRegistry[index]
+                if updated.email != label {
+                    updated.email = label
+                    didChange = true
+                }
+                if updated.accountId != provider.accountId {
+                    updated.accountId = provider.accountId
+                    didChange = true
+                }
+                if updated.providerResultId != provider.id {
+                    updated.providerResultId = provider.id
+                    didChange = true
+                }
+                if updated.credentialId == nil, let inferredCredentialId {
+                    updated.credentialId = inferredCredentialId
+                    didChange = true
+                }
+                if updated.lastSeenAt != now {
+                    updated.lastSeenAt = now
+                    didChange = true
+                }
+                if updated.isHidden {
+                    updated.isHidden = false
+                    didChange = true
+                }
+                accountRegistry[index] = updated
+                reservedStoredIDs.insert(updated.id)
+            } else {
+                let normalizedNewEmail = label.lowercased()
+                let normalizedNewAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+                if let dupeIndex = accountRegistry.firstIndex(where: {
+                    $0.providerId == provider.baseProviderId && !$0.isHidden && (
+                        $0.normalizedEmail == normalizedNewEmail ||
+                        (normalizedNewAccountId != nil && $0.normalizedAccountId == normalizedNewAccountId)
+                    )
+                }) {
+                    var existing = accountRegistry[dupeIndex]
+                    if existing.providerResultId != provider.id {
+                        existing.providerResultId = provider.id
+                        didChange = true
+                    }
+                    if existing.accountId != provider.accountId {
+                        existing.accountId = provider.accountId
+                        didChange = true
+                    }
+                    if existing.credentialId == nil, let inferredCredentialId {
+                        existing.credentialId = inferredCredentialId
+                        didChange = true
+                    }
+                    if existing.lastSeenAt != now {
+                        existing.lastSeenAt = now
+                        didChange = true
+                    }
+                    accountRegistry[dupeIndex] = existing
+                    reservedStoredIDs.insert(existing.id)
+                } else {
+                    let stored = StoredProviderAccount(
+                        id: UUID().uuidString,
+                        providerId: provider.baseProviderId,
+                        email: label,
+                        displayName: nil,
+                        note: nil,
+                        accountId: provider.accountId,
+                        providerResultId: provider.id,
+                        credentialId: inferredCredentialId,
+                        createdAt: now,
+                        lastSeenAt: now,
+                        isHidden: false
+                    )
+                    accountRegistry.append(stored)
+                    reservedStoredIDs.insert(stored.id)
+                    didChange = true
+                }
+            }
+        }
+
+        let beforeDedup = accountRegistry.count
+        deduplicateAccountRegistry()
+        if accountRegistry.count != beforeDedup {
+            didChange = true
+        }
+
+        return didChange
+    }
+
+    nonisolated func normalizedAccountLookupValue(_ value: String?) -> String? {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+    }
+
+    nonisolated func extractCredentialId(from providerDataId: String) -> String? {
+        guard let range = providerDataId.range(of: ":cred:") else { return nil }
+        return String(providerDataId[range.upperBound...]).nilIfBlank
+    }
+
+    nonisolated func bestCredentialMatch(
+        for account: StoredProviderAccount,
+        candidates: [AccountCredential]
+    ) -> AccountCredential? {
+        let normalizedAccountId = account.normalizedAccountId
+        if let normalizedAccountId,
+           let accountIDMatch = candidates.first(where: {
+               normalizedAccountLookupValue($0.metadata["accountId"]) == normalizedAccountId
+           }) {
+            return accountIDMatch
+        }
+
+        if !account.normalizedEmail.isEmpty,
+           let emailMatch = candidates.first(where: {
+               normalizedAccountLookupValue(
+                   $0.metadata["accountEmail"]
+                       ?? $0.metadata["accountHandle"]
+                       ?? $0.accountLabel
+               ) == account.normalizedEmail
+           }) {
+            return emailMatch
+        }
+
+        return nil
+    }
+
+    nonisolated func bestStoredAccountIndex(
+        for provider: ProviderData,
+        excluding reservedStoredIDs: Set<String>,
+        allowUnseenCredentialFallback: Bool
+    ) -> Int? {
+        if let exactIndex = accountRegistry.firstIndex(where: {
+            !reservedStoredIDs.contains($0.id) && !$0.isHidden && storedAccountMatchesLive($0, provider: provider)
+        }) {
+            return exactIndex
+        }
+
+        guard allowUnseenCredentialFallback,
+              extractCredentialId(from: provider.id) != nil else {
+            return nil
+        }
+
+        let fallbackCandidates = accountRegistry.enumerated().filter { _, stored in
+            !reservedStoredIDs.contains(stored.id) &&
+            stored.providerId == provider.baseProviderId &&
+            !stored.isHidden &&
+            stored.credentialId != nil &&
+            stored.lastSeenAt == nil
+        }
+
+        guard fallbackCandidates.count == 1 else { return nil }
+        return fallbackCandidates[0].offset
+    }
+
+    nonisolated func storedAccountMatchesLive(_ stored: StoredProviderAccount, provider: ProviderData) -> Bool {
+        guard stored.providerId == provider.baseProviderId else { return false }
+
+        if let credentialId = stored.credentialId?.nilIfBlank {
+            let expectedId = "\(stored.providerId):cred:\(credentialId)"
+            if provider.id.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(expectedId) == .orderedSame {
+                return true
+            }
+        }
+
+        if let storedResultId = stored.normalizedProviderResultId {
+            let liveId = provider.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if storedResultId == liveId {
+                return true
+            }
+            if liveId.hasPrefix(storedResultId + ":") || storedResultId.hasPrefix(liveId + ":") {
+                return true
+            }
+        }
+
+        if let storedAccountId = stored.normalizedAccountId,
+           let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
+           storedAccountId == liveAccountId {
+            return true
+        }
+
+        if let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
+           stored.normalizedEmail == liveEmail {
+            return true
+        }
+
+        return false
+    }
+
+    nonisolated func providerSort(_ lhs: ProviderData, _ rhs: ProviderData) -> Bool {
+        let lhsProviderIndex = providerCatalogOrder.firstIndex(of: lhs.baseProviderId) ?? Int.max
+        let rhsProviderIndex = providerCatalogOrder.firstIndex(of: rhs.baseProviderId) ?? Int.max
+
+        if lhsProviderIndex != rhsProviderIndex {
+            return lhsProviderIndex < rhsProviderIndex
+        }
+
+        let lhsIdentity = (lhs.accountLabel ?? lhs.accountId ?? lhs.id).lowercased()
+        let rhsIdentity = (rhs.accountLabel ?? rhs.accountId ?? rhs.id).lowercased()
+        return lhsIdentity.localizedCaseInsensitiveCompare(rhsIdentity) == .orderedAscending
+    }
+
+    nonisolated mutating func deduplicateAccountRegistry() {
+        var seen: [String: Int] = [:]
+        var indicesToRemove: [Int] = []
+
+        for (index, account) in accountRegistry.enumerated() {
+            let key = storedAccountIdentityKey(account)
+            if let existingIndex = seen[key] {
+                let existing = accountRegistry[existingIndex]
+                let keepExisting = shouldPreferStoredAccount(existing, over: account)
+
+                if keepExisting {
+                    accountRegistry[existingIndex] = mergedStoredAccount(preferred: existing, secondary: account)
+                    indicesToRemove.append(index)
+                } else {
+                    accountRegistry[index] = mergedStoredAccount(preferred: account, secondary: existing)
+                    indicesToRemove.append(existingIndex)
+                    seen[key] = index
+                }
+            } else {
+                seen[key] = index
+            }
+        }
+
+        if !indicesToRemove.isEmpty {
+            for index in indicesToRemove.sorted(by: >) {
+                accountRegistry.remove(at: index)
+            }
+        }
+    }
+
+    nonisolated func storedAccountIdentityKey(_ account: StoredProviderAccount) -> String {
+        let providerId = account.providerId.lowercased()
+        if let accountId = account.normalizedAccountId {
+            return "\(providerId):account:\(accountId)"
+        }
+        if !account.normalizedEmail.isEmpty {
+            return "\(providerId):email:\(account.normalizedEmail)"
+        }
+        if let credentialId = account.credentialId?.lowercased().nilIfBlank {
+            return "\(providerId):cred:\(credentialId)"
+        }
+        return "\(providerId):stored:\(account.id.lowercased())"
+    }
+
+    nonisolated func shouldPreferStoredAccount(
+        _ lhs: StoredProviderAccount,
+        over rhs: StoredProviderAccount
+    ) -> Bool {
+        if lhs.isHidden != rhs.isHidden {
+            return !lhs.isHidden
+        }
+
+        let lhsHasCredential = lhs.credentialId.flatMap { credentialLookup[$0] } != nil
+        let rhsHasCredential = rhs.credentialId.flatMap { credentialLookup[$0] } != nil
+        if lhsHasCredential != rhsHasCredential {
+            return lhsHasCredential
+        }
+
+        let lhsCredentialBound = extractCredentialId(from: lhs.providerResultId ?? "") != nil
+        let rhsCredentialBound = extractCredentialId(from: rhs.providerResultId ?? "") != nil
+        if lhsCredentialBound != rhsCredentialBound {
+            return lhsCredentialBound
+        }
+
+        let lhsSeen = SharedFormatters.parseISO8601(lhs.lastSeenAt ?? "") ?? .distantPast
+        let rhsSeen = SharedFormatters.parseISO8601(rhs.lastSeenAt ?? "") ?? .distantPast
+        if lhsSeen != rhsSeen {
+            return lhsSeen > rhsSeen
+        }
+
+        let lhsCreated = SharedFormatters.parseISO8601(lhs.createdAt) ?? .distantPast
+        let rhsCreated = SharedFormatters.parseISO8601(rhs.createdAt) ?? .distantPast
+        if lhsCreated != rhsCreated {
+            return lhsCreated > rhsCreated
+        }
+
+        return lhs.id < rhs.id
+    }
+
+    nonisolated func mergedStoredAccount(
+        preferred: StoredProviderAccount,
+        secondary: StoredProviderAccount
+    ) -> StoredProviderAccount {
+        var merged = preferred
+
+        if merged.displayName?.nilIfBlank == nil {
+            merged.displayName = secondary.displayName?.nilIfBlank
+        }
+        if merged.note?.nilIfBlank == nil {
+            merged.note = secondary.note?.nilIfBlank
+        }
+        if merged.accountId?.nilIfBlank == nil {
+            merged.accountId = secondary.accountId?.nilIfBlank
+        }
+        if merged.credentialId?.nilIfBlank == nil,
+           let fallbackCredentialId = secondary.credentialId?.nilIfBlank,
+           credentialLookup[fallbackCredentialId] != nil {
+            merged.credentialId = fallbackCredentialId
+        }
+        if merged.providerResultId?.nilIfBlank == nil {
+            merged.providerResultId = secondary.providerResultId?.nilIfBlank
+        }
+        merged.lastSeenAt = maxTimestampString(preferred.lastSeenAt, secondary.lastSeenAt)
+        merged.isHidden = preferred.isHidden && secondary.isHidden
+        return merged
+    }
+
+    nonisolated func maxTimestampString(_ values: String?...) -> String? {
+        values
+            .compactMap { $0?.nilIfBlank }
+            .max {
+                (SharedFormatters.parseISO8601($0) ?? .distantPast)
+                    < (SharedFormatters.parseISO8601($1) ?? .distantPast)
+            }
+    }
+}
 
 extension AccountStore {
     // MARK: - Persistence & normalization
@@ -350,8 +793,20 @@ extension AccountStore {
             }
     }
 
-    func persistAccountRegistry() {
-        try? SecureAccountVault.shared.saveAccounts(accountRegistry)
+    @discardableResult
+    func persistAccountRegistry() -> Bool {
+        let snapshot = accountRegistry
+        let revision = accountRegistryRevision
+        do {
+            try SecureAccountVault.shared.saveAccounts(snapshot)
+            Task.detached(priority: .utility) {
+                await AccountRegistryRefreshWorker.shared.notePersistedSnapshot(snapshot, revision: revision)
+            }
+            return true
+        } catch {
+            accountPersistenceLog.error("Failed to persist account registry (state kept in memory): \(String(describing: error), privacy: .public)")
+            return false
+        }
     }
 
     func cleanupManagedCredentialArtifacts() {

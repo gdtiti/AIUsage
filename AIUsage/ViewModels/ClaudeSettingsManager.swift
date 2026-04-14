@@ -1,4 +1,30 @@
 import Foundation
+import os.log
+
+private let claudeSettingsLog = Logger(subsystem: "com.aiusage.desktop", category: "ClaudeSettings")
+
+enum ClaudeSettingsError: LocalizedError {
+    case invalidRootObject
+    case unreadableSettings
+    case failedToSerialize
+    case failedToCreateDirectory
+    case failedToWriteFile
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidRootObject:
+            return AppSettings.shared.t("Claude settings.json must contain a top-level object.", "Claude settings.json 必须是顶层对象。")
+        case .unreadableSettings:
+            return AppSettings.shared.t("Claude settings.json is unreadable or contains invalid JSON.", "Claude settings.json 无法读取或 JSON 已损坏。")
+        case .failedToSerialize:
+            return AppSettings.shared.t("Failed to serialize Claude settings.", "序列化 Claude 设置失败。")
+        case .failedToCreateDirectory:
+            return AppSettings.shared.t("Failed to create the Claude settings directory.", "创建 Claude 设置目录失败。")
+        case .failedToWriteFile:
+            return AppSettings.shared.t("Failed to write Claude settings.json.", "写入 Claude settings.json 失败。")
+        }
+    }
+}
 
 // MARK: - Claude Settings Manager
 
@@ -10,12 +36,24 @@ class ClaudeSettingsManager {
         return (home as NSString).appendingPathComponent(".claude/settings.json")
     }
 
-    func readSettings() -> [String: Any] {
-        guard let data = FileManager.default.contents(atPath: settingsPath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+    func readSettings() throws -> [String: Any] {
+        guard let data = FileManager.default.contents(atPath: settingsPath) else {
             return [:]
         }
-        return json
+
+        do {
+            let object = try JSONSerialization.jsonObject(with: data)
+            guard let json = object as? [String: Any] else {
+                claudeSettingsLog.error("Failed to read Claude settings: root object is not a dictionary")
+                throw ClaudeSettingsError.invalidRootObject
+            }
+            return json
+        } catch let error as ClaudeSettingsError {
+            throw error
+        } catch {
+            claudeSettingsLog.error("Failed to read Claude settings from \(self.settingsPath, privacy: .private(mask: .hash)): \(String(describing: error), privacy: .public)")
+            throw ClaudeSettingsError.unreadableSettings
+        }
     }
 
     private let managedEnvKeys = [
@@ -35,8 +73,8 @@ class ClaudeSettingsManager {
         var haikuModel: String?
     }
 
-    func writeEnv(_ config: EnvConfig) {
-        var settings = readSettings()
+    func writeEnv(_ config: EnvConfig) throws {
+        var settings = try readSettings()
         var env = settings["env"] as? [String: Any] ?? [:]
 
         let pairs: [(String, String?)] = [
@@ -62,28 +100,45 @@ class ClaudeSettingsManager {
             settings.removeValue(forKey: "model")
         }
 
-        writeSettings(settings)
+        try writeSettings(settings)
     }
 
-    func clearEnv() {
-        var settings = readSettings()
+    func clearEnv() throws {
+        var settings = try readSettings()
         var env = settings["env"] as? [String: Any] ?? [:]
         for key in managedEnvKeys {
             env.removeValue(forKey: key)
         }
         settings["env"] = env
         settings.removeValue(forKey: "model")
-        writeSettings(settings)
+        try writeSettings(settings)
     }
 
-    private func writeSettings(_ settings: [String: Any]) {
-        guard let data = try? JSONSerialization.data(
-            withJSONObject: settings,
-            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        ) else { return }
+    private func writeSettings(_ settings: [String: Any]) throws {
+        let data: Data
+        do {
+            data = try JSONSerialization.data(
+                withJSONObject: settings,
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+            )
+        } catch {
+            claudeSettingsLog.error("Failed to serialize Claude settings: \(String(describing: error), privacy: .public)")
+            throw ClaudeSettingsError.failedToSerialize
+        }
 
         let dir = (settingsPath as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        try? data.write(to: URL(fileURLWithPath: settingsPath))
+        do {
+            try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        } catch {
+            claudeSettingsLog.error("Failed to create Claude settings directory \(dir, privacy: .private(mask: .hash)): \(String(describing: error), privacy: .public)")
+            throw ClaudeSettingsError.failedToCreateDirectory
+        }
+
+        do {
+            try data.write(to: URL(fileURLWithPath: settingsPath), options: .atomic)
+        } catch {
+            claudeSettingsLog.error("Failed to write Claude settings at \(self.settingsPath, privacy: .private(mask: .hash)): \(String(describing: error), privacy: .public)")
+            throw ClaudeSettingsError.failedToWriteFile
+        }
     }
 }

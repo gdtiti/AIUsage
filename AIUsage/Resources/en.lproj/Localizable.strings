@@ -31,33 +31,6 @@
 /* Views/AccountNoteEditorView.swift */
 "AIUsage/Views/AccountNoteEditorView.swift::e.g. Main account / Work account / Test machine" = "e.g. Main account / Work account / Test machine";
 
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Claude Code Proxy" = "Claude Code Proxy";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Claude Code Stats" = "Claude Code Stats";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Dashboard" = "Dashboard";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Inbox" = "Inbox";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Providers" = "Providers";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Proxy Stats" = "Proxy Stats";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Refresh All" = "Refresh All";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Refresh every app and every account" = "Refresh every app and every account";
-
-/* Views/ContentView.swift */
-"AIUsage/Views/ContentView.swift::Settings" = "Settings";
-
 /* Views/CostTrackingView+Chart.swift */
 "AIUsage/Views/CostTrackingView+Chart.swift::All Models" = "All Models";
 
@@ -158,9 +131,6 @@
 "AIUsage/Views/CostTrackingView.swift::No cost data found" = "No cost data found";
 
 /* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Alerts" = "Alerts";
-
-/* Views/DashboardView.swift */
 "AIUsage/Views/DashboardView.swift::Choose Sources" = "Choose Sources";
 
 /* Views/DashboardView.swift */
@@ -182,9 +152,6 @@
 "AIUsage/Views/DashboardView.swift::Everything is within a healthy range" = "Everything is within a healthy range";
 
 /* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Live Accounts" = "Live Accounts";
-
-/* Views/DashboardView.swift */
 "AIUsage/Views/DashboardView.swift::Loading dashboard..." = "Loading dashboard...";
 
 /* Views/DashboardView.swift */
@@ -203,12 +170,6 @@
 "AIUsage/Views/DashboardView.swift::No sources selected" = "No sources selected";
 
 /* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Overview" = "Overview";
-
-/* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Providers" = "Providers";
-
-/* Views/DashboardView.swift */
 "AIUsage/Views/DashboardView.swift::Proxy Stats" = "Proxy Stats";
 
 /* Views/DashboardView.swift */
@@ -224,13 +185,7 @@
 "AIUsage/Views/DashboardView.swift::Start the backend server and refresh" = "Start the backend server and refresh";
 
 /* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Status Alerts" = "Status Alerts";
-
-/* Views/DashboardView.swift */
 "AIUsage/Views/DashboardView.swift::Success" = "Success";
-
-/* Views/DashboardView.swift */
-"AIUsage/Views/DashboardView.swift::Tracked Services" = "Tracked Services";
 
 /* Views/DashboardView.swift */
 "AIUsage/Views/DashboardView.swift::View Details" = "View Details";
@@ -620,31 +575,7 @@
 "AIUsage/Views/ProviderPickerView.swift::Turn sources on or off without deleting saved accounts. Disabled sources stay in your account list but stop refreshing." = "Turn sources on or off without deleting saved accounts. Disabled sources stay in your account list but stop refreshing.";
 
 /* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::Add App" = "Add App";
-
-/* Views/ProvidersView.swift */
 "AIUsage/Views/ProvidersView.swift::Add a provider app first, then each app can keep multiple accounts under the same group." = "Add a provider app first, then each app can keep multiple accounts under the same group.";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::All" = "All";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::All Apps" = "All Apps";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::Channel" = "Channel";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::Hidden Accounts" = "Hidden Accounts";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::Manage Sources" = "Manage Sources";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::No accounts found" = "No accounts found";
-
-/* Views/ProvidersView.swift */
-"AIUsage/Views/ProvidersView.swift::Search accounts..." = "Search accounts...";
 
 /* Views/ProvidersView.swift */
 "AIUsage/Views/ProvidersView.swift::Try another app filter or search keyword." = "Try another app filter or search keyword.";
@@ -864,6 +795,9 @@
 
 /* Views/ProxyManagementView.swift */
 "AIUsage/Views/ProxyManagementView.swift::Node Configurations" = "Node Configurations";
+
+/* Views/ProxyManagementView.swift */
+"AIUsage/Views/ProxyManagementView.swift::Node Operation Failed" = "Node Operation Failed";
 
 /* Views/ProxyManagementView.swift */
 "AIUsage/Views/ProxyManagementView.swift::Nodes" = "Nodes";
@@ -1296,3 +1230,78 @@
 
 /* Views/WebLoginView.swift */
 "AIUsage/Views/WebLoginView.swift::Use This Account" = "Use This Account";
+
+/* Views/ContentView.swift */
+"actions.refresh_all" = "Refresh All";
+
+/* Views/ProvidersView.swift */
+"common.all" = "All";
+
+/* Views/DashboardView.swift */
+"dashboard.alerts" = "Alerts";
+
+/* Views/DashboardView.swift */
+"dashboard.overview" = "Overview";
+
+/* Views/DashboardView.swift */
+"dashboard.providers" = "Providers";
+
+/* Views/DashboardView.swift */
+"dashboard.summary.cost_tracking" = "Claude Code Stats";
+
+/* Views/DashboardView.swift */
+"dashboard.summary.live_accounts" = "Live Accounts";
+
+/* Views/DashboardView.swift */
+"dashboard.summary.proxy_stats" = "Proxy Stats";
+
+/* Views/DashboardView.swift */
+"dashboard.summary.status_alerts" = "Status Alerts";
+
+/* Views/DashboardView.swift */
+"dashboard.summary.tracked_services" = "Tracked Services";
+
+/* Views/ContentView.swift */
+"help.refresh_all" = "Refresh every app and every account";
+
+/* Views/ContentView.swift */
+"nav.cost_tracking" = "Claude Code Stats";
+
+/* Views/ContentView.swift */
+"nav.dashboard" = "Dashboard";
+
+/* Views/ContentView.swift */
+"nav.inbox" = "Inbox";
+
+/* Views/ContentView.swift */
+"nav.providers" = "Providers";
+
+/* Views/ContentView.swift */
+"nav.proxy_management" = "Claude Code Proxy";
+
+/* Views/ContentView.swift */
+"nav.proxy_stats" = "Proxy Stats";
+
+/* Views/ContentView.swift */
+"nav.settings" = "Settings";
+
+/* Views/ProvidersView.swift */
+"providers.add_app" = "Add App";
+
+/* Views/ProvidersView.swift */
+"providers.all_apps" = "All Apps";
+
+/* Views/ProvidersView.swift */
+"providers.channel" = "Channel";
+
+/* Views/ProvidersView.swift */
+"providers.empty.title" = "No accounts found";
+
+/* Views/ProvidersView.swift */
+"providers.hidden_accounts" = "Hidden Accounts";
+
+/* Views/ProvidersView.swift */
+"providers.manage_sources" = "Manage Sources";
+
+/* Views/ProvidersView.swift */
+"providers.search.placeholder" = "Search accounts...";

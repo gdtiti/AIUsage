@@ -48,6 +48,23 @@ struct ProxyManagementView: View {
                 .environmentObject(viewModel)
                 .environmentObject(appState)
         }
+        .alert(
+            L("Node Operation Failed", "节点操作失败"),
+            isPresented: Binding(
+                get: { viewModel.operationErrorMessage != nil },
+                set: { newValue in
+                    if !newValue {
+                        viewModel.operationErrorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK") {
+                viewModel.operationErrorMessage = nil
+            }
+        } message: {
+            Text(viewModel.operationErrorMessage ?? "")
+        }
     }
 
     // MARK: - Summary Strip
@@ -153,6 +170,7 @@ struct ProxyManagementView: View {
 
     private func configurationCard(_ config: ProxyConfiguration) -> some View {
         let isActive = viewModel.activatedConfigId == config.id
+        let isBusy = viewModel.isOperationInProgress(config.id)
         let isSelected = selectedConfigId == config.id
         let stats = viewModel.statistics[config.id] ?? .empty
 
@@ -194,12 +212,21 @@ struct ProxyManagementView: View {
                 }
 
                 HStack(spacing: 8) {
-                    Button(action: { viewModel.toggleActivation(config.id) }) {
-                        Image(systemName: isActive ? "stop.circle.fill" : "power.circle.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(isActive ? .orange : .green)
+                    Button(action: { Task { await viewModel.toggleActivation(config.id) } }) {
+                        Group {
+                            if isBusy {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: isActive ? "stop.circle.fill" : "power.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(isActive ? .orange : .green)
+                            }
+                        }
+                        .frame(width: 20, height: 20)
                     }
                     .buttonStyle(.plain)
+                    .disabled(isBusy)
                     .help(isActive ? L("Deactivate", "停用") : L("Activate", "激活"))
 
                     Button(action: { editConfig(config) }) {
@@ -208,14 +235,16 @@ struct ProxyManagementView: View {
                             .foregroundStyle(.blue)
                     }
                     .buttonStyle(.plain)
+                    .disabled(isBusy)
                     .help(L("Edit", "编辑"))
 
-                    Button(action: { deleteConfig(config) }) {
+                    Button(action: { Task { await deleteConfig(config) } }) {
                         Image(systemName: "trash.circle.fill")
                             .font(.system(size: 18))
                             .foregroundStyle(.red)
                     }
                     .buttonStyle(.plain)
+                    .disabled(isBusy)
                     .help(L("Delete", "删除"))
                 }
             }
@@ -262,7 +291,7 @@ struct ProxyManagementView: View {
             }
             Divider()
             Button(role: .destructive) {
-                deleteConfig(config)
+                Task { await deleteConfig(config) }
             } label: {
                 Label(L("Delete", "删除"), systemImage: "trash")
             }
@@ -613,9 +642,9 @@ struct ProxyManagementView: View {
         viewModel.addConfiguration(copy)
     }
 
-    private func deleteConfig(_ config: ProxyConfiguration) {
+    private func deleteConfig(_ config: ProxyConfiguration) async {
         if selectedConfigId == config.id { selectedConfigId = nil }
-        viewModel.deleteConfiguration(config.id)
+        await viewModel.deleteConfiguration(config.id)
     }
 
     // MARK: - Helpers

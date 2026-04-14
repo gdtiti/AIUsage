@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import QuotaBackend
+import os.log
 
 // MARK: - AccountStore
 // Persists multi-provider account registry (SecureAccountVault), normalizes against
@@ -9,10 +10,13 @@ import QuotaBackend
 final class AccountStore: ObservableObject {
     static let shared = AccountStore()
 
-    @Published var accountRegistry: [StoredProviderAccount] = []
+    @Published var accountRegistry: [StoredProviderAccount] = [] {
+        didSet { accountRegistryRevision &+= 1 }
+    }
 
     /// Base provider ids in UI/catalog order; must match `AppState.providerCatalogItems`.
     var providerCatalogOrder: [String] = []
+    private(set) var accountRegistryRevision: UInt64 = 0
 
     private init() {
         accountRegistry = SecureAccountVault.shared.loadAccounts()
@@ -313,146 +317,46 @@ final class AccountStore: ObservableObject {
             }
     }
 
-    func reconcileAccountRegistry(with providers: [ProviderData]) {
-        var didChange = false
-        let now = SharedFormatters.iso8601String(from: Date())
-        var reservedStoredIDs = Set<String>()
-        let allowUnseenCredentialFallback = providers.count == 1
-        let orderedProviders = providers.sorted { lhs, rhs in
-            let lhsCredentialBacked = extractCredentialId(from: lhs.id) != nil
-            let rhsCredentialBacked = extractCredentialId(from: rhs.id) != nil
-            if lhsCredentialBacked != rhsCredentialBacked {
-                return lhsCredentialBacked && !rhsCredentialBacked
-            }
-            return providerSort(lhs, rhs)
-        }
+    @MainActor
+    func reconcileAccountRegistry(with providers: [ProviderData]) async {
+        let providerOrder = providerCatalogOrder
+        var baselineRegistry = accountRegistry
+        var baselineRevision = accountRegistryRevision
+        var attempts = 0
 
-        for provider in orderedProviders {
-            let label = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
-                ?? provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
-                ?? provider.label.nilIfBlank
+        while attempts < 2 {
+            attempts += 1
+            let result = await AccountRegistryRefreshWorker.shared.reconcile(
+                currentRegistry: baselineRegistry,
+                providers: providers,
+                providerCatalogOrder: providerOrder
+            )
 
-            guard let label else {
+            if accountRegistryRevision != baselineRevision || accountRegistry != baselineRegistry {
+                baselineRegistry = accountRegistry
+                baselineRevision = accountRegistryRevision
                 continue
             }
 
-            let inferredCredentialId = extractCredentialId(from: provider.id)
-
-            if let hiddenIndex = accountRegistry.firstIndex(where: {
-                !$0.id.isEmpty && !reservedStoredIDs.contains($0.id) && $0.isHidden && storedAccountMatchesLive($0, provider: provider)
-            }) {
-                var hidden = accountRegistry[hiddenIndex]
-                if hidden.providerResultId != provider.id {
-                    hidden.providerResultId = provider.id
-                    didChange = true
-                }
-                if hidden.accountId != provider.accountId {
-                    hidden.accountId = provider.accountId
-                    didChange = true
-                }
-                if hidden.credentialId == nil, let inferredCredentialId {
-                    hidden.credentialId = inferredCredentialId
-                    didChange = true
-                }
-                if hidden.lastSeenAt != now {
-                    hidden.lastSeenAt = now
-                    didChange = true
-                }
-                accountRegistry[hiddenIndex] = hidden
-                reservedStoredIDs.insert(hidden.id)
-                continue
+            if result.accounts != accountRegistry {
+                accountRegistry = result.accounts
             }
 
-            if let index = bestStoredAccountIndex(
-                for: provider,
-                excluding: reservedStoredIDs,
-                allowUnseenCredentialFallback: allowUnseenCredentialFallback
-            ) {
-                var updated = accountRegistry[index]
-                if updated.email != label {
-                    updated.email = label
-                    didChange = true
-                }
-                if updated.accountId != provider.accountId {
-                    updated.accountId = provider.accountId
-                    didChange = true
-                }
-                if updated.providerResultId != provider.id {
-                    updated.providerResultId = provider.id
-                    didChange = true
-                }
-                if updated.credentialId == nil, let inferredCredentialId {
-                    updated.credentialId = inferredCredentialId
-                    didChange = true
-                }
-                if updated.lastSeenAt != now {
-                    updated.lastSeenAt = now
-                    didChange = true
-                }
-                if updated.isHidden {
-                    updated.isHidden = false
-                    didChange = true
-                }
-                accountRegistry[index] = updated
-                reservedStoredIDs.insert(updated.id)
-            } else {
-                let normalizedNewEmail = label.lowercased()
-                let normalizedNewAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
-                if let dupeIndex = accountRegistry.firstIndex(where: {
-                    $0.providerId == provider.baseProviderId && !$0.isHidden && (
-                        $0.normalizedEmail == normalizedNewEmail ||
-                        (normalizedNewAccountId != nil && $0.normalizedAccountId == normalizedNewAccountId)
+            if result.didChange {
+                let revision = accountRegistryRevision
+                Task.detached(priority: .utility) {
+                    await AccountRegistryRefreshWorker.shared.schedulePersist(
+                        result.accounts,
+                        revision: revision
                     )
-                }) {
-                    var existing = accountRegistry[dupeIndex]
-                    if existing.providerResultId != provider.id {
-                        existing.providerResultId = provider.id
-                        didChange = true
-                    }
-                    if existing.accountId != provider.accountId {
-                        existing.accountId = provider.accountId
-                        didChange = true
-                    }
-                    if existing.credentialId == nil, let inferredCredentialId {
-                        existing.credentialId = inferredCredentialId
-                        didChange = true
-                    }
-                    if existing.lastSeenAt != now {
-                        existing.lastSeenAt = now
-                        didChange = true
-                    }
-                    accountRegistry[dupeIndex] = existing
-                    reservedStoredIDs.insert(existing.id)
-                } else {
-                    let stored = StoredProviderAccount(
-                        id: UUID().uuidString,
-                        providerId: provider.baseProviderId,
-                        email: label,
-                        displayName: nil,
-                        note: nil,
-                        accountId: provider.accountId,
-                        providerResultId: provider.id,
-                        credentialId: inferredCredentialId,
-                        createdAt: now,
-                        lastSeenAt: now,
-                        isHidden: false
-                    )
-                    accountRegistry.append(stored)
-                    reservedStoredIDs.insert(stored.id)
-                    didChange = true
                 }
             }
+            return
         }
 
-        let beforeDedup = accountRegistry.count
-        deduplicateAccountRegistry()
-        if accountRegistry.count != beforeDedup {
-            didChange = true
-        }
-
-        if didChange {
-            persistAccountRegistry()
-        }
+        accountPersistenceLog.warning(
+            "Skipped applying background account reconciliation because local registry changed concurrently"
+        )
     }
 
     func hasHiddenRegistryMatch(providerId: String, normalizedEmail: String?, normalizedAccountId: String?) -> Bool {

@@ -12,7 +12,7 @@ struct ContentView: View {
 
     private var inboxLabel: some View {
         HStack {
-            Label(L("Inbox", "消息"), systemImage: appState.unreadAlertCount > 0 ? "bell.badge.fill" : "bell.fill")
+            Label(L("Inbox", "消息", key: "nav.inbox"), systemImage: appState.unreadAlertCount > 0 ? "bell.badge.fill" : "bell.fill")
             Spacer()
             if appState.unreadAlertCount > 0 {
                 Text("\(appState.unreadAlertCount)")
@@ -30,19 +30,19 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: sectionBinding) {
-                Label(L("Dashboard", "仪表盘"), systemImage: "chart.bar.doc.horizontal")
+                Label(L("Dashboard", "仪表盘", key: "nav.dashboard"), systemImage: "chart.bar.doc.horizontal")
                     .tag(AppSection.dashboard)
 
-                Label(L("Providers", "服务商"), systemImage: "square.grid.2x2")
+                Label(L("Providers", "服务商", key: "nav.providers"), systemImage: "square.grid.2x2")
                     .tag(AppSection.providers)
 
-                Label(L("Claude Code Stats", "Claude Code 统计"), systemImage: "chart.bar.xaxis")
+                Label(L("Claude Code Stats", "Claude Code 统计", key: "nav.cost_tracking"), systemImage: "chart.bar.xaxis")
                     .tag(AppSection.costTracking)
 
-                Label(L("Claude Code Proxy", "Claude Code 代理"), systemImage: "server.rack")
+                Label(L("Claude Code Proxy", "Claude Code 代理", key: "nav.proxy_management"), systemImage: "server.rack")
                     .tag(AppSection.proxyManagement)
 
-                Label(L("Proxy Stats", "代理统计"), systemImage: "chart.line.uptrend.xyaxis")
+                Label(L("Proxy Stats", "代理统计", key: "nav.proxy_stats"), systemImage: "chart.line.uptrend.xyaxis")
                     .tag(AppSection.proxyStats)
 
                 inboxLabel
@@ -50,7 +50,7 @@ struct ContentView: View {
 
                 Divider()
 
-                Label(L("Settings", "设置"), systemImage: "gearshape")
+                Label(L("Settings", "设置", key: "nav.settings"), systemImage: "gearshape")
                     .tag(AppSection.settings)
             }
             .listStyle(.sidebar)
@@ -95,11 +95,11 @@ struct ContentView: View {
                         } else {
                             Image(systemName: "arrow.clockwise")
                         }
-                        Text(L("Refresh All", "全部刷新"))
+                        Text(L("Refresh All", "全部刷新", key: "actions.refresh_all"))
                             .font(.subheadline)
                     }
                 }
-                .help(L("Refresh every app and every account", "刷新所有应用和所有账号"))
+                .help(L("Refresh every app and every account", "刷新所有应用和所有账号", key: "help.refresh_all"))
                 .disabled(refreshCoordinator.isLoading || refreshCoordinator.isRefreshingAllProviders)
             }
         }

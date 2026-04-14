@@ -5,15 +5,14 @@ extension ProviderRefreshCoordinator {
     // MARK: - Fetch pipeline
 
     @MainActor
-    func fetchAccountByCredential(credentialId: String, providerId: String) async {
+    func fetchAccountByCredential(credentialId: String, providerId: String) async -> ProviderData? {
         guard settings.backendMode == "local" else {
-            await fetchSingleProvider(providerId)
-            return
+            return nil
         }
         guard let result = await engine.fetchForCredential(providerId: providerId, credentialId: credentialId),
-              let summary = result.summary else { return }
+              let summary = result.summary else { return nil }
         let converted = localizeProviderData(convertSummary(summary))
-        accountStore.reconcileAccountRegistry(with: [converted])
+        await accountStore.reconcileAccountRegistry(with: [converted])
 
         if let index = providers.firstIndex(where: { $0.id == converted.id }) {
             providers[index] = converted
@@ -25,6 +24,11 @@ extension ProviderRefreshCoordinator {
             providers.append(converted)
             providers = providers.sorted(by: providerSort)
         }
+
+        guard result.ok else {
+            return nil
+        }
+        return currentProviderMatchingRefresh(converted)
     }
 
     @MainActor
@@ -97,87 +101,108 @@ extension ProviderRefreshCoordinator {
     }
 
     @MainActor
-    func fetchSingleProviderLocal(_ providerId: String) async {
+    func fetchSingleProviderLocal(_ providerId: String) async -> [ProviderData] {
         await syncUnifiedManagedAccounts(for: [providerId])
 
         if let results = await engine.fetchMultiAccountProvider(id: providerId) {
-            let convertedResults = results.compactMap { result -> ProviderData? in
+            let convertedResults = results.compactMap { result -> (provider: ProviderData, ok: Bool)? in
                 guard let summary = result.summary else { return nil }
-                return localizeProviderData(convertSummary(summary))
+                return (localizeProviderData(convertSummary(summary)), result.ok)
             }
-            let stabilizedResults = stabilizedBulkRefreshProviders(convertedResults, preservingExistingFor: providerId)
-            accountStore.reconcileAccountRegistry(with: stabilizedResults)
+            let stabilizedResults = stabilizedBulkRefreshProviders(
+                convertedResults.map(\.provider),
+                preservingExistingFor: providerId
+            )
+            await accountStore.reconcileAccountRegistry(with: stabilizedResults)
             let visible = visibleProviders(from: stabilizedResults)
             replaceProviderEntries(for: providerId, with: visible)
+            return timestampableProviders(
+                for: convertedResults.filter(\.ok).map(\.provider)
+            )
         } else if let result = await engine.fetchSingle(id: providerId),
                   let summary = result.summary {
             let converted = localizeProviderData(convertSummary(summary))
-            accountStore.reconcileAccountRegistry(with: [converted])
+            await accountStore.reconcileAccountRegistry(with: [converted])
             replaceProviderEntries(for: providerId, with: visibleProviders(from: [converted]))
+            guard result.ok else {
+                return []
+            }
+            return timestampableProviders(for: [converted])
         }
+        return []
     }
 
     @MainActor
-    func fetchSingleProviderRemote(_ providerId: String) async {
+    func fetchSingleProviderRemote(_ providerId: String) async -> [ProviderData] {
         APIService.shared.updateBaseURL("http://\(settings.remoteHost):\(settings.remotePort)")
         do {
-            let updatedProviders = try await APIService.shared.fetchProviders(providerId)
-            let localizedProviders = updatedProviders.map(localizeProviderData)
-            accountStore.reconcileAccountRegistry(with: localizedProviders)
-            replaceProviderEntries(for: providerId, with: visibleProviders(from: localizedProviders))
+            let results = try await APIService.shared.fetchProviderResults(providerId)
+            let localizedProviders = results.map { result in
+                (provider: localizeProviderData(result.summary), ok: result.ok)
+            }
+            await accountStore.reconcileAccountRegistry(with: localizedProviders.map(\.provider))
+            replaceProviderEntries(
+                for: providerId,
+                with: visibleProviders(from: localizedProviders.map(\.provider))
+            )
+            return timestampableProviders(
+                for: localizedProviders.filter(\.ok).map(\.provider)
+            )
         } catch {
             let redactedError = SensitiveDataRedactor.redactedMessage(for: error)
             sendErrorNotification("Remote refresh failed for \(providerId): \(redactedError)")
             if !providers.contains(where: { $0.baseProviderId == providerId }) {
                 errorMessage = redactedError
             }
+            return []
         }
     }
 
     @MainActor
-    func fetchDashboardLocal() async {
+    func fetchDashboardLocal() async -> Bool {
         await syncUnifiedManagedAccounts(for: selectedProviderIDList())
 
         let snapshot = await engine.fetchAll(ids: selectedProviderIDList())
-        let localizedProviders = snapshot.providers.compactMap { result -> ProviderData? in
+        let localizedProviders = snapshot.providers.compactMap { result -> (provider: ProviderData, ok: Bool)? in
             guard let summary = result.summary else { return nil }
-            return localizeProviderData(convertSummary(summary))
+            return (localizeProviderData(convertSummary(summary)), result.ok)
         }
-        let stabilizedProviders = stabilizedBulkRefreshProviders(localizedProviders)
-        accountStore.reconcileAccountRegistry(with: stabilizedProviders)
+        let stabilizedProviders = stabilizedBulkRefreshProviders(localizedProviders.map(\.provider))
+        await accountStore.reconcileAccountRegistry(with: stabilizedProviders)
         providers = visibleProviders(from: stabilizedProviders)
         overview = localizeOverview(convertOverview(snapshot.overview))
         completeGlobalRefresh(
-            providerIds: selectedProviderIDList(),
-            providers: providers,
+            refreshedProviders: localizedProviders.filter(\.ok).map(\.provider),
             at: Date()
         )
         isLoading = false
+        return !localizedProviders.filter(\.ok).isEmpty
     }
 
     @MainActor
-    func fetchDashboardRemote() async {
+    func fetchDashboardRemote() async -> Bool {
         APIService.shared.updateBaseURL("http://\(settings.remoteHost):\(settings.remotePort)")
         do {
             let dashboard = try await APIService.shared.fetchDashboard(providerIds: selectedProviderIDList())
-            let localizedProviders = dashboard.providers.compactMap { wrapper -> ProviderData? in
-                localizeProviderData(wrapper.summary)
+            let localizedProviders = dashboard.providers.map { wrapper in
+                (provider: localizeProviderData(wrapper.summary), ok: wrapper.ok)
             }
-            let stabilizedProviders = stabilizedBulkRefreshProviders(localizedProviders)
-            accountStore.reconcileAccountRegistry(with: stabilizedProviders)
+            let stabilizedProviders = stabilizedBulkRefreshProviders(localizedProviders.map(\.provider))
+            await accountStore.reconcileAccountRegistry(with: stabilizedProviders)
             providers = visibleProviders(from: stabilizedProviders)
             overview = localizeOverview(dashboard.overview)
             completeGlobalRefresh(
-                providerIds: selectedProviderIDList(),
-                providers: providers,
+                refreshedProviders: localizedProviders.filter(\.ok).map(\.provider),
                 at: Date()
             )
             isLoading = false
+            return !localizedProviders.filter(\.ok).isEmpty
         } catch {
             isLoading = false
             if providers.isEmpty {
                 errorMessage = SensitiveDataRedactor.redactedMessage(for: error)
             }
+            return false
         }
     }
 
@@ -191,23 +216,29 @@ extension ProviderRefreshCoordinator {
         providers = providers.sorted(by: providerSort)
     }
 
-    func completeGlobalRefresh(
-        providerIds: [String],
-        providers: [ProviderData],
-        at refreshedAt: Date
-    ) {
+    func completeGlobalRefresh(refreshedProviders: [ProviderData], at refreshedAt: Date) {
+        let currentProviders = timestampableProviders(for: refreshedProviders)
+        guard !currentProviders.isEmpty else { return }
+
         lastRefreshTime = refreshedAt
-        for providerId in providerIds {
+        for providerId in Set(currentProviders.map(\.baseProviderId)) {
             providerRefreshTimes[providerId] = refreshedAt
         }
-        for provider in providers {
+        for provider in currentProviders {
             markAccountRefreshed(provider, at: refreshedAt)
         }
     }
 
-    func completeProviderRefresh(providerId: String, at refreshedAt: Date) {
+    func completeProviderRefresh(
+        providerId: String,
+        refreshedProviders: [ProviderData],
+        at refreshedAt: Date
+    ) {
+        let currentProviders = timestampableProviders(for: refreshedProviders)
+        guard !currentProviders.isEmpty else { return }
+
         providerRefreshTimes[providerId] = refreshedAt
-        for provider in self.providers where provider.baseProviderId == providerId {
+        for provider in currentProviders where provider.baseProviderId == providerId {
             markAccountRefreshed(provider, at: refreshedAt)
         }
     }
@@ -262,6 +293,48 @@ extension ProviderRefreshCoordinator {
 
     func accountRefreshKey(providerId: String, providerDataId: String) -> String {
         "\(providerId):live:\(providerDataId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+    }
+
+    func timestampableProviders(for refreshedProviders: [ProviderData]) -> [ProviderData] {
+        providers.filter { provider in
+            refreshedProviders.contains { refreshed in
+                providerMatchesRefresh(provider, refreshed: refreshed)
+            }
+        }
+    }
+
+    func currentProviderMatchingRefresh(_ refreshedProvider: ProviderData) -> ProviderData? {
+        providers.first { provider in
+            providerMatchesRefresh(provider, refreshed: refreshedProvider)
+        }
+    }
+
+    func providerMatchesRefresh(_ current: ProviderData, refreshed: ProviderData) -> Bool {
+        guard current.baseProviderId == refreshed.baseProviderId else { return false }
+
+        if current.id.caseInsensitiveCompare(refreshed.id) == .orderedSame {
+            return true
+        }
+
+        if let currentCredential = credentialID(for: current)?.lowercased().nilIfBlank,
+           let refreshedCredential = credentialID(for: refreshed)?.lowercased().nilIfBlank,
+           currentCredential == refreshedCredential {
+            return true
+        }
+
+        if let currentAccountId = normalizedAccountLookupValue(current.accountId),
+           let refreshedAccountId = normalizedAccountLookupValue(refreshed.accountId),
+           currentAccountId == refreshedAccountId {
+            return true
+        }
+
+        if let currentLabel = normalizedAccountLookupValue(current.accountLabel ?? current.label),
+           let refreshedLabel = normalizedAccountLookupValue(refreshed.accountLabel ?? refreshed.label),
+           currentLabel == refreshedLabel {
+            return true
+        }
+
+        return false
     }
 
     func stabilizedBulkRefreshProviders(

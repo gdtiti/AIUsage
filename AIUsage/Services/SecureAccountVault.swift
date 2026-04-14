@@ -2,17 +2,15 @@ import Foundation
 import Security
 import os.log
 
-private let vaultLog = Logger(subsystem: "com.aiusage.desktop", category: "SecureAccountVault")
-
-final class SecureAccountVault {
-    static let shared = SecureAccountVault()
+final class SecureAccountVault: @unchecked Sendable {
+    nonisolated static let shared = SecureAccountVault()
 
     private let service = "com.aiusage.desktop.providerAccounts"
     private let account = "registry"
 
     private init() {}
 
-    func loadAccounts() -> [StoredProviderAccount] {
+    nonisolated func loadAccounts() -> [StoredProviderAccount] {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -26,19 +24,30 @@ final class SecureAccountVault {
 
         if status != errSecSuccess && status != errSecItemNotFound {
             let msg = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
-            vaultLog.error("Keychain read failed: \(msg)")
+            Logger(subsystem: "com.aiusage.desktop", category: "SecureAccountVault")
+                .error("Keychain read failed: \(msg)")
         }
 
-        guard status == errSecSuccess,
-              let data = item as? Data,
-              let accounts = try? JSONDecoder().decode([StoredProviderAccount].self, from: data) else {
+        guard status == errSecSuccess else {
             return []
         }
 
-        return accounts
+        guard let data = item as? Data else {
+            Logger(subsystem: "com.aiusage.desktop", category: "SecureAccountVault")
+                .error("Keychain read returned unexpected payload for stored provider accounts")
+            return []
+        }
+
+        do {
+            return try JSONDecoder().decode([StoredProviderAccount].self, from: data)
+        } catch {
+            Logger(subsystem: "com.aiusage.desktop", category: "SecureAccountVault")
+                .error("Keychain decode failed for stored provider accounts: \(String(describing: error), privacy: .public)")
+            return []
+        }
     }
 
-    func saveAccounts(_ accounts: [StoredProviderAccount]) throws {
+    nonisolated func saveAccounts(_ accounts: [StoredProviderAccount]) throws {
         let data = try JSONEncoder().encode(accounts)
         let baseQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

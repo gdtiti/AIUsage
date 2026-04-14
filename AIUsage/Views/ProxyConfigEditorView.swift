@@ -68,8 +68,10 @@ struct ProxyConfigEditorView: View {
             HStack {
                 if !isNew {
                     Button(L("Delete", "删除"), role: .destructive) {
-                        viewModel.deleteConfiguration(config.id)
-                        dismiss()
+                        Task {
+                            await viewModel.deleteConfiguration(config.id)
+                            dismiss()
+                        }
                     }
                 }
                 Spacer()
@@ -775,12 +777,14 @@ struct ProxyConfigEditorView: View {
     // MARK: - Actions
 
     private func saveConfiguration() {
-        if isNew {
-            viewModel.addConfiguration(config)
-        } else {
-            viewModel.updateConfiguration(config)
+        Task {
+            if isNew {
+                viewModel.addConfiguration(config)
+            } else {
+                await viewModel.updateConfiguration(config)
+            }
+            dismiss()
         }
-        dismiss()
     }
 }
 

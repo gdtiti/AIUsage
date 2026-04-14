@@ -5,6 +5,47 @@ import Foundation
 
 public enum UsageNormalizer {
 
+    private enum FormatterCache {
+        static func currencyFormatter(fractionDigits: Int) -> NumberFormatter {
+            let key = "QuotaBackend.CurrencyFormatter.\(fractionDigits)"
+            if let formatter = Thread.current.threadDictionary[key] as? NumberFormatter {
+                return formatter
+            }
+
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .currency
+            formatter.currencyCode = "USD"
+            formatter.minimumFractionDigits = fractionDigits
+            formatter.maximumFractionDigits = fractionDigits
+            Thread.current.threadDictionary[key] = formatter
+            return formatter
+        }
+
+        static func percentFormatter() -> NumberFormatter {
+            let key = "QuotaBackend.PercentFormatter"
+            if let formatter = Thread.current.threadDictionary[key] as? NumberFormatter {
+                return formatter
+            }
+
+            let formatter = NumberFormatter()
+            formatter.maximumFractionDigits = 1
+            Thread.current.threadDictionary[key] = formatter
+            return formatter
+        }
+
+        static func decimalFormatter() -> NumberFormatter {
+            let key = "QuotaBackend.DecimalFormatter"
+            if let formatter = Thread.current.threadDictionary[key] as? NumberFormatter {
+                return formatter
+            }
+
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            Thread.current.threadDictionary[key] = formatter
+            return formatter
+        }
+    }
+
     static let providerThemes: [String: ThemeInfo] = [
         "amp":     ThemeInfo(accent: "teal",   glow: "#38cbd6"),
         "antigravity": ThemeInfo(accent: "sky", glow: "#5cc9ff"),
@@ -492,23 +533,18 @@ public enum UsageNormalizer {
     }
 
     static func formatCurrency(_ value: Double) -> String {
-        let fmt = NumberFormatter()
-        fmt.numberStyle = .currency
-        fmt.currencyCode = "USD"
-        fmt.minimumFractionDigits = value >= 1 ? 2 : 4
-        fmt.maximumFractionDigits = value >= 1 ? 2 : 4
+        let fractionDigits = value >= 1 ? 2 : 4
+        let fmt = FormatterCache.currencyFormatter(fractionDigits: fractionDigits)
         return fmt.string(from: NSNumber(value: value)) ?? "$0.00"
     }
 
     static func formatPercent(_ value: Double) -> String {
-        let fmt = NumberFormatter()
-        fmt.maximumFractionDigits = 1
+        let fmt = FormatterCache.percentFormatter()
         return "\(fmt.string(from: NSNumber(value: value)) ?? "0")%"
     }
 
     static func formatInt(_ value: Int) -> String {
-        let fmt = NumberFormatter()
-        fmt.numberStyle = .decimal
+        let fmt = FormatterCache.decimalFormatter()
         return fmt.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 

@@ -118,80 +118,32 @@ Available release assets:
 
 ## Claude Code Proxy
 
-AIUsage includes a built-in Claude Code proxy that allows you to use Claude Code CLI with any OpenAI-compatible backend.
+AIUsage includes a built-in Claude Code proxy — all configuration is done through the app UI, no manual environment variables needed.
 
 ### Quick Start
 
-1. Set environment variables:
-```bash
-export OPENAI_API_KEY=sk-your-openai-key
-export OPENAI_BASE_URL=https://api.openai.com/v1  # optional
-export BIG_MODEL=gpt-4o                            # maps to opus
-export MIDDLE_MODEL=gpt-4o                         # maps to sonnet
-export SMALL_MODEL=gpt-4o-mini                     # maps to haiku
-```
+1. Open AIUsage → **Claude Code Proxy** section
+2. Click **New Node** → choose **OpenAI Proxy** or **Anthropic Direct**
+3. Fill in upstream API key, base URL, and model mapping
+4. Click **Save** → **Activate** — done! `~/.claude/settings.json` is updated automatically
 
-2. Start the proxy server:
-```bash
-cd QuotaBackend
-swift run QuotaServer --port 4318
-```
+### Proxy Modes
 
-3. Use Claude Code with the proxy:
-```bash
-ANTHROPIC_BASE_URL=http://127.0.0.1:4318 claude
-```
+| Mode | Description |
+|------|-------------|
+| **OpenAI Proxy** | Translate Claude API → OpenAI-compatible API (DeepSeek, GPT, Azure, Ollama, etc.) |
+| **Anthropic Passthrough** | Forward requests as-is to Anthropic API, logging input/output/cache tokens |
 
 ### Features
 
-- ✅ **OpenAI Proxy** — Translate Claude API to OpenAI-compatible backends (DeepSeek, Azure, Ollama, etc.)
-- ✅ **Anthropic Passthrough** — Transparent proxy for Anthropic API with full usage logging
-- ✅ **Proxy Stats Dashboard** — Per-model cost/token trends, distribution charts, and data range awareness
 - ✅ Full Claude Messages API support (`/v1/messages`) with streaming SSE
 - ✅ Tool use / function calling / image support
-- ✅ Per-model pricing configuration (USD/CNY) with customizable model matching
+- ✅ **Proxy Stats Dashboard** — per-model cost/token trends, distribution charts
+- ✅ Per-model pricing (USD/CNY) with substring model matching
 - ✅ Multi-node management with one-click activation
-- ✅ Client API key authentication for secure access
-
-### Configuration
-
-All configuration is done via environment variables:
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `OPENAI_API_KEY` | Yes | - | Upstream API key |
-| `OPENAI_BASE_URL` | No | `https://api.openai.com/v1` | Upstream base URL |
-| `BIG_MODEL` | No | `gpt-4o` | Model for Claude Opus |
-| `MIDDLE_MODEL` | No | `gpt-4o` | Model for Claude Sonnet |
-| `SMALL_MODEL` | No | `gpt-4o-mini` | Model for Claude Haiku |
-| `ANTHROPIC_API_KEY` | No | - | Expected client API key (for auth) |
-
-### Testing
-
-Run the test suite:
-```bash
-cd QuotaBackend
-swift test
-```
-
-All 21 tests should pass, including:
-- HTTP server enhancements (POST, headers, streaming)
-- Model normalization and mapping
-- Claude ↔ OpenAI protocol conversion
-- Configuration validation
-- Token estimation
-
-### Architecture
-
-The proxy consists of:
-- **HTTP Server**: Enhanced `QuotaHTTPServer` with POST, headers, and SSE streaming
-- **Data Models**: Complete Claude and OpenAI API models
-- **Converters**: Bidirectional protocol translation
-- **Configuration**: Environment-based setup with validation
-- **Upstream Client**: HTTP client for OpenAI-compatible backends
-- **Proxy Service**: Orchestrates authentication, conversion, and forwarding
-
-See [Claude Code Proxy Plan](docs/claude-code-proxy-plan.md) for detailed implementation notes.
+- ✅ Client API key authentication
+- ✅ Configurable log retention (7–365 days)
+- ✅ Dashboard integration with proxy stats overview
 
 ## Acknowledgements
 

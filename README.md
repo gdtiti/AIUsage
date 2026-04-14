@@ -15,7 +15,7 @@
 <p align="center">
   <img alt="macOS" src="https://img.shields.io/badge/macOS-14%2B-111827?style=flat-square&logo=apple&logoColor=white">
   <img alt="SwiftUI" src="https://img.shields.io/badge/SwiftUI-Native%20App-f97316?style=flat-square&logo=swift&logoColor=white">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.9-22c55e?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.3.0-22c55e?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-0ea5e9?style=flat-square">
 </p>
 
@@ -33,7 +33,7 @@ AIUsage is a macOS app for monitoring AI subscription quotas, account status, re
 | `Multi-account` | Multiple accounts per provider with independent refresh and one-click CLI switching (Codex, Gemini) |
 | `Codex dual quota` | 5-hour and weekly remaining shown side by side, each with its own reset countdown |
 | `Claude Code stats` | Per-model cost and token breakdown, multi-model comparison charts, and time-period analysis (today / week / month / overall) |
-| `Claude Code proxy` | Protocol translation layer that exposes Claude-compatible API while forwarding to OpenAI-compatible backends with multi-config management |
+| `Claude Code proxy` | Protocol translation layer with OpenAI-convert and Anthropic-passthrough modes, per-model pricing, usage logging, and proxy stats dashboard |
 | `Menu bar` | Mini progress rings, cost data, active account badges, and account switching without opening the main window |
 | `Credential vault` | Managed credentials stored in macOS Keychain; file-based imports kept under app-managed storage |
 
@@ -65,12 +65,28 @@ AIUsage is a macOS app for monitoring AI subscription quotas, account status, re
     <td align="center"><strong>Detailed account view</strong></td>
   </tr>
   <tr>
-    <td colspan="2" align="center">
+    <td width="50%">
+      <img src="docs/images/Claude-Code-Proxy-1.png" alt="Claude Code proxy node management">
+    </td>
+    <td width="50%">
+      <img src="docs/images/Claude-Code-Proxy-2.png" alt="Claude Code proxy configuration">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Proxy node management</strong></td>
+    <td align="center"><strong>Proxy node configuration</strong></td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/proxy-stats.png" alt="Proxy statistics dashboard">
+    </td>
+    <td width="50%">
       <img src="docs/images/menu_bar.png" alt="Menu bar quick view">
     </td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><strong>Menu bar quick view</strong></td>
+    <td align="center"><strong>Proxy statistics — per-model analytics</strong></td>
+    <td align="center"><strong>Menu bar quick view</strong></td>
   </tr>
 </table>
 
@@ -128,14 +144,14 @@ ANTHROPIC_BASE_URL=http://127.0.0.1:4318 claude
 
 ### Features
 
-- ✅ Full Claude Messages API support (`/v1/messages`)
-- ✅ Token counting endpoint (`/v1/messages/count_tokens`)
-- ✅ Streaming SSE responses
-- ✅ Tool use / function calling
-- ✅ Image support (base64-encoded)
-- ✅ Model normalization (`claude-sonnet-4.5` → `sonnet` → `gpt-4o`)
-- ✅ Custom headers for tracking and authentication
-- ✅ Configurable upstream providers (OpenAI, Azure, Ollama, etc.)
+- ✅ **OpenAI Proxy** — Translate Claude API to OpenAI-compatible backends (DeepSeek, Azure, Ollama, etc.)
+- ✅ **Anthropic Passthrough** — Transparent proxy for Anthropic API with full usage logging
+- ✅ **Proxy Stats Dashboard** — Per-model cost/token trends, distribution charts, and data range awareness
+- ✅ Full Claude Messages API support (`/v1/messages`) with streaming SSE
+- ✅ Tool use / function calling / image support
+- ✅ Per-model pricing configuration (USD/CNY) with customizable model matching
+- ✅ Multi-node management with one-click activation
+- ✅ Client API key authentication for secure access
 
 ### Configuration
 

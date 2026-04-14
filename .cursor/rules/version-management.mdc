@@ -1,0 +1,85 @@
+---
+description: Version management and build rules for AIUsage releases
+globs:
+  - AIUsage/Info.plist
+  - AIUsage.xcodeproj/project.pbxproj
+  - scripts/package-release.sh
+  - .github/workflows/release.yml
+alwaysApply: false
+---
+
+# 版本管理与构建规则
+
+## 版本号
+
+`CFBundleVersion` = `CFBundleShortVersionString`，始终使用语义化版本（如 `0.2.6`），无独立构建号。
+
+### 需要同步的位置
+
+1. `AIUsage/Info.plist` → `CFBundleShortVersionString` + `CFBundleVersion`（同值）
+2. `AIUsage.xcodeproj/project.pbxproj` → `MARKETING_VERSION`（Debug + Release）
+   - `CURRENT_PROJECT_VERSION = $(MARKETING_VERSION)` 自动同步
+
+## CI 构建踩坑记录
+
+### 1. pbxproj grep 匹配陷阱
+- `CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)"` 包含字符串 `MARKETING_VERSION`
+- **必须**用 `grep 'MARKETING_VERSION = '`（注意 ` = ` 带空格）来精确匹配赋值行
+- 否则 `head -1` 会取到 `$(MARKETING_VERSION)` 引用而非实际值
+
+### 2. resource fork 签名失败
+- 本地构建或 CI 构建时，`codesign` 报错 `resource fork, Finder information, or similar detritus not allowed`
+- **修复**：签名前执行 `xattr -cr "$APP_PATH"` 清理扩展属性；如有 `._*` 文件需删除：`find "$APP_PATH" -name '._*' -delete`
+
+### 3. Sparkle 版本号不匹配
+- 曾用独立整数构建号（`CFBundleVersion=5`），appcast 用 `sparkle:version=0.2.3`
+- Sparkle 比较 `sparkle:version` vs `CFBundleVersion` → 不匹配 → 误判有更新但安装时跳过
+- **修复**：统一版本号，`sparkle:version` = `sparkle:shortVersionString` = `CFBundleVersion`
+
+### 4. DMG AppleScript 在 CI 失败
+- CI 无 Finder GUI，`osascript` 设置 DMG 窗口布局会失败
+- **修复**：`osascript <<APPLESCRIPT || true`，加 `|| true` 让失败不中断
+
+### 5. Sparkle sign_update 无法读取 stdin
+- `sign_update` 工具不支持从 stdin 读取私钥
+- **修复**：写入临时文件 `printf '%s' "$KEY" > "$TMPKEY"` 后用 `--ed-key-file "$TMPKEY"`
+
+### 6. GitHub Actions PR 权限
+- `github.token` 默认没有创建 PR 的权限
+- **修复**：改为直接 `git push origin HEAD:main`，appcast.xml 变更总是安全的
+
+### 7. tag 推送被拒（远程有新提交）
+- appcast.xml PR 合并后远程 main 已前进，导致 `push main` 被拒
+- **修复**：先 `git pull --rebase origin main`，如有 stash 需先 stash/pop
+
+### 8. Sparkle 自定义字符串注入
+- 不能通过 Xcode build phase 注入（SPM 框架嵌入时机太晚）
+- **修复**：在 `package-release.sh` 中 xcodebuild 之后、codesign 之前注入
+- 用 `find` 动态定位 Sparkle.framework 路径 + `mkdir -p` 创建缺失 locale 目录
+
+### 9. SwiftUI Publishing 警告
+- 在 `showPopover()` 中同步修改 `@Published` 属性 → "Publishing changes from within view updates"
+- **修复**：把状态修改放到 `DispatchQueue.main.async {}` 中
+
+## 发布检查清单
+
+**版本号必须在 3 处全部同步更新，漏一处 CI 就会失败：**
+
+1. ⚠️ `AIUsage/Info.plist` → `CFBundleShortVersionString` + `CFBundleVersion`（**最容易遗忘！**）
+   ```bash
+   /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString X.Y.Z' AIUsage/Info.plist
+   /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion X.Y.Z' AIUsage/Info.plist
+   ```
+2. `AIUsage.xcodeproj/project.pbxproj` → `MARKETING_VERSION`（Debug + Release 两处）
+3. 提交并推送到 main
+4. 打 tag：`git tag -a vX.Y.Z -m "..." && git push origin main --tags`
+5. CI 自动：构建 → Sparkle 签名 → Release → appcast.xml 更新
+
+### CI 版本校验逻辑
+
+CI 的 `Validate version matches project` 步骤会检查以下 3 个值是否与 tag 版本一致：
+- `CFBundleShortVersionString`（来自 Info.plist）
+- `CFBundleVersion`（来自 Info.plist）
+- `MARKETING_VERSION`（来自 project.pbxproj）
+
+**任何一个不匹配都会导致构建失败。** 历史上多次因遗漏 Info.plist 更新而首次构建失败。

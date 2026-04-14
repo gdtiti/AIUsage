@@ -9,8 +9,8 @@ class APIService {
     
     init() {
         let defaults = UserDefaults.standard
-        let host = defaults.string(forKey: "remoteHost") ?? "127.0.0.1"
-        let port = defaults.integer(forKey: "remotePort") == 0 ? 4318 : defaults.integer(forKey: "remotePort")
+        let host = defaults.string(forKey: DefaultsKey.remoteHost) ?? "127.0.0.1"
+        let port = defaults.integer(forKey: DefaultsKey.remotePort) == 0 ? 4318 : defaults.integer(forKey: DefaultsKey.remotePort)
         self.baseURL = "http://\(host):\(port)"
         
         let config = URLSessionConfiguration.default

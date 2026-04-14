@@ -76,18 +76,18 @@ public final class QuotaHTTPServer: @unchecked Sendable {
             // Silently ignore — IPv4 on 0.0.0.0 handles most cases
         }
 
-        httpLog.info("QuotaServer listening on \(host):\(port)\(ipv6Active ? " (IPv4 + IPv6)" : " (IPv4)")")
+        httpLog.info("QuotaServer listening on \(self.host):\(self.port)\(ipv6Active ? " (IPv4 + IPv6)" : " (IPv4)")")
         httpLog.info("Endpoints:")
         httpLog.info("  GET /api/dashboard")
         httpLog.info("  GET /api/provider/:id")
         httpLog.info("  GET /api/providers")
         httpLog.info("  GET /api/health")
         httpLog.info("  GET /health")
-        if proxyService != nil {
+        if self.proxyService != nil {
             httpLog.info("  POST /v1/messages (Claude Proxy - OpenAI Convert)")
             httpLog.info("  POST /v1/messages/count_tokens (Claude Proxy)")
         }
-        if isPassthrough {
+        if self.isPassthrough {
             httpLog.info("  POST /v1/messages (Anthropic Passthrough)")
         }
 
@@ -337,6 +337,7 @@ public final class QuotaHTTPServer: @unchecked Sendable {
         httpLog.debug("→ POST /v1/messages/count_tokens (model: \(tokenRequest.model))")
 
         do {
+            // `input_tokens` in the body is a heuristic estimate from the proxy, not tokenizer-exact.
             let response = try await proxy.handleCountTokens(request: tokenRequest)
             return jsonResponse(encodable: response, headers: headers)
         } catch {

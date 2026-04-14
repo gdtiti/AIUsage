@@ -51,7 +51,10 @@ struct ProxyConfiguration: Codable, Identifiable {
             ModelPricing(inputPerMillion: 0, outputPerMillion: 0, cachePerMillion: 0, currency: .usd)
         }
 
-        private static let cnyToUsdRate: Double = 1.0 / 7.3
+        /// Approximate USD/CNY rate for display purposes only. Not used for actual billing.
+        /// Users configure pricing in their preferred currency per node.
+        private static let approximateUsdToCnyRate: Double = 7.3
+        private static let cnyToUsdRate: Double = 1.0 / approximateUsdToCnyRate
 
         var inputPerMillionUSD: Double {
             currency == .usd ? inputPerMillion : inputPerMillion * Self.cnyToUsdRate

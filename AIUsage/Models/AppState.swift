@@ -8,7 +8,6 @@ class AppState: ObservableObject {
     let settings = AppSettings.shared
     let refreshCoordinator = ProviderRefreshCoordinator.shared
 
-    private static let selectedProvidersKey = "selectedProviderIds"
     private struct InitialState {
         let accounts: [StoredProviderAccount]
         let selectedProviderIds: Set<String>
@@ -29,7 +28,7 @@ class AppState: ObservableObject {
 
     private static let initialState: InitialState = {
         let accounts = SecureAccountVault.shared.loadAccounts()
-        let saved = Set(UserDefaults.standard.stringArray(forKey: selectedProvidersKey) ?? [])
+        let saved = Set(UserDefaults.standard.stringArray(forKey: DefaultsKey.selectedProviderIds) ?? [])
         let storedProviderIDs = accounts.filter { !$0.isHidden }.map(\.providerId)
         let validIDs = Set(providerCatalogItems.map(\.id))
         let merged = Set(saved.union(storedProviderIDs).filter { validIDs.contains($0) })
@@ -59,9 +58,6 @@ class AppState: ObservableObject {
 
     // MARK: - Settings (read-through for existing `appState.*` callers; mutations go through `AppSettings.shared`)
 
-    var isDarkMode: Bool { settings.isDarkMode }
-    var themeMode: String { settings.themeMode }
-    var resolvedColorScheme: ColorScheme? { settings.resolvedColorScheme }
     var autoRefreshInterval: Int { settings.autoRefreshInterval }
     var claudeCodeRefreshInterval: Int { settings.claudeCodeRefreshInterval }
     var language: String { settings.language }
@@ -79,7 +75,7 @@ class AppState: ObservableObject {
     @Published var selectedProviderIds: Set<String> = AppState.initialState.selectedProviderIds
 
     @Published var readAlertIds: Set<String> = {
-        let arr = UserDefaults.standard.stringArray(forKey: "readAlertIds") ?? []
+        let arr = UserDefaults.standard.stringArray(forKey: DefaultsKey.readAlertIds) ?? []
         return Set(arr)
     }()
 
@@ -90,13 +86,13 @@ class AppState: ObservableObject {
 
     func markAlertRead(_ id: String) {
         readAlertIds.insert(id)
-        UserDefaults.standard.set(Array(readAlertIds), forKey: "readAlertIds")
+        UserDefaults.standard.set(Array(readAlertIds), forKey: DefaultsKey.readAlertIds)
     }
 
     func markAllAlertsRead() {
         let ids = (overview?.alerts ?? []).map { $0.id }
         readAlertIds.formUnion(ids)
-        UserDefaults.standard.set(Array(readAlertIds), forKey: "readAlertIds")
+        UserDefaults.standard.set(Array(readAlertIds), forKey: DefaultsKey.readAlertIds)
     }
 
     private var cancellables = Set<AnyCancellable>()
@@ -417,7 +413,7 @@ class AppState: ObservableObject {
     }
 
     private func saveSelectedProviderIds() {
-        UserDefaults.standard.set(selectedProviderIDList(), forKey: Self.selectedProvidersKey)
+        UserDefaults.standard.set(selectedProviderIDList(), forKey: DefaultsKey.selectedProviderIds)
     }
 
     private func selectedProviderIDList() -> [String] {

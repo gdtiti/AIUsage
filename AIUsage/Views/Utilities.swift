@@ -130,11 +130,16 @@ func formatRelativeRefreshTime(_ date: Date, language: String) -> String {
     }
 }
 
-func formatCurrency(_ value: Double) -> String {
-    let displayCurrency = UserDefaults.standard.string(forKey: "displayCurrency") ?? "USD"
-    let usdToCnyRate: Double = 7.3
+private enum CurrencyDisplayConstants {
+    /// Approximate USD/CNY rate for display purposes only. Not used for actual billing.
+    /// Users configure pricing in their preferred currency per node.
+    static let approximateUsdToCnyRate: Double = 7.3
+}
 
-    let displayValue = displayCurrency == "CNY" ? value * usdToCnyRate : value
+func formatCurrency(_ value: Double) -> String {
+    let displayCurrency = UserDefaults.standard.string(forKey: DefaultsKey.displayCurrency) ?? "USD"
+
+    let displayValue = displayCurrency == "CNY" ? value * CurrencyDisplayConstants.approximateUsdToCnyRate : value
     let symbol = displayCurrency == "CNY" ? "¥" : "$"
 
     let formatter = NumberFormatter()

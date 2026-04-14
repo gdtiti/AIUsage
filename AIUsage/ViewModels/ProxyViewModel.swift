@@ -101,13 +101,8 @@ class ProxyViewModel: ObservableObject {
     private var runningProcesses: [String: Process] = [:]
     private let settingsManager = ClaudeSettingsManager.shared
 
-    private let configurationsKey = "proxyConfigurations"
-    private let activatedKey = "proxyActivatedConfigId"
-    private let statisticsKey = "proxyStatistics"
-    private let logsKey = "proxyLogs"
-
     private var logRetentionDays: Int {
-        let days = UserDefaults.standard.integer(forKey: "proxyLogRetentionDays")
+        let days = UserDefaults.standard.integer(forKey: DefaultsKey.proxyLogRetentionDays)
         return days > 0 ? days : 30
     }
 
@@ -124,7 +119,7 @@ class ProxyViewModel: ObservableObject {
     }
 
     private func restoreActivatedNode() {
-        activatedConfigId = UserDefaults.standard.string(forKey: activatedKey)
+        activatedConfigId = UserDefaults.standard.string(forKey: DefaultsKey.proxyActivatedConfigId)
 
         if activatedConfigId == nil {
             var migrated = false
@@ -162,7 +157,7 @@ class ProxyViewModel: ObservableObject {
     // MARK: - Configuration Management
 
     func loadConfigurations() {
-        if let data = UserDefaults.standard.data(forKey: configurationsKey),
+        if let data = UserDefaults.standard.data(forKey: DefaultsKey.proxyConfigurations),
            let configs = try? JSONDecoder().decode([ProxyConfiguration].self, from: data) {
             configurations = configs
         }
@@ -170,12 +165,12 @@ class ProxyViewModel: ObservableObject {
 
     func saveConfigurations() {
         if let data = try? JSONEncoder().encode(configurations) {
-            UserDefaults.standard.set(data, forKey: configurationsKey)
+            UserDefaults.standard.set(data, forKey: DefaultsKey.proxyConfigurations)
         }
     }
 
     private func saveActivatedId() {
-        UserDefaults.standard.set(activatedConfigId, forKey: activatedKey)
+        UserDefaults.standard.set(activatedConfigId, forKey: DefaultsKey.proxyActivatedConfigId)
     }
 
     func addConfiguration(_ config: ProxyConfiguration) {
@@ -294,7 +289,7 @@ class ProxyViewModel: ObservableObject {
     // MARK: - Statistics Management
 
     func loadStatistics() {
-        if let data = UserDefaults.standard.data(forKey: statisticsKey),
+        if let data = UserDefaults.standard.data(forKey: DefaultsKey.proxyStatistics),
            let stats = try? JSONDecoder().decode([String: ProxyStatistics].self, from: data) {
             statistics = stats
         }
@@ -302,7 +297,7 @@ class ProxyViewModel: ObservableObject {
 
     func saveStatistics() {
         if let data = try? JSONEncoder().encode(statistics) {
-            UserDefaults.standard.set(data, forKey: statisticsKey)
+            UserDefaults.standard.set(data, forKey: DefaultsKey.proxyStatistics)
         }
     }
 
@@ -384,10 +379,10 @@ class ProxyViewModel: ObservableObject {
         if let data = try? Data(contentsOf: url),
            let logs = try? JSONDecoder().decode([String: [ProxyRequestLog]].self, from: data) {
             recentLogs = logs
-        } else if let data = UserDefaults.standard.data(forKey: logsKey),
+        } else if let data = UserDefaults.standard.data(forKey: DefaultsKey.proxyLogs),
                   let logs = try? JSONDecoder().decode([String: [ProxyRequestLog]].self, from: data) {
             recentLogs = logs
-            UserDefaults.standard.removeObject(forKey: logsKey)
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.proxyLogs)
             saveLogs()
         }
         pruneOldLogs()

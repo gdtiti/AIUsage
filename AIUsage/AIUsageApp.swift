@@ -2,6 +2,9 @@ import SwiftUI
 import Combine
 import Sparkle
 import UserNotifications
+import os
+
+private let appDelegateLog = Logger(subsystem: "com.aiusage.desktop", category: "AppDelegate")
 
 final class SparkleController: ObservableObject {
     @Published var canCheckForUpdates = false
@@ -82,21 +85,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupMenuBar()
         requestNotificationPermission()
 
-        if UserDefaults.standard.bool(forKey: "hideDockIcon") {
+        if UserDefaults.standard.bool(forKey: DefaultsKey.hideDockIcon) {
             NSApp.setActivationPolicy(.accessory)
         }
     }
 
     func requestNotificationPermission() {
         let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if let error = error {
-                print("Notification permission error: \(error.localizedDescription)")
-            }
-            if granted {
-                print("Notification permission granted")
-            } else {
-                print("Notification permission denied")
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .notDetermined else { return }
+            center.requestAuthorization(options: [.alert, .sound]) { _, error in
+                if let error {
+                    appDelegateLog.error("Notification permission error: \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
     }

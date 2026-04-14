@@ -392,6 +392,10 @@ public struct ClaudeTokenCountRequest: Codable, Sendable {
     }
 }
 
+/// Response for `POST /v1/messages/count_tokens`.
+///
+/// When produced by AIUsage's Claude proxy, `input_tokens` is a **heuristic** estimate (character-based),
+/// not a tokenizer-accurate count; clients should treat it as approximate for display or rough limits only.
 public struct ClaudeTokenCountResponse: Codable, Sendable {
     public let inputTokens: Int
 

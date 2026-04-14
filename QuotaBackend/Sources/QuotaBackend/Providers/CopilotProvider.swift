@@ -75,10 +75,9 @@ public struct CopilotProvider: ProviderFetcher, CredentialAcceptingProvider {
     // MARK: - Token Resolution
 
     private func resolveToken() async throws -> String {
-        // Try gh CLI first
-        if let token = runCLI("/usr/local/bin/gh", args: ["auth", "token"])
-            ?? runCLI("/opt/homebrew/bin/gh", args: ["auth", "token"])
-            ?? runCLI("/usr/bin/gh", args: ["auth", "token"]) {
+        // Try gh CLI first (`which` + common paths via shared resolution)
+        if let ghPath = CLIExecutableResolution.resolvedExecutable(named: "gh"),
+           let token = runCLI(ghPath, args: ["auth", "token"]) {
             let t = token.trimmingCharacters(in: .whitespacesAndNewlines)
             if !t.isEmpty { return t }
         }

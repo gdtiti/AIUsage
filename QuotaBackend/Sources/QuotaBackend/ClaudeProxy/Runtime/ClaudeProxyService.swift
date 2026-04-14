@@ -86,7 +86,8 @@ public actor ClaudeProxyService {
     public func handleCountTokens(
         request: ClaudeTokenCountRequest
     ) async throws -> ClaudeTokenCountResponse {
-        // Simple estimation: character count / 4
+        // Approximate token count only: not a real tokenizer; useful for rough budgeting.
+        // Heuristic: total UTF-16 character count ÷ 4 (common rule-of-thumb; actual tokenization differs by model).
         var totalChars = 0
 
         // Count system message
@@ -128,6 +129,8 @@ public actor ClaudeProxyService {
             }
         }
 
+        // `input_tokens` in the JSON response is this heuristic estimate, not an exact count.
+        // `totalChars / 4` is only a rough rule-of-thumb; real token counts differ by model and tokenizer.
         let estimatedTokens = max(1, totalChars / 4)
 
         return ClaudeTokenCountResponse(inputTokens: estimatedTokens)

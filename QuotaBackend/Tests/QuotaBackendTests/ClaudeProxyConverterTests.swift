@@ -18,6 +18,8 @@ final class ClaudeProxyConverterTests: XCTestCase {
 
     func testModelMapping() {
         let config = ClaudeProxyConfiguration(
+            enabled: true,
+            upstreamBaseURL: "https://api.openai.com/v1",
             upstreamAPIKey: "test-key",
             bigModel: "gpt-4o",
             middleModel: "gpt-4o",
@@ -30,11 +32,13 @@ final class ClaudeProxyConverterTests: XCTestCase {
         XCTAssertEqual(config.mapToUpstreamModel("sonnet"), "gpt-4o")
         XCTAssertEqual(config.mapToUpstreamModel("haiku"), "gpt-4o-mini")
         XCTAssertEqual(config.mapToUpstreamModel("opus"), "gpt-4o")
-        XCTAssertEqual(config.mapToUpstreamModel("unknown"), "gpt-4o") // fallback to middle
+        XCTAssertEqual(config.mapToUpstreamModel("unknown"), "unknown")
     }
 
     func testConfigurationValidation() {
         var config = ClaudeProxyConfiguration(
+            enabled: true,
+            upstreamBaseURL: "https://api.openai.com/v1",
             upstreamAPIKey: "test-key"
         )
 
@@ -42,16 +46,24 @@ final class ClaudeProxyConverterTests: XCTestCase {
 
         // Test invalid port
         config = ClaudeProxyConfiguration(
+            enabled: true,
             bindPort: 0,
+            upstreamBaseURL: "https://api.openai.com/v1",
             upstreamAPIKey: "test-key"
         )
-        XCTAssertThrowsError(try config.validate())
+        XCTAssertThrowsError(try config.validate()) { error in
+            XCTAssertEqual(error as? ConfigurationError, .invalidPort)
+        }
 
         // Test empty API key
         config = ClaudeProxyConfiguration(
+            enabled: true,
+            upstreamBaseURL: "https://api.openai.com/v1",
             upstreamAPIKey: ""
         )
-        XCTAssertThrowsError(try config.validate())
+        XCTAssertThrowsError(try config.validate()) { error in
+            XCTAssertEqual(error as? ConfigurationError, .missingAPIKey)
+        }
     }
 
     // MARK: - Claude to OpenAI Conversion Tests

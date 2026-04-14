@@ -6,21 +6,21 @@ struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var sparkle: SparkleController
-    @State private var hideDockIcon = UserDefaults.standard.bool(forKey: "hideDockIcon")
+    @State private var hideDockIcon = UserDefaults.standard.bool(forKey: DefaultsKey.hideDockIcon)
     @State private var launchAtLogin: Bool = {
         if #available(macOS 13.0, *) {
             return SMAppService.mainApp.status == .enabled
         }
         return false
     }()
-    @State private var showNotifications = UserDefaults.standard.bool(forKey: "showNotifications")
-    @State private var lowQuotaThreshold: Double = UserDefaults.standard.double(forKey: "lowQuotaThreshold")
+    @State private var showNotifications = UserDefaults.standard.bool(forKey: DefaultsKey.showNotifications)
+    @State private var lowQuotaThreshold: Double = UserDefaults.standard.double(forKey: DefaultsKey.lowQuotaThreshold)
     @State private var remoteHostInput: String = ""
     @State private var remotePortInput: String = ""
     @State private var isTestingRemoteConnection = false
     @State private var remoteConnectionState: RemoteConnectionState = .idle
     @State private var remoteConnectionMessage: String?
-    @AppStorage("proxyLogRetentionDays") private var proxyLogRetentionDays: Int = 30
+    @AppStorage(DefaultsKey.proxyLogRetentionDays) private var proxyLogRetentionDays: Int = 30
 
     init() {
         if _lowQuotaThreshold.wrappedValue == 0 {
@@ -81,7 +81,7 @@ struct SettingsView: View {
             remotePortInput = "\(settings.remotePort)"
         }
         .onChange(of: hideDockIcon) { _, newValue in
-            UserDefaults.standard.set(newValue, forKey: "hideDockIcon")
+            UserDefaults.standard.set(newValue, forKey: DefaultsKey.hideDockIcon)
             updateDockIconVisibility(hidden: newValue)
         }
         .onChange(of: launchAtLogin) { _, newValue in
@@ -98,10 +98,10 @@ struct SettingsView: View {
             }
         }
         .onChange(of: showNotifications) { _, newValue in
-            UserDefaults.standard.set(newValue, forKey: "showNotifications")
+            UserDefaults.standard.set(newValue, forKey: DefaultsKey.showNotifications)
         }
         .onChange(of: lowQuotaThreshold) { _, newValue in
-            UserDefaults.standard.set(newValue, forKey: "lowQuotaThreshold")
+            UserDefaults.standard.set(newValue, forKey: DefaultsKey.lowQuotaThreshold)
         }
         .onChange(of: settings.autoRefreshInterval) { _, _ in
             settings.saveSettings()
@@ -110,9 +110,6 @@ struct SettingsView: View {
         .onChange(of: settings.claudeCodeRefreshInterval) { _, _ in
             settings.saveSettings()
             appState.setupClaudeCodeAutoRefresh()
-        }
-        .onChange(of: settings.isDarkMode) { _, _ in
-            settings.saveSettings()
         }
         .onChange(of: settings.themeMode) { _, _ in
             settings.saveSettings()
@@ -375,8 +372,8 @@ struct SettingsView: View {
                 subtitle: t("Currency for cost display across the app.", "应用中费用显示的货币单位。")
             ) {
                 Picker("", selection: Binding(
-                    get: { UserDefaults.standard.string(forKey: "displayCurrency") ?? "USD" },
-                    set: { UserDefaults.standard.set($0, forKey: "displayCurrency") }
+                    get: { UserDefaults.standard.string(forKey: DefaultsKey.displayCurrency) ?? "USD" },
+                    set: { UserDefaults.standard.set($0, forKey: DefaultsKey.displayCurrency) }
                 )) {
                     Text("USD ($)").tag("USD")
                     Text("CNY (¥)").tag("CNY")

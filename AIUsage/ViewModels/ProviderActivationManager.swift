@@ -12,9 +12,9 @@ final class ProviderActivationManager: ObservableObject {
     static let activatableProviders: Set<String> = ["codex", "gemini"]
 
     @Published var activeProviderAccountIds: [String: String] = {
-        guard let data = UserDefaults.standard.data(forKey: "activeProviderAccountIds"),
+        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.activeProviderAccountIds),
               let dict = try? JSONDecoder().decode([String: String].self, from: data) else {
-            if let legacyCodex = UserDefaults.standard.string(forKey: "activeCodexAccountId") {
+            if let legacyCodex = UserDefaults.standard.string(forKey: DefaultsKey.activeCodexAccountId) {
                 return ["codex": legacyCodex]
             }
             return [:]
@@ -50,7 +50,7 @@ final class ProviderActivationManager: ObservableObject {
 
     private func persistActiveIds() {
         if let data = try? JSONEncoder().encode(activeProviderAccountIds) {
-            UserDefaults.standard.set(data, forKey: "activeProviderAccountIds")
+            UserDefaults.standard.set(data, forKey: DefaultsKey.activeProviderAccountIds)
         }
     }
 

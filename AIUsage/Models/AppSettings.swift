@@ -26,6 +26,44 @@ enum CardQuotaIndicatorMetric: String, CaseIterable {
     case used
 }
 
+// MARK: - UserDefaults keys
+
+/// Central namespace for `UserDefaults` / `@AppStorage` keys (values must stay stable for migration).
+enum DefaultsKey {
+    static let activeCodexAccountId = "activeCodexAccountId"
+    static let activeProviderAccountIds = "activeProviderAccountIds"
+    static let appLanguage = "appLanguage"
+    static let autoRefreshInterval = "autoRefreshInterval"
+    static let backendMode = "backendMode"
+    static let ccStatsDistMetric = "ccStatsDistMetric"
+    static let ccStatsDistPeriod = "ccStatsDistPeriod"
+    static let ccStatsGranularity = "ccStatsGranularity"
+    static let ccStatsMetric = "ccStatsMetric"
+    static let claudeCodeDailyThreshold = "claudeCodeDailyThreshold"
+    static let claudeCodeLastNotifiedDate = "claudeCodeLastNotifiedDate"
+    static let claudeCodeRefreshInterval = "claudeCodeRefreshInterval"
+    static let displayCurrency = "displayCurrency"
+    static let hideDockIcon = "hideDockIcon"
+    static let lowQuotaThreshold = "lowQuotaThreshold"
+    static let proxyActivatedConfigId = "proxyActivatedConfigId"
+    static let proxyConfigurations = "proxyConfigurations"
+    static let proxyLogRetentionDays = "proxyLogRetentionDays"
+    static let proxyLogs = "proxyLogs"
+    static let proxyStatistics = "proxyStatistics"
+    static let proxyStatsGranularity = "proxyStatsGranularity"
+    static let proxyStatsMetric = "proxyStatsMetric"
+    static let proxyStatsModel = "proxyStatsModel"
+    static let proxyStatsNodeId = "proxyStatsNodeId"
+    static let quotaIndicatorMetric = "quotaIndicatorMetric"
+    static let quotaIndicatorStyle = "quotaIndicatorStyle"
+    static let readAlertIds = "readAlertIds"
+    static let remoteHost = "remoteHost"
+    static let remotePort = "remotePort"
+    static let selectedProviderIds = "selectedProviderIds"
+    static let showNotifications = "showNotifications"
+    static let themeMode = "themeMode"
+}
+
 // MARK: - AppSettings
 
 /// User-facing preferences persisted in `UserDefaults` (non-secret): theme, language, refresh cadence, remote backend, quota card UI.
@@ -38,8 +76,7 @@ final class AppSettings: ObservableObject {
     static let supportedClaudeCodeRefreshIntervals: [Int] = [10, 30, 60, 180, 300, 600, 0]
     static let defaultClaudeCodeRefreshInterval = 30
 
-    @Published var isDarkMode = UserDefaults.standard.bool(forKey: "isDarkMode")
-    @Published var themeMode: String = UserDefaults.standard.string(forKey: "themeMode") ?? "system"
+    @Published var themeMode: String = UserDefaults.standard.string(forKey: DefaultsKey.themeMode) ?? "system"
 
     var resolvedColorScheme: ColorScheme? {
         switch themeMode {
@@ -51,41 +88,41 @@ final class AppSettings: ObservableObject {
 
     @Published var autoRefreshInterval: Int = {
         let defaults = UserDefaults.standard
-        let storedValue = defaults.object(forKey: "autoRefreshInterval") != nil
-            ? defaults.integer(forKey: "autoRefreshInterval")
+        let storedValue = defaults.object(forKey: DefaultsKey.autoRefreshInterval) != nil
+            ? defaults.integer(forKey: DefaultsKey.autoRefreshInterval)
             : AppSettings.defaultAutoRefreshInterval
         return AppSettings.normalizedAutoRefreshInterval(storedValue)
     }()
 
     @Published var claudeCodeRefreshInterval: Int = {
         let defaults = UserDefaults.standard
-        let storedValue = defaults.object(forKey: "claudeCodeRefreshInterval") != nil
-            ? defaults.integer(forKey: "claudeCodeRefreshInterval")
+        let storedValue = defaults.object(forKey: DefaultsKey.claudeCodeRefreshInterval) != nil
+            ? defaults.integer(forKey: DefaultsKey.claudeCodeRefreshInterval)
             : AppSettings.defaultClaudeCodeRefreshInterval
         return AppSettings.normalizedClaudeCodeRefreshInterval(storedValue)
     }()
 
-    @Published var language: String = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
-    @Published var quotaIndicatorStyle: CardQuotaIndicatorStyle = CardQuotaIndicatorStyle(rawValue: UserDefaults.standard.string(forKey: "quotaIndicatorStyle") ?? "") ?? .bar
-    @Published var quotaIndicatorMetric: CardQuotaIndicatorMetric = CardQuotaIndicatorMetric(rawValue: UserDefaults.standard.string(forKey: "quotaIndicatorMetric") ?? "") ?? .remaining
+    @Published var language: String = UserDefaults.standard.string(forKey: DefaultsKey.appLanguage) ?? "en"
+    @Published var quotaIndicatorStyle: CardQuotaIndicatorStyle = CardQuotaIndicatorStyle(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.quotaIndicatorStyle) ?? "") ?? .bar
+    @Published var quotaIndicatorMetric: CardQuotaIndicatorMetric = CardQuotaIndicatorMetric(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.quotaIndicatorMetric) ?? "") ?? .remaining
 
     @Published var claudeCodeDailyThreshold: Double = {
         let defaults = UserDefaults.standard
-        let storedValue = defaults.object(forKey: "claudeCodeDailyThreshold") != nil
-            ? defaults.double(forKey: "claudeCodeDailyThreshold")
+        let storedValue = defaults.object(forKey: DefaultsKey.claudeCodeDailyThreshold) != nil
+            ? defaults.double(forKey: DefaultsKey.claudeCodeDailyThreshold)
             : 0.0
         return storedValue
     }()
 
     /// Persisted calendar day string (YYYY-MM-DD) for Claude Code cost threshold notification de-duplication.
     var lastNotifiedDate: String? {
-        get { UserDefaults.standard.string(forKey: "claudeCodeLastNotifiedDate") }
-        set { UserDefaults.standard.set(newValue, forKey: "claudeCodeLastNotifiedDate") }
+        get { UserDefaults.standard.string(forKey: DefaultsKey.claudeCodeLastNotifiedDate) }
+        set { UserDefaults.standard.set(newValue, forKey: DefaultsKey.claudeCodeLastNotifiedDate) }
     }
 
-    @Published var backendMode: String = UserDefaults.standard.string(forKey: "backendMode") ?? "local"
-    @Published var remoteHost: String = UserDefaults.standard.string(forKey: "remoteHost") ?? "127.0.0.1"
-    @Published var remotePort: Int = UserDefaults.standard.integer(forKey: "remotePort") == 0 ? 4318 : UserDefaults.standard.integer(forKey: "remotePort")
+    @Published var backendMode: String = UserDefaults.standard.string(forKey: DefaultsKey.backendMode) ?? "local"
+    @Published var remoteHost: String = UserDefaults.standard.string(forKey: DefaultsKey.remoteHost) ?? "127.0.0.1"
+    @Published var remotePort: Int = UserDefaults.standard.integer(forKey: DefaultsKey.remotePort) == 0 ? 4318 : UserDefaults.standard.integer(forKey: DefaultsKey.remotePort)
 
     private init() {
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
@@ -116,17 +153,16 @@ final class AppSettings: ObservableObject {
         let defaults = UserDefaults.standard
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
         claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
-        defaults.set(autoRefreshInterval, forKey: "autoRefreshInterval")
-        defaults.set(claudeCodeRefreshInterval, forKey: "claudeCodeRefreshInterval")
-        defaults.set(claudeCodeDailyThreshold, forKey: "claudeCodeDailyThreshold")
-        defaults.set(isDarkMode, forKey: "isDarkMode")
-        defaults.set(themeMode, forKey: "themeMode")
-        defaults.set(language, forKey: "appLanguage")
-        defaults.set(quotaIndicatorStyle.rawValue, forKey: "quotaIndicatorStyle")
-        defaults.set(quotaIndicatorMetric.rawValue, forKey: "quotaIndicatorMetric")
-        defaults.set(backendMode, forKey: "backendMode")
-        defaults.set(remoteHost, forKey: "remoteHost")
-        defaults.set(remotePort, forKey: "remotePort")
+        defaults.set(autoRefreshInterval, forKey: DefaultsKey.autoRefreshInterval)
+        defaults.set(claudeCodeRefreshInterval, forKey: DefaultsKey.claudeCodeRefreshInterval)
+        defaults.set(claudeCodeDailyThreshold, forKey: DefaultsKey.claudeCodeDailyThreshold)
+        defaults.set(themeMode, forKey: DefaultsKey.themeMode)
+        defaults.set(language, forKey: DefaultsKey.appLanguage)
+        defaults.set(quotaIndicatorStyle.rawValue, forKey: DefaultsKey.quotaIndicatorStyle)
+        defaults.set(quotaIndicatorMetric.rawValue, forKey: DefaultsKey.quotaIndicatorMetric)
+        defaults.set(backendMode, forKey: DefaultsKey.backendMode)
+        defaults.set(remoteHost, forKey: DefaultsKey.remoteHost)
+        defaults.set(remotePort, forKey: DefaultsKey.remotePort)
         onRemoteSettingsChanged?("http://\(remoteHost):\(remotePort)")
     }
 

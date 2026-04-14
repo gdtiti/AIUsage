@@ -5,11 +5,11 @@ import Charts
 
 struct CostTrackingView: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("ccStatsGranularity") private var selectedGranularity: CostGranularity = .hourly
-    @AppStorage("ccStatsMetric") private var selectedMetric: CostMetric = .usd
+    @AppStorage(DefaultsKey.ccStatsGranularity) private var selectedGranularity: CostGranularity = .hourly
+    @AppStorage(DefaultsKey.ccStatsMetric) private var selectedMetric: CostMetric = .usd
     @State private var selectedModels: Set<String> = []
-    @AppStorage("ccStatsDistMetric") private var distributionMetric: CostMetric = .usd
-    @AppStorage("ccStatsDistPeriod") private var distributionPeriod: DistributionPeriod = .today
+    @AppStorage(DefaultsKey.ccStatsDistMetric) private var distributionMetric: CostMetric = .usd
+    @AppStorage(DefaultsKey.ccStatsDistPeriod) private var distributionPeriod: DistributionPeriod = .today
     @State private var detailProvider: ProviderData?
 
     private func t(_ en: String, _ zh: String) -> String {

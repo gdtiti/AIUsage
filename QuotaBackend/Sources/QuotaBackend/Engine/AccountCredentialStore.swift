@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import os
 
 public struct AccountCredentialReference: Hashable, Sendable {
     public let providerId: String
@@ -10,6 +11,8 @@ public struct AccountCredentialReference: Hashable, Sendable {
         self.credentialId = credentialId
     }
 }
+
+private let credentialLog = Logger(subsystem: "com.aiusage.desktop", category: "CredentialStore")
 
 /// Secure credential store backed by macOS Keychain.
 /// Stores AccountCredential objects (cookies, tokens, auth file paths, API keys)
@@ -44,7 +47,12 @@ public final class AccountCredentialStore: @unchecked Sendable {
         let key = storageKey(credential)
         var vault = loadCredentialVaultOrMigrateUnsafe()
         vault[key] = credential
-        try saveCredentialVaultUnsafe(vault)
+        do {
+            try saveCredentialVaultUnsafe(vault)
+        } catch {
+            credentialLog.error("Keychain write failed: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
         cachedCredentialsByStorageKey = vault
 
         // Best-effort cleanup of legacy per-credential storage so startup does not
@@ -80,7 +88,11 @@ public final class AccountCredentialStore: @unchecked Sendable {
         let key = storageKey(credential)
         var vault = loadCredentialVaultOrMigrateUnsafe()
         vault.removeValue(forKey: key)
-        try? saveCredentialVaultUnsafe(vault)
+        do {
+            try saveCredentialVaultUnsafe(vault)
+        } catch {
+            credentialLog.error("Keychain write failed: \(error.localizedDescription, privacy: .public)")
+        }
         cachedCredentialsByStorageKey = vault
         deleteCredentialStorageKeyUnsafe(key)
     }
@@ -96,7 +108,11 @@ public final class AccountCredentialStore: @unchecked Sendable {
                 vault.removeValue(forKey: key)
                 deleteCredentialStorageKeyUnsafe(key)
             }
-            try? saveCredentialVaultUnsafe(vault)
+            do {
+                try saveCredentialVaultUnsafe(vault)
+            } catch {
+                credentialLog.error("Keychain write failed: \(error.localizedDescription, privacy: .public)")
+            }
             cachedCredentialsByStorageKey = vault
         }
     }
@@ -104,7 +120,11 @@ public final class AccountCredentialStore: @unchecked Sendable {
     public func updateLastUsed(_ credential: AccountCredential) {
         var updated = credential
         updated.lastUsedAt = SharedFormatters.iso8601String(from: Date())
-        try? saveCredential(updated)
+        do {
+            try saveCredential(updated)
+        } catch {
+            credentialLog.error("Keychain write failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     public func bootstrapCredentialIndex(references: [AccountCredentialReference]) {
@@ -143,7 +163,11 @@ public final class AccountCredentialStore: @unchecked Sendable {
         }
 
         if didMutateVault {
-            try? saveCredentialVaultUnsafe(vault)
+            do {
+                try saveCredentialVaultUnsafe(vault)
+            } catch {
+                credentialLog.error("Keychain write failed: \(error.localizedDescription, privacy: .public)")
+            }
             cachedCredentialsByStorageKey = vault
         }
 
@@ -182,7 +206,11 @@ public final class AccountCredentialStore: @unchecked Sendable {
 
         guard !migratedVault.isEmpty else { return migratedVault }
 
-        try? saveCredentialVaultUnsafe(migratedVault)
+        do {
+            try saveCredentialVaultUnsafe(migratedVault)
+        } catch {
+            credentialLog.error("Keychain write failed: \(error.localizedDescription, privacy: .public)")
+        }
         for key in migratedVault.keys {
             deleteCredentialStorageKeyUnsafe(key)
         }

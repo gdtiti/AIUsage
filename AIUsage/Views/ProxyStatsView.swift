@@ -6,10 +6,10 @@ struct ProxyStatsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var viewModel: ProxyViewModel
 
-    @AppStorage("proxyStatsNodeId") private var selectedNodeIdRaw: String = ""
-    @AppStorage("proxyStatsModel") private var selectedModelRaw: String = ""
-    @AppStorage("proxyStatsGranularity") private var granularity: StatGranularity = .daily
-    @AppStorage("proxyStatsMetric") private var metric: StatMetric = .cost
+    @AppStorage(DefaultsKey.proxyStatsNodeId) private var selectedNodeIdRaw: String = ""
+    @AppStorage(DefaultsKey.proxyStatsModel) private var selectedModelRaw: String = ""
+    @AppStorage(DefaultsKey.proxyStatsGranularity) private var granularity: StatGranularity = .daily
+    @AppStorage(DefaultsKey.proxyStatsMetric) private var metric: StatMetric = .cost
 
     private var nodeBinding: Binding<String> {
         Binding(get: { selectedNodeIdRaw }, set: { selectedNodeIdRaw = $0 })
@@ -125,7 +125,7 @@ struct ProxyStatsView: View {
 
     private var dataRangeBanner: some View {
         let range = dateRange
-        let retentionDays = UserDefaults.standard.integer(forKey: "proxyLogRetentionDays")
+        let retentionDays = UserDefaults.standard.integer(forKey: DefaultsKey.proxyLogRetentionDays)
         let effectiveDays = retentionDays > 0 ? retentionDays : 30
         let df = Self.bannerDateFormatter
 

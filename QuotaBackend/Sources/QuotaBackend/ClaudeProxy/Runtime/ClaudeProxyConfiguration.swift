@@ -9,6 +9,8 @@ public enum ProxyMode: String, Sendable {
 
 public struct ClaudeProxyConfiguration: Sendable {
     public let enabled: Bool
+    /// TCP port this proxy configuration is intended to bind on (1–65535).
+    public let bindPort: Int
     public let mode: ProxyMode
     public let upstreamBaseURL: String
     public let upstreamAPIKey: String
@@ -22,6 +24,7 @@ public struct ClaudeProxyConfiguration: Sendable {
 
     public init(
         enabled: Bool,
+        bindPort: Int = 4318,
         mode: ProxyMode = .openaiConvert,
         upstreamBaseURL: String,
         upstreamAPIKey: String,
@@ -34,6 +37,7 @@ public struct ClaudeProxyConfiguration: Sendable {
         customHeaders: [String: String] = [:]
     ) {
         self.enabled = enabled
+        self.bindPort = bindPort
         self.mode = mode
         self.upstreamBaseURL = upstreamBaseURL
         self.upstreamAPIKey = upstreamAPIKey
@@ -44,6 +48,19 @@ public struct ClaudeProxyConfiguration: Sendable {
         self.maxOutputTokens = maxOutputTokens
         self.requestTimeout = requestTimeout
         self.customHeaders = customHeaders
+    }
+
+    /// Reduces a Claude-style model id to a coarse family label (`haiku`, `sonnet`, `opus`) when detectable.
+    public static func normalizeModelName(_ model: String) -> String {
+        let lower = model.lowercased()
+        if lower.contains("haiku") {
+            return "haiku"
+        } else if lower.contains("sonnet") {
+            return "sonnet"
+        } else if lower.contains("opus") {
+            return "opus"
+        }
+        return model
     }
 
     public func mapToUpstreamModel(_ requestModel: String) -> String {
@@ -66,6 +83,9 @@ public struct ClaudeProxyConfiguration: Sendable {
         }
         if upstreamBaseURL.isEmpty {
             throw ConfigurationError.invalidURL
+        }
+        guard (1...65_535).contains(bindPort) else {
+            throw ConfigurationError.invalidPort
         }
     }
 
@@ -118,10 +138,11 @@ public struct ClaudeProxyConfiguration: Sendable {
 
 // MARK: - Configuration Error
 
-public enum ConfigurationError: Error, LocalizedError {
+public enum ConfigurationError: Error, LocalizedError, Equatable {
     case missingAPIKey
     case invalidURL
     case invalidModel
+    case invalidPort
 
     public var errorDescription: String? {
         switch self {
@@ -131,6 +152,8 @@ public enum ConfigurationError: Error, LocalizedError {
             return "Invalid upstream URL"
         case .invalidModel:
             return "Invalid model configuration"
+        case .invalidPort:
+            return "Invalid bind port; use a value from 1 through 65535"
         }
     }
 }

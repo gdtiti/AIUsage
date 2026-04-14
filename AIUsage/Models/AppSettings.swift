@@ -127,8 +127,11 @@ final class AppSettings: ObservableObject {
         defaults.set(backendMode, forKey: "backendMode")
         defaults.set(remoteHost, forKey: "remoteHost")
         defaults.set(remotePort, forKey: "remotePort")
-        APIService.shared.updateBaseURL("http://\(remoteHost):\(remotePort)")
+        onRemoteSettingsChanged?("http://\(remoteHost):\(remotePort)")
     }
+
+    /// Called when remote backend URL changes. Wired in AppState init.
+    var onRemoteSettingsChanged: ((String) -> Void)?
 
     func t(_ en: String, _ zh: String) -> String {
         language == "zh" ? zh : en

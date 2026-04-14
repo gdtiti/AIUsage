@@ -103,6 +103,10 @@ class AppState: ObservableObject {
     private var didRunStartupFlow = false
 
     private init() {
+        settings.onRemoteSettingsChanged = { url in
+            APIService.shared.updateBaseURL(url)
+        }
+
         accountStore.bootstrapFromDisk(providerCatalogOrder: Self.providerCatalogItems.map(\.id))
 
         refreshCoordinator.configure(

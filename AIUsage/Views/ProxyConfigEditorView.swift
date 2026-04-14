@@ -11,11 +11,6 @@ struct ProxyConfigEditorView: View {
     @State private var availableModels: [String] = []
     @State private var isFetchingModels: Bool = false
     @State private var fetchModelsError: String?
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     init(config: ProxyConfiguration? = nil) {
         if let config = config {
             _config = State(initialValue: config)
@@ -35,10 +30,10 @@ struct ProxyConfigEditorView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(isNew ? t("New Node", "新建节点") : t("Edit Node", "编辑节点"))
+                Text(isNew ? L("New Node", "新建节点") : L("Edit Node", "编辑节点"))
                     .font(.title2.weight(.bold))
                 Spacer()
-                Button(t("Cancel", "取消")) {
+                Button(L("Cancel", "取消")) {
                     dismiss()
                 }
             }
@@ -72,16 +67,16 @@ struct ProxyConfigEditorView: View {
 
             HStack {
                 if !isNew {
-                    Button(t("Delete", "删除"), role: .destructive) {
+                    Button(L("Delete", "删除"), role: .destructive) {
                         viewModel.deleteConfiguration(config.id)
                         dismiss()
                     }
                 }
                 Spacer()
-                Button(t("Cancel", "取消")) {
+                Button(L("Cancel", "取消")) {
                     dismiss()
                 }
-                Button(isNew ? t("Create", "创建") : t("Save", "保存")) {
+                Button(isNew ? L("Create", "创建") : L("Save", "保存")) {
                     saveConfiguration()
                 }
                 .buttonStyle(.borderedProminent)
@@ -96,7 +91,7 @@ struct ProxyConfigEditorView: View {
 
     private var nodeTypeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(t("Node Type", "节点类型"))
+            Text(L("Node Type", "节点类型"))
                 .font(.headline.weight(.bold))
 
             Picker("", selection: $config.nodeType) {
@@ -129,9 +124,9 @@ struct ProxyConfigEditorView: View {
             }
 
             Text(config.nodeType == .anthropicDirect
-                 ? t("Connect directly to Anthropic or compatible API. No proxy process needed.",
+                 ? L("Connect directly to Anthropic or compatible API. No proxy process needed.",
                      "直接连接 Anthropic 或兼容 API，无需代理进程。")
-                 : t("Translate Claude API to OpenAI-compatible API via local proxy.",
+                 : L("Translate Claude API to OpenAI-compatible API via local proxy.",
                      "通过本地代理将 Claude API 转换为 OpenAI 兼容 API。"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -147,17 +142,17 @@ struct ProxyConfigEditorView: View {
 
     private var basicSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(t("Basic Information", "基本信息"))
+            Text(L("Basic Information", "基本信息"))
                 .font(.headline.weight(.bold))
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(t("Name", "名称"))
+                Text(L("Name", "名称"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 TextField(
                     config.nodeType == .anthropicDirect
-                        ? t("e.g., Anthropic Official", "例如：Anthropic 官方")
-                        : t("e.g., OpenAI Proxy", "例如：OpenAI 代理"),
+                        ? L("e.g., Anthropic Official", "例如：Anthropic 官方")
+                        : L("e.g., OpenAI Proxy", "例如：OpenAI 代理"),
                     text: $config.name
                 )
                 .textFieldStyle(.roundedBorder)
@@ -174,7 +169,7 @@ struct ProxyConfigEditorView: View {
 
     private var anthropicDirectSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(t("Anthropic API", "Anthropic API"))
+            Text(L("Anthropic API", "Anthropic API"))
                 .font(.headline.weight(.bold))
 
             VStack(alignment: .leading, spacing: 8) {
@@ -197,9 +192,9 @@ struct ProxyConfigEditorView: View {
 
             Toggle(isOn: $config.usePassthroughProxy) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(t("Transparent Proxy (Log Usage)", "透明代理（记录用量）"))
+                    Text(L("Transparent Proxy (Log Usage)", "透明代理（记录用量）"))
                         .font(.subheadline.weight(.semibold))
-                    Text(t("Route requests through a local proxy to log token usage without modifying the API format.",
+                    Text(L("Route requests through a local proxy to log token usage without modifying the API format.",
                            "请求经由本地代理透传，记录 Token 用量但不修改 API 格式。"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -210,14 +205,14 @@ struct ProxyConfigEditorView: View {
             if config.usePassthroughProxy {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(t("Host", "主机"))
+                        Text(L("Host", "主机"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                         TextField("127.0.0.1", text: $config.host)
                             .textFieldStyle(.roundedBorder)
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(t("Port", "端口"))
+                        Text(L("Port", "端口"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                         TextField("8080", value: $config.port, format: .number)
@@ -229,7 +224,7 @@ struct ProxyConfigEditorView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(.teal)
-                    Text(t("ANTHROPIC_BASE_URL will point to the local proxy. Requests are forwarded to the upstream API as-is.",
+                    Text(L("ANTHROPIC_BASE_URL will point to the local proxy. Requests are forwarded to the upstream API as-is.",
                            "ANTHROPIC_BASE_URL 将指向本地代理，请求原样转发至上游 API。"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -238,7 +233,7 @@ struct ProxyConfigEditorView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(.blue)
-                    Text(t("These values will be written to ~/.claude/settings.json when activated.",
+                    Text(L("These values will be written to ~/.claude/settings.json when activated.",
                            "激活时会将这些值写入 ~/.claude/settings.json。"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -256,12 +251,12 @@ struct ProxyConfigEditorView: View {
 
     private var networkSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(t("Local Proxy", "本地代理"))
+            Text(L("Local Proxy", "本地代理"))
                 .font(.headline.weight(.bold))
 
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(t("Host", "主机"))
+                    Text(L("Host", "主机"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     TextField("127.0.0.1", text: $config.host)
@@ -269,7 +264,7 @@ struct ProxyConfigEditorView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(t("Port", "端口"))
+                    Text(L("Port", "端口"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     TextField("8080", value: $config.port, format: .number)
@@ -278,14 +273,14 @@ struct ProxyConfigEditorView: View {
                 }
             }
 
-            Toggle(t("Allow LAN Access (0.0.0.0)", "允许局域网访问 (0.0.0.0)"), isOn: $config.allowLAN)
+            Toggle(L("Allow LAN Access (0.0.0.0)", "允许局域网访问 (0.0.0.0)"), isOn: $config.allowLAN)
                 .font(.caption.weight(.medium))
 
             if config.allowLAN {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                    Text(t("Warning: This will expose the proxy to your local network",
+                    Text(L("Warning: This will expose the proxy to your local network",
                            "警告：这将把代理暴露到你的局域网"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -308,11 +303,11 @@ struct ProxyConfigEditorView: View {
 
     private var upstreamSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(t("Upstream Provider", "上游服务"))
+            Text(L("Upstream Provider", "上游服务"))
                 .font(.headline.weight(.bold))
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(t("Base URL", "基础 URL"))
+                Text(L("Base URL", "基础 URL"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 TextField("https://api.openai.com/v1", text: $config.upstreamBaseURL)
@@ -338,14 +333,14 @@ struct ProxyConfigEditorView: View {
                         } else {
                             Image(systemName: "arrow.down.circle")
                         }
-                        Text(t("Fetch Models", "获取模型"))
+                        Text(L("Fetch Models", "获取模型"))
                     }
                     .font(.caption.weight(.semibold))
                 }
                 .disabled(config.upstreamBaseURL.isEmpty || config.upstreamAPIKey.isEmpty || isFetchingModels)
 
                 if !availableModels.isEmpty {
-                    Text(t("\(availableModels.count) models available", "已获取 \(availableModels.count) 个模型"))
+                    Text(L("\(availableModels.count) models available", "已获取 \(availableModels.count) 个模型"))
                         .font(.caption2)
                         .foregroundStyle(.green)
                 } else if let error = fetchModelsError {
@@ -369,7 +364,7 @@ struct ProxyConfigEditorView: View {
     private var passthroughPricingSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(t("Model Pricing", "模型定价"))
+                Text(L("Model Pricing", "模型定价"))
                     .font(.headline.weight(.bold))
                 Spacer()
                 Picker("", selection: $pricingCurrency) {
@@ -388,7 +383,7 @@ struct ProxyConfigEditorView: View {
             HStack(spacing: 6) {
                 Image(systemName: "info.circle.fill")
                     .foregroundStyle(.teal)
-                Text(t("Model names are matched by substring (e.g. \"sonnet\" matches \"claude-sonnet-4-20250514\").",
+                Text(L("Model names are matched by substring (e.g. \"sonnet\" matches \"claude-sonnet-4-20250514\").",
                        "模型名按子串匹配（如 \"sonnet\" 可匹配 \"claude-sonnet-4-20250514\"）。"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -396,15 +391,15 @@ struct ProxyConfigEditorView: View {
 
             if !config.passthroughPricing.isEmpty {
                 HStack(spacing: 0) {
-                    Text(t("Model", "模型"))
+                    Text(L("Model", "模型"))
                         .frame(width: 100, alignment: .leading)
-                    Text(t("Input", "输入"))
+                    Text(L("Input", "输入"))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(t("Output", "输出"))
+                    Text(L("Output", "输出"))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(t("Cache", "缓存"))
+                    Text(L("Cache", "缓存"))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(t("/ M tokens", "/ 百万"))
+                    Text(L("/ M tokens", "/ 百万"))
                         .frame(width: 64, alignment: .trailing)
                     Spacer().frame(width: 28)
                 }
@@ -458,7 +453,7 @@ struct ProxyConfigEditorView: View {
             }
 
             HStack(spacing: 8) {
-                TextField(t("Model name, e.g. sonnet", "模型名，如 sonnet"), text: $newModelName)
+                TextField(L("Model name, e.g. sonnet", "模型名，如 sonnet"), text: $newModelName)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12))
                 Button {
@@ -468,7 +463,7 @@ struct ProxyConfigEditorView: View {
                     newModelName = ""
                 } label: {
                     Image(systemName: "plus.circle.fill")
-                    Text(t("Add", "添加"))
+                    Text(L("Add", "添加"))
                 }
                 .disabled(newModelName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
@@ -483,20 +478,20 @@ struct ProxyConfigEditorView: View {
 
     private var modelMappingSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(t("Model Configuration", "模型配置"))
+            Text(L("Model Configuration", "模型配置"))
                 .font(.headline.weight(.bold))
 
-            Text(t("These model names will be written to ~/.claude/settings.json and used directly by Claude Code for requests and statistics.",
+            Text(L("These model names will be written to ~/.claude/settings.json and used directly by Claude Code for requests and statistics.",
                    "这些模型名将写入 ~/.claude/settings.json，Claude Code 会直接使用它们发起请求和统计用量。"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(t("Default Model", "主模型"))
+                Text(L("Default Model", "主模型"))
                     .font(.subheadline.weight(.semibold))
                 modelTextField(text: $config.defaultModel,
                                placeholder: config.nodeType == .openaiProxy ? "gpt-5.4" : "claude-sonnet-4-6")
-                Text(t("The model field in settings.json. Claude Code uses this as the active model.",
+                Text(L("The model field in settings.json. Claude Code uses this as the active model.",
                        "settings.json 中的 model 字段，Claude Code 以此作为当前使用的模型。"))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -506,7 +501,7 @@ struct ProxyConfigEditorView: View {
 
             // Model Slots
             VStack(alignment: .leading, spacing: 10) {
-                Text(t("Model Slots", "模型槽位"))
+                Text(L("Model Slots", "模型槽位"))
                     .font(.subheadline.weight(.semibold))
 
                 modelSlotRow(label: "Opus", binding: $config.modelMapping.bigModel.name,
@@ -526,13 +521,13 @@ struct ProxyConfigEditorView: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(t("Max Output Tokens", "最大输出 Token"))
+                    Text(L("Max Output Tokens", "最大输出 Token"))
                         .font(.subheadline.weight(.semibold))
                     HStack(spacing: 8) {
                         TextField("0", value: $config.maxOutputTokens, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 120)
-                        Text(t("0 = unlimited", "0 = 不限制"))
+                        Text(L("0 = unlimited", "0 = 不限制"))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -599,7 +594,7 @@ struct ProxyConfigEditorView: View {
     private var modelPricingSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(t("Pricing", "定价"))
+                Text(L("Pricing", "定价"))
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Picker("", selection: $pricingCurrency) {
@@ -620,13 +615,13 @@ struct ProxyConfigEditorView: View {
                 Text("")
                     .frame(width: 56, alignment: .trailing)
                 Spacer().frame(width: 10)
-                Text(t("Input", "输入"))
+                Text(L("Input", "输入"))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text(t("Output", "输出"))
+                Text(L("Output", "输出"))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text(t("Cache", "缓存"))
+                Text(L("Cache", "缓存"))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text(t("/ M tokens", "/ 百万"))
+                Text(L("/ M tokens", "/ 百万"))
                     .frame(width: 64, alignment: .trailing)
             }
             .font(.system(size: 10, weight: .medium))
@@ -674,21 +669,21 @@ struct ProxyConfigEditorView: View {
 
     private var securitySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(t("Security", "安全设置"))
+            Text(L("Security", "安全设置"))
                 .font(.headline.weight(.bold))
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(t("Expected Client API Key (Optional)", "客户端 API Key（可选）"))
+                Text(L("Expected Client API Key (Optional)", "客户端 API Key（可选）"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                SecureField(t("Leave empty to accept any key", "留空则接受任意 Key"), text: $config.expectedClientKey)
+                SecureField(L("Leave empty to accept any key", "留空则接受任意 Key"), text: $config.expectedClientKey)
                     .textFieldStyle(.roundedBorder)
             }
 
             HStack(spacing: 6) {
                 Image(systemName: "lock.shield.fill")
                     .foregroundStyle(.green)
-                Text(t("If set, clients must provide this key in x-api-key or Authorization header",
+                Text(L("If set, clients must provide this key in x-api-key or Authorization header",
                        "设置后，客户端需在 x-api-key 或 Authorization 头中提供此 Key"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)

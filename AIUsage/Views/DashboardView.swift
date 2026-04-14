@@ -2,20 +2,16 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
     @EnvironmentObject var proxyVM: ProxyViewModel
-    
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-    
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                if appState.isLoading {
+                if refreshCoordinator.isLoading {
                     loadingView
-                } else if let error = appState.errorMessage {
+                } else if let error = refreshCoordinator.errorMessage {
                     errorView(error)
-                } else if let overview = appState.overview {
+                } else if let overview = refreshCoordinator.overview {
                     overviewSection(overview)
                     if !serviceProviders.isEmpty {
                         providersGrid(serviceProviders)
@@ -39,7 +35,7 @@ struct DashboardView: View {
     
     private func overviewSection(_ overview: DashboardOverview) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(t("Overview", "概览"))
+            Text(L("Overview", "概览"))
                 .font(.title2)
                 .bold()
             
@@ -57,7 +53,7 @@ struct DashboardView: View {
         Group {
             if !overview.alerts.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(t("Alerts", "告警"))
+                    Text(L("Alerts", "告警"))
                         .font(.title2)
                         .bold()
                     
@@ -72,13 +68,13 @@ struct DashboardView: View {
     // MARK: - Providers Grid
     
     private var serviceProviders: [ProviderData] {
-        deduplicatedProviders(appState.providers.filter {
+        deduplicatedProviders(refreshCoordinator.providers.filter {
             appState.providerCatalogItem(for: $0.baseProviderId)?.kind == .official
         })
     }
 
     private var costTrackingProviders: [ProviderData] {
-        deduplicatedProviders(appState.providers.filter {
+        deduplicatedProviders(refreshCoordinator.providers.filter {
             appState.providerCatalogItem(for: $0.baseProviderId)?.kind == .costTracking
         })
     }
@@ -107,32 +103,32 @@ struct DashboardView: View {
         let watchCount = max(0, overview.attentionProviders - overview.criticalProviders)
         let servicesNote: String
         if selectedOfficialProviderCount > 0 {
-            servicesNote = t(
+            servicesNote = L(
                 "\(selectedOfficialProviderCount) official apps enabled",
                 "已启用 \(selectedOfficialProviderCount) 个官方应用"
             )
         } else {
-            servicesNote = t("Choose apps to start scanning", "选择应用后开始扫描")
+            servicesNote = L("Choose apps to start scanning", "选择应用后开始扫描")
         }
 
         let accountNote: String
         if totalAccountCount > 0 {
-            accountNote = t(
+            accountNote = L(
                 "\(formatInt(totalAccountCount)) accounts saved securely",
                 "已安全保存 \(formatInt(totalAccountCount)) 个账号"
             )
         } else {
-            accountNote = t("No account has been saved yet", "还没有保存账号")
+            accountNote = L("No account has been saved yet", "还没有保存账号")
         }
 
         let costNote: String
         if costTrackingProviders.isEmpty {
-            costNote = t("No Claude Code stats source yet", "还没有 Claude Code 统计来源")
+            costNote = L("No Claude Code stats source yet", "还没有 Claude Code 统计来源")
         } else {
-            costNote = t(
+            costNote = L(
                 "\(costTrackingProviders.count) source tracked this week",
                 "当前跟踪 \(costTrackingProviders.count) 个费用来源"
-            ) + " · " + t(
+            ) + " · " + L(
                 "\(formatInt(overview.localWeekTokens)) tokens logged",
                 "本周记录 \(formatInt(overview.localWeekTokens)) 个 tokens"
             )
@@ -140,19 +136,19 @@ struct DashboardView: View {
 
         let statusNote: String
         if overview.attentionProviders == 0 {
-            statusNote = t("Everything is within a healthy range", "目前都在正常范围内")
+            statusNote = L("Everything is within a healthy range", "目前都在正常范围内")
         } else if overview.criticalProviders > 0 && watchCount > 0 {
-            statusNote = t(
+            statusNote = L(
                 "\(overview.criticalProviders) critical, \(watchCount) getting tight",
                 "\(overview.criticalProviders) 个告急，\(watchCount) 个余额偏低"
             )
         } else if overview.criticalProviders > 0 {
-            statusNote = t(
+            statusNote = L(
                 "\(overview.criticalProviders) critical right now",
                 "当前有 \(overview.criticalProviders) 个告急"
             )
         } else {
-            statusNote = t(
+            statusNote = L(
                 "\(watchCount) windows are getting tight",
                 "当前有 \(watchCount) 个额度偏低"
             )
@@ -160,21 +156,21 @@ struct DashboardView: View {
 
         return [
             DashboardSummaryCard(
-                title: t("Tracked Services", "监控服务"),
+                title: L("Tracked Services", "监控服务"),
                 value: formatInt(selectedOfficialProviderCount),
                 note: servicesNote,
                 icon: "square.stack.3d.up.fill",
                 color: .blue
             ),
             DashboardSummaryCard(
-                title: t("Live Accounts", "在线账号"),
+                title: L("Live Accounts", "在线账号"),
                 value: formatInt(connectedAccountCount),
                 note: accountNote,
                 icon: "person.crop.circle.badge.checkmark",
                 color: .green
             ),
             DashboardSummaryCard(
-                title: t("Claude Code Stats", "Claude Code 统计"),
+                title: L("Claude Code Stats", "Claude Code 统计"),
                 value: formatCurrency(overview.localCostMonthUsd),
                 note: costNote,
                 icon: "chart.line.uptrend.xyaxis.circle.fill",
@@ -186,15 +182,15 @@ struct DashboardView: View {
                 let activeNodes = proxyVM.configurations.filter { proxyVM.activatedConfigId == $0.id }.count
                 let proxyNote: String
                 if proxyStats.requests == 0 {
-                    proxyNote = t("No proxy requests recorded yet", "暂无代理请求记录")
+                    proxyNote = L("No proxy requests recorded yet", "暂无代理请求记录")
                 } else {
-                    proxyNote = t(
+                    proxyNote = L(
                         "\(proxyStats.requests) requests over \(proxyRange.days) days · \(proxyVM.modelAggregates(nodeFilter: nil, modelFilter: nil).count) models",
                         "\(proxyRange.days) 天内 \(proxyStats.requests) 次请求 · \(proxyVM.modelAggregates(nodeFilter: nil, modelFilter: nil).count) 个模型"
                     )
                 }
                 return DashboardSummaryCard(
-                    title: t("Proxy Stats", "代理统计"),
+                    title: L("Proxy Stats", "代理统计"),
                     value: formatCurrency(proxyStats.cost),
                     note: proxyNote,
                     icon: "server.rack",
@@ -202,7 +198,7 @@ struct DashboardView: View {
                 )
             }(),
             DashboardSummaryCard(
-                title: t("Status Alerts", "状态提醒"),
+                title: L("Status Alerts", "状态提醒"),
                 value: formatInt(overview.attentionProviders),
                 note: statusNote,
                 icon: "bell.badge.fill",
@@ -241,7 +237,7 @@ struct DashboardView: View {
 
     private func providersGrid(_ providers: [ProviderData]) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(t("Providers", "服务商"))
+            Text(L("Providers", "服务商"))
                 .font(.title2)
                 .bold()
             
@@ -250,7 +246,7 @@ struct DashboardView: View {
                     ProviderCard(
                         provider: provider,
                         subtitleOverride: appState.accountNote(for: provider),
-                        refreshAction: { await appState.refreshProviderCardNow(provider) }
+                        refreshAction: { await refreshCoordinator.refreshProviderCardNow(provider) }
                     )
                 }
             }
@@ -260,14 +256,14 @@ struct DashboardView: View {
     private var proxyStatsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text(t("Proxy Stats", "代理统计"))
+                Text(L("Proxy Stats", "代理统计"))
                     .font(.title2)
                     .bold()
                 Spacer()
                 Button {
                     appState.selectedSection = .proxyStats
                 } label: {
-                    Text(t("View Details", "查看详情"))
+                    Text(L("View Details", "查看详情"))
                         .font(.caption.weight(.medium))
                 }
                 .buttonStyle(.plain)
@@ -278,10 +274,10 @@ struct DashboardView: View {
             let models = proxyVM.modelAggregates(nodeFilter: nil, modelFilter: nil)
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
-                proxyMiniCard(title: t("Cost", "费用"), value: AIUsage.formatCurrency(stats.cost), icon: "dollarsign.circle.fill", tint: .orange)
+                proxyMiniCard(title: L("Cost", "费用"), value: AIUsage.formatCurrency(stats.cost), icon: "dollarsign.circle.fill", tint: .orange)
                 proxyMiniCard(title: "Tokens", value: formatCompactNumber(Double(stats.tokens)), icon: "bolt.fill", tint: .purple)
-                proxyMiniCard(title: t("Requests", "请求"), value: "\(stats.requests)", icon: "arrow.up.arrow.down", tint: .blue)
-                proxyMiniCard(title: t("Success", "成功率"), value: String(format: "%.0f%%", stats.successRate), icon: "checkmark.seal.fill", tint: .green)
+                proxyMiniCard(title: L("Requests", "请求"), value: "\(stats.requests)", icon: "arrow.up.arrow.down", tint: .blue)
+                proxyMiniCard(title: L("Success", "成功率"), value: String(format: "%.0f%%", stats.successRate), icon: "checkmark.seal.fill", tint: .green)
             }
 
             if !models.isEmpty {
@@ -320,7 +316,7 @@ struct DashboardView: View {
 
     private func costTrackingGrid(_ providers: [ProviderData]) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(t("Claude Code Stats", "Claude Code 统计"))
+            Text(L("Claude Code Stats", "Claude Code 统计"))
                 .font(.title2)
                 .bold()
 
@@ -338,7 +334,7 @@ struct DashboardView: View {
         VStack(spacing: 20) {
             SmallProgressView()
                 .frame(width: 32, height: 32)
-            Text(t("Loading dashboard...", "加载中..."))
+            Text(L("Loading dashboard...", "加载中..."))
                 .font(.headline)
                 .foregroundColor(.secondary)
         }
@@ -351,7 +347,7 @@ struct DashboardView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.red)
             
-            Text(t("Error", "错误"))
+            Text(L("Error", "错误"))
                 .font(.title)
                 .bold()
             
@@ -360,8 +356,8 @@ struct DashboardView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
             
-            Button(t("Retry", "重试")) {
-                appState.refreshAllProviders()
+            Button(L("Retry", "重试")) {
+                refreshCoordinator.refreshAllProviders()
             }
             .buttonStyle(.borderedProminent)
         }
@@ -375,14 +371,14 @@ struct DashboardView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.secondary)
 
-            Text(appState.selectedProviderIds.isEmpty ? t("No sources selected", "尚未选择扫描来源") : t("No data available", "暂无数据"))
+            Text(appState.selectedProviderIds.isEmpty ? L("No sources selected", "尚未选择扫描来源") : L("No data available", "暂无数据"))
                 .font(.title2)
                 .bold()
 
             Text(
                 appState.selectedProviderIds.isEmpty
-                    ? t("Choose the apps and sources you want to scan first.", "先选择你想扫描的应用和来源。")
-                    : t("Start the backend server and refresh", "请启动后端服务后刷新")
+                    ? L("Choose the apps and sources you want to scan first.", "先选择你想扫描的应用和来源。")
+                    : L("Start the backend server and refresh", "请启动后端服务后刷新")
             )
                 .font(.body)
                 .foregroundColor(.secondary)
@@ -391,12 +387,12 @@ struct DashboardView: View {
                 Button {
                     appState.providerPickerMode = appState.needsInitialProviderSetup ? .initialSetup : .manage
                 } label: {
-                    Label(t("Choose Sources", "选择来源"), systemImage: "plus.circle")
+                    Label(L("Choose Sources", "选择来源"), systemImage: "plus.circle")
                 }
                 .buttonStyle(.borderedProminent)
             } else {
-                Button(t("Refresh", "刷新")) {
-                    appState.refreshAllProviders()
+                Button(L("Refresh", "刷新")) {
+                    refreshCoordinator.refreshAllProviders()
                 }
                 .buttonStyle(.borderedProminent)
             }

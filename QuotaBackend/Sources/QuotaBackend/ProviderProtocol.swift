@@ -188,8 +188,11 @@ public struct ProviderResult: Codable, Sendable {
 
 // MARK: - AnyCodable helper
 
-// This wrapper only carries JSON-like immutable payloads, but Swift cannot
-// prove `Any` is Sendable. Mark it explicitly so concurrency intent is clear.
+/// JSON-value wrapper that only holds immutable primitives (Bool, Int, Double,
+/// String) and nested AnyCodable arrays/dicts — all value types. Swift cannot
+/// statically prove `Any` is Sendable, so `@unchecked` is required. The init
+/// path guarantees only Codable-safe values enter; mutation after init is
+/// impossible (`let value`).
 public struct AnyCodable: Codable, @unchecked Sendable {
     public let value: Any
 

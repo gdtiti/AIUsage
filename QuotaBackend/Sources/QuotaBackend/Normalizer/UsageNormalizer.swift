@@ -111,504 +111,6 @@ public enum UsageNormalizer {
         )
     }
 
-    // MARK: - Warp
-
-    private static func normalizeWarp(base: inout ProviderSummary, usage: ProviderUsage) -> ProviderSummary {
-        base.accountLabel = preferredAccountEmail(usage)
-
-        let requestsRemaining = extra(usage, "requestsRemaining") as? Int
-        let requestLimit = extra(usage, "requestLimit") as? Int
-        let requestsUsed = extra(usage, "requestsUsed") as? Int
-        let assistantRequestsUsed = extra(usage, "assistantRequestsUsed") as? Int
-        let bonusCreditsRemaining = extra(usage, "bonusCreditsRemaining") as? Int
-        let bonusCreditsTotal = extra(usage, "bonusCreditsTotal") as? Int
-        let isUnlimited = extra(usage, "isUnlimited") as? Bool ?? false
-
-        var windows: [WindowInfo] = []
-        if let w = usage.primary { windows.append(createQuotaWindow(label: "Requests", window: w)) }
-        if let w = usage.secondary { windows.append(createQuotaWindow(label: "Assistant Credits", window: w)) }
-
-        let remainingPercent = pickSmallestRemaining(windows)
-        let (status, statusLabel) = resolveStatus(remainingPercent)
-
-        let primaryText: String
-        if let rem = requestsRemaining, let lim = requestLimit {
-            primaryText = "\(formatInt(rem)) / \(formatInt(lim))"
-        } else {
-            primaryText = remainingPercent.map { formatPercent($0) } ?? "Connected"
-        }
-
-        let supporting: String
-        if let bonus = bonusCreditsRemaining {
-            supporting = "\(formatInt(bonus)) bonus credits remain"
-        } else {
-            supporting = formatSourceLabel(usage.source)
-        }
-
-        base.category = "quota"
-        base.status = status
-        base.statusLabel = statusLabel
-        base.remainingPercent = remainingPercent
-        base.nextResetAt = usage.primary?.resetAt ?? usage.secondary?.resetAt
-        base.nextResetLabel = formatShortDateTime(base.nextResetAt)
-        base.headline = HeadlineInfo(
-            eyebrow: isUnlimited ? "Unlimited mode" : "Desktop quota cache",
-            primary: primaryText,
-            secondary: requestsRemaining != nil && requestLimit != nil ? "main request reserve" : "quota snapshot",
-            supporting: supporting
-        )
-        base.metrics = [
-            MetricInfo(label: "Main Pool", value: "\(formatInt(requestsUsed ?? 0)) used"),
-            MetricInfo(label: "Assistant Pool", value: assistantRequestsUsed.map { "\(formatInt($0)) used" } ?? "Not available"),
-            MetricInfo(label: "Bonus Credits", value: bonusCreditsRemaining.map { "\(formatInt($0)) / \(formatInt(bonusCreditsTotal ?? 0))" } ?? "None"),
-            MetricInfo(label: "Source", value: formatSourceLabel(usage.source))
-        ]
-        base.windows = windows
-        base.spotlight = "Warp can read from local app cache, which makes the panel feel instantaneous and keeps the design centered on what is actually left right now."
-        return base
-    }
-
-    // MARK: - Claude
-
-    private static func normalizeAntigravity(base: inout ProviderSummary, usage: ProviderUsage) -> ProviderSummary {
-        let trackedModels = extraTrackedModels(usage)
-        let windows = trackedModels.map { model in
-            WindowInfo(
-                label: model.label,
-                remainingPercent: model.remainingPercent,
-                usedPercent: max(0, 100 - model.remainingPercent),
-                value: "\(formatPercent(model.remainingPercent)) left",
-                note: joinParts([model.providerLabel, formatShortDateTime(model.resetAt)]) ?? formatShortDateTime(model.resetAt) ?? "Live snapshot",
-                resetAt: model.resetAt
-            )
-        }
-
-        let remainingPercent = trackedModels.map(\.remainingPercent).min() ?? pickSmallestRemaining(windows)
-        let (status, statusLabel) = resolveStatus(remainingPercent)
-        let plan = usage.accountPlan ?? "Unknown"
-        let projectId = extraString(usage, "projectId")
-        let modelCount = extraInt(usage, "modelCount") ?? trackedModels.count
-        let authFileCount = extraInt(usage, "authFileCount") ?? 1
-        let selectedAuthFile = extraString(usage, "selectedAuthFile")
-
-        base.accountLabel = preferredAccountEmail(usage)
-        base.membershipLabel = membershipBadge(from: plan)
-        base.category = "quota"
-        base.status = status
-        base.statusLabel = statusLabel
-        base.remainingPercent = remainingPercent
-        base.nextResetAt = trackedModels.compactMap { $0.resetAt }.compactMap(parseDate).min().map { SharedFormatters.iso8601String(from: $0) }
-        base.nextResetLabel = formatShortDateTime(base.nextResetAt)
-        base.headline = HeadlineInfo(
-            eyebrow: "Plan · \(plan)",
-            primary: remainingPercent.map { formatPercent($0) } ?? "Connected",
-            secondary: remainingPercent == nil ? "Antigravity quota snapshot" : "lowest remaining model",
-            supporting: usage.accountEmail ?? projectId ?? "CLIProxy auth file"
-        )
-        base.metrics = [
-            MetricInfo(label: "Account", value: usage.accountEmail ?? "Unknown"),
-            MetricInfo(label: "Project", value: projectId ?? "Unknown"),
-            MetricInfo(label: "Tracked Models", value: formatInt(modelCount)),
-            MetricInfo(label: "Source", value: formatSourceLabel(usage.source))
-        ]
-        base.windows = windows
-        base.models = trackedModels.isEmpty ? nil : trackedModels.map {
-            ModelInfo(
-                label: $0.label,
-                value: formatPercent($0.remainingPercent),
-                note: joinParts([$0.providerLabel, formatShortDateTime($0.resetAt)])
-            )
-        }
-        base.spotlight = authFileCount > 1
-            ? "Antigravity auth files detected: \(formatInt(authFileCount)). This snapshot uses the most recently updated file (\(selectedAuthFile ?? "unknown"))."
-            : "Antigravity exposes per-model quotas, so the dashboard keeps each model separate and puts the tightest ones first."
-        return base
-    }
-
-    // MARK: - Claude
-
-    private static func normalizeClaude(base: inout ProviderSummary, usage: ProviderUsage) -> ProviderSummary {
-        let monthUsd   = extraDouble(usage, "currentMonth.estimatedCostUsd") ?? 0
-        let weekUsd    = extraDouble(usage, "currentWeek.estimatedCostUsd") ?? 0
-        let todayUsd   = extraDouble(usage, "today.estimatedCostUsd") ?? 0
-        let overallUsd = extraDouble(usage, "overall.estimatedCostUsd") ?? 0
-        let monthTokens = extraInt(usage, "currentMonth.totalTokens") ?? 0
-        let weekTokens  = extraInt(usage, "currentWeek.totalTokens") ?? 0
-        let todayTokens = extraInt(usage, "today.totalTokens") ?? 0
-        let overallTokens = extraInt(usage, "overall.totalTokens") ?? 0
-        let usageRows   = extraInt(usage, "overall.usageRows") ?? 0
-        let dupRows     = extraInt(usage, "overall.duplicateRowsRemoved") ?? 0
-        let unpricedModels = extraStringArray(usage, "overall.unpricedModels")
-
-        let rawModelItems = (usage.extra["currentMonth.models"]?.value as? [AnyCodable]) ?? []
-        let topModels: [ModelInfo] = rawModelItems
-            .prefix(5)
-            .compactMap { item in
-                guard let m = item.value as? [String: AnyCodable],
-                      let model = m["model"]?.value as? String,
-                      let cost = m["estimatedCostDisplay"]?.value as? String else { return nil }
-                let tokens: Int
-                switch m["totalTokens"]?.value {
-                case let v as Int: tokens = v
-                case let v as Double: tokens = Int(v)
-                default: tokens = 0
-                }
-                return ModelInfo(label: model, value: formatInt(tokens), note: cost)
-            }
-
-        let modelBreakdown = extractModelBreakdown(usage, "currentMonth.models")
-        let modelBreakdownToday = extractModelBreakdown(usage, "today.models")
-        let modelBreakdownWeek = extractModelBreakdown(usage, "currentWeek.models")
-        let modelBreakdownOverall = extractModelBreakdown(usage, "overall.models")
-
-        let modelTimelines: [ModelTimelineSeries] = extraModelTimelines(usage, "timeline.byModel")
-
-        base.accountLabel = preferredAccountEmail(usage)
-        base.category = "local-cost"
-        base.status = "healthy"
-        base.statusLabel = "Healthy"
-        base.headline = HeadlineInfo(
-            eyebrow: "Local spend ledger",
-            primary: formatCurrency(monthUsd),
-            secondary: "\(formatInt(monthTokens)) tokens this month",
-            supporting: "Week \(formatCurrency(weekUsd)) • Today \(formatCurrency(todayUsd))"
-        )
-        base.metrics = [
-            MetricInfo(label: "Today",      value: formatCurrency(todayUsd),  note: "\(formatInt(todayTokens)) tokens"),
-            MetricInfo(label: "This Week",  value: formatCurrency(weekUsd),   note: "\(formatInt(weekTokens)) tokens"),
-            MetricInfo(label: "This Month", value: formatCurrency(monthUsd),  note: "\(formatInt(monthTokens)) tokens"),
-            MetricInfo(label: "Scanned Calls", value: formatInt(usageRows),   note: "\(formatInt(dupRows)) duplicate rows removed")
-        ]
-        base.windows = []
-        base.costSummary = CostSummaryInfo(
-            today: CostPeriod(usd: todayUsd, tokens: todayTokens, rangeLabel: extraString(usage, "today.key") ?? "Today"),
-            week:  CostPeriod(usd: weekUsd,  tokens: weekTokens,  rangeLabel: extraString(usage, "currentWeek.key") ?? "This week"),
-            month: CostPeriod(usd: monthUsd, tokens: monthTokens, rangeLabel: extraString(usage, "currentMonth.key") ?? "This month"),
-            overall: CostPeriod(usd: overallUsd, tokens: overallTokens, rangeLabel: "Overall"),
-            timeline: CostTimelineInfo(
-                hourly: extraCostTimeline(usage, "timeline.hourly"),
-                daily: extraCostTimeline(usage, "timeline.daily")
-            ),
-            modelBreakdown: modelBreakdown.isEmpty ? nil : modelBreakdown,
-            modelBreakdownToday: modelBreakdownToday.isEmpty ? nil : modelBreakdownToday,
-            modelBreakdownWeek: modelBreakdownWeek.isEmpty ? nil : modelBreakdownWeek,
-            modelBreakdownOverall: modelBreakdownOverall.isEmpty ? nil : modelBreakdownOverall,
-            modelTimelines: modelTimelines.isEmpty ? nil : modelTimelines
-        )
-        base.models = topModels.isEmpty ? nil : topModels
-        base.nextResetAt = nil
-        base.spotlight = "This tracker reads Claude Code JSONL logs and estimates spend from local usage, so it works best as a cost ledger rather than an official subscription meter."
-        base.unpricedModels = unpricedModels.isEmpty ? nil : unpricedModels
-        return base
-    }
-
-    // MARK: - Copilot
-
-    private static func normalizeCopilot(base: inout ProviderSummary, usage: ProviderUsage) -> ProviderSummary {
-        let planName = usage.accountPlan ?? "Unknown"
-        let accountLogin = usage.accountLogin ?? "GitHub account"
-        let quotaResetAt = extraString(usage, "quotaResetAt")
-        let planNote = extraString(usage, "planNote")
-
-        var windows: [WindowInfo] = []
-        if let w = usage.primary   { windows.append(createEntitlementWindow(label: "Premium", window: w)) }
-        if let w = usage.secondary { windows.append(createEntitlementWindow(label: "Chat", window: w)) }
-        if let w = usage.tertiary  { windows.append(createEntitlementWindow(label: "Completions", window: w)) }
-
-        let remainingPercent = pickSmallestRemaining(windows)
-        let (status, statusLabel) = resolveStatus(remainingPercent)
-
-        var metrics: [MetricInfo] = [
-            MetricInfo(label: "Account", value: accountLogin),
-            MetricInfo(label: "Plan",    value: planName, note: planNote?.isEmpty == false ? planNote : nil),
-            MetricInfo(label: "Reset",   value: extraString(usage, "resetDescription") ?? formatShortDateTime(quotaResetAt) ?? "Unknown"),
-            MetricInfo(label: "Source",  value: formatSourceLabel(usage.source))
-        ]
-        if let email = usage.accountEmail {
-            metrics.insert(MetricInfo(label: "Email", value: email), at: 1)
-        }
-
-        base.accountLabel = preferredAccountEmail(usage)
-        base.membershipLabel = membershipBadge(from: planName)
-        base.category = "quota"
-        base.status = status
-        base.statusLabel = statusLabel
-        base.remainingPercent = remainingPercent
-        base.nextResetAt = quotaResetAt
-        base.nextResetLabel = formatShortDateTime(quotaResetAt)
-        base.headline = HeadlineInfo(
-            eyebrow: "Plan · \(planName)",
-            primary: remainingPercent.map { formatPercent($0) } ?? "Unlimited",
-            secondary: remainingPercent == nil ? "Most Copilot lanes are unlimited" : "tightest Copilot lane",
-            supporting: accountLogin
-        )
-        base.metrics = metrics
-        base.windows = windows
-        base.spotlight = "Copilot can mix unlimited and metered lanes. The dashboard keeps unlimited channels visible, but only metered windows affect watch and critical states."
-        return base
-    }
-
-    // MARK: - Codex
-
-    private static func normalizeKiro(base: inout ProviderSummary, usage: ProviderUsage) -> ProviderSummary {
-        let rawWindows = [usage.primary, usage.secondary, usage.tertiary].compactMap { $0 }
-        let windows = rawWindows.map { window in
-            createPercentWindow(label: window.label ?? "Usage Lane", window: window)
-        }
-
-        let remainingPercent = pickSmallestRemaining(windows)
-        let (status, statusLabel) = resolveStatus(remainingPercent)
-        let plan = usage.accountPlan ?? "Standard"
-        let authProvider = extraString(usage, "authProvider")
-        let authMethod = formatKiroAuthMethod(extraString(usage, "authMethod"))
-        let region = extraString(usage, "region") ?? "us-east-1"
-        let tokenExpiresAt = extraString(usage, "tokenExpiresAt")
-        let quotaEntryCount = extraInt(usage, "quotaEntryCount") ?? windows.count
-        let hiddenQuotaCount = extraInt(usage, "hiddenQuotaCount") ?? 0
-
-        base.accountLabel = preferredAccountEmail(usage)
-        base.membershipLabel = membershipBadge(from: plan)
-        base.category = "quota"
-        base.status = status
-        base.statusLabel = statusLabel
-        base.remainingPercent = remainingPercent
-        base.nextResetAt = rawWindows.compactMap { $0.resetAt }.compactMap(parseDate).min().map { SharedFormatters.iso8601String(from: $0) }
-        base.nextResetLabel = formatShortDateTime(base.nextResetAt)
-        base.headline = HeadlineInfo(
-            eyebrow: "Plan · \(plan)",
-            primary: remainingPercent.map { formatPercent($0) } ?? "Connected",
-            secondary: remainingPercent == nil ? "Kiro usage snapshot" : "tightest Kiro lane",
-            supporting: usage.accountEmail ?? usage.accountName ?? authProvider.map { "Kiro \($0)" } ?? "Kiro account"
-        )
-        base.metrics = [
-            MetricInfo(label: "Account", value: usage.accountEmail ?? usage.accountName ?? "Unknown"),
-            MetricInfo(label: "Auth", value: joinParts([authProvider, authMethod]) ?? authMethod ?? "Unknown"),
-            MetricInfo(label: "Region", value: region, note: tokenExpiresAt.flatMap { formatShortDateTime($0) }.map { "token expires \($0)" }),
-            MetricInfo(label: "Source", value: formatSourceLabel(usage.source), note: "\(formatInt(quotaEntryCount)) lanes tracked")
-        ]
-        base.windows = windows
-        base.spotlight = hiddenQuotaCount > 0
-            ? "Kiro reported \(formatInt(quotaEntryCount)) usage lanes. This card shows the three tightest ones first so attention stays on the lanes that will run out soonest."
-            : "Kiro usage is pulled from the same AWS-backed endpoint the desktop app uses, so this snapshot reflects the live agentic request lanes exposed by the app."
-        return base
-    }
-
-    // MARK: - Codex
-
-    private static func normalizeCodex(base: inout ProviderSummary, usage: ProviderUsage) -> ProviderSummary {
-        var windows: [WindowInfo] = []
-        if let w = usage.primary   { windows.append(createPercentWindow(label: "5h Window", window: w)) }
-        if let w = usage.secondary { windows.append(createPercentWindow(label: "Weekly Window", window: w)) }
-        if let w = usage.tertiary  { windows.append(createPercentWindow(label: "Code Review", window: w)) }
-
-        let remainingPercent = pickSmallestRemaining(windows)
-        let (status, statusLabel) = resolveStatus(remainingPercent)
-        let plan = usage.accountPlan.map { titleCase($0) } ?? "Unknown"
-
-        base.accountLabel = preferredAccountEmail(usage)
-        base.membershipLabel = membershipBadge(from: plan)
-        base.category = "quota"
-        base.status = status
-        base.statusLabel = statusLabel
-        base.remainingPercent = remainingPercent
-        base.nextResetAt = usage.primary?.resetAt ?? usage.secondary?.resetAt
-        base.nextResetLabel = formatShortDateTime(base.nextResetAt)
-        base.headline = HeadlineInfo(
-            eyebrow: "Plan · \(plan)",
-            primary: remainingPercent.map { formatPercent($0) } ?? "Connected",
-            secondary: remainingPercent == nil ? "Usage snapshot ready" : "lowest remaining window",
-            supporting: usage.accountEmail ?? "OpenAI account"
-        )
-        base.metrics = [
-            MetricInfo(label: "Account", value: usage.accountEmail ?? "Unknown"),
-            MetricInfo(label: "Plan",    value: plan),
-            MetricInfo(label: "Source",  value: formatSourceLabel(usage.source))
-        ]
-        base.windows = windows
-        base.spotlight = "Codex has multiple overlapping guardrails, so the UI surfaces all windows together and uses the tightest one to drive alerting."
-        return base
-    }
-
-    // MARK: - Gemini
-
-    private static func normalizeGemini(base: inout ProviderSummary, usage: ProviderUsage) -> ProviderSummary {
-        var windows: [WindowInfo] = []
-        if let w = usage.primary   { windows.append(createPercentWindow(label: "Pro", window: w)) }
-        if let w = usage.secondary { windows.append(createPercentWindow(label: "Flash", window: w)) }
-        if let w = usage.tertiary  { windows.append(createPercentWindow(label: "Flash Lite", window: w)) }
-
-        let remainingPercent = pickSmallestRemaining(windows)
-        let (status, statusLabel) = resolveStatus(remainingPercent)
-        let plan = usage.accountPlan ?? "Unknown"
-        let projectId = extraString(usage, "projectId")
-        let lowestPercentLeft = extraDouble(usage, "lowestPercentLeft")
-
-        base.accountLabel = preferredAccountEmail(usage)
-        base.membershipLabel = membershipBadge(from: plan)
-        base.category = "quota"
-        base.status = status
-        base.statusLabel = statusLabel
-        base.remainingPercent = remainingPercent
-        base.nextResetAt = usage.primary?.resetAt ?? usage.secondary?.resetAt
-        base.nextResetLabel = formatShortDateTime(base.nextResetAt)
-        base.headline = HeadlineInfo(
-            eyebrow: "Plan · \(plan)",
-            primary: remainingPercent.map { formatPercent($0) } ?? "Connected",
-            secondary: remainingPercent == nil ? "Gemini quota snapshot" : "lowest remaining family",
-            supporting: usage.accountEmail ?? projectId ?? "Gemini CLI account"
-        )
-        base.metrics = [
-            MetricInfo(label: "Account",          value: usage.accountEmail ?? "Unknown"),
-            MetricInfo(label: "Project",           value: projectId ?? "Unknown"),
-            MetricInfo(label: "Lowest Remaining",  value: lowestPercentLeft.map { formatPercent($0) } ?? "Unknown"),
-            MetricInfo(label: "Source",            value: formatSourceLabel(usage.source))
-        ]
-        base.windows = windows
-        base.spotlight = "Gemini quota is model-family based, so the dashboard groups the lowest remaining family first and keeps the project context attached."
-        return base
-    }
-
-    // MARK: - Cursor
-
-    private static func normalizeCursor(base: inout ProviderSummary, usage: ProviderUsage) -> ProviderSummary {
-        var windows: [WindowInfo] = []
-        if let w = usage.primary   { windows.append(createPercentWindow(label: "Main Plan", window: w)) }
-        if let w = usage.secondary { windows.append(createPercentWindow(label: "Auto / Composer", window: w)) }
-        if let w = usage.tertiary  { windows.append(createPercentWindow(label: "Named Models", window: w)) }
-
-        let remainingPercent = pickSmallestRemaining(windows)
-        let (status, statusLabel) = resolveStatus(remainingPercent)
-        let membershipType = membershipBadge(from: usage.accountPlan ?? extraString(usage, "membershipType")) ?? "Subscription"
-        let billingReset = extraString(usage, "billingCycleResetDescription") ?? "Billing cycle detected"
-        let billingEnd = extraString(usage, "billingCycleEnd")
-
-        let includedUsed = extraDouble(usage, "includedPlan.usedUsd")
-        let includedLimit = extraDouble(usage, "includedPlan.limitUsd")
-        let onDemandUsed = extraDouble(usage, "onDemand.usedUsd")
-
-        base.accountLabel = preferredAccountEmail(usage)
-        base.membershipLabel = membershipBadge(from: membershipType)
-        base.category = "quota"
-        base.status = status
-        base.statusLabel = statusLabel
-        base.remainingPercent = remainingPercent
-        base.nextResetAt = billingEnd
-        base.nextResetLabel = formatShortDateTime(billingEnd)
-        base.headline = HeadlineInfo(
-            eyebrow: "Membership · \(membershipType)",
-            primary: remainingPercent.map { formatPercent($0) } ?? "Connected",
-            secondary: remainingPercent == nil ? "Cursor usage snapshot" : "tightest remaining allowance",
-            supporting: billingReset
-        )
-        base.metrics = [
-            MetricInfo(label: "Account",      value: usage.accountEmail ?? usage.accountName ?? "Unknown"),
-            MetricInfo(
-                label: "Included Plan",
-                value: {
-                    if let includedUsed, let includedLimit {
-                        return "\(formatCurrency(includedUsed)) / \(formatCurrency(includedLimit))"
-                    }
-                    return "Not available"
-                }()
-            ),
-            MetricInfo(label: "On-demand",    value: onDemandUsed.map { "\(formatCurrency($0)) used" } ?? "Not available"),
-            MetricInfo(label: "Source",       value: formatSourceLabel(usage.source))
-        ]
-        base.windows = windows
-        base.spotlight = "Cursor mixes percent-based allowances with dollar-based plan spend, so the card pairs remaining percentages with included and on-demand spend signals."
-        return base
-    }
-
-    // MARK: - Amp
-
-    private static func normalizeAmp(base: inout ProviderSummary, usage: ProviderUsage) -> ProviderSummary {
-        let remaining = extraInt(usage, "remaining")
-        let quota = extraInt(usage, "quota")
-        let hourlyReplenishment = extraInt(usage, "hourlyReplenishment")
-        let estimatedFullResetAt = extraString(usage, "estimatedFullResetAt")
-
-        let remainingPercent: Double?
-        if let r = usage.primary?.remainingPercent { remainingPercent = r }
-        else if let rem = remaining, let q = quota, q > 0 { remainingPercent = Double(rem) / Double(q) * 100 }
-        else { remainingPercent = nil }
-
-        var windows: [WindowInfo] = []
-        if let w = usage.primary { windows.append(createQuotaWindow(label: "Free Quota", window: w)) }
-
-        let (status, statusLabel) = resolveStatus(remainingPercent)
-
-        base.accountLabel = preferredAccountEmail(usage)
-        base.membershipLabel = membershipBadge(from: usage.accountPlan)
-        base.category = "quota"
-        base.status = status
-        base.statusLabel = statusLabel
-        base.remainingPercent = remainingPercent
-        base.nextResetAt = estimatedFullResetAt
-        base.nextResetLabel = formatShortDateTime(estimatedFullResetAt)
-        base.headline = HeadlineInfo(
-            eyebrow: "Free tier reserve",
-            primary: "\(formatInt(remaining ?? 0)) / \(formatInt(quota ?? 0))",
-            secondary: remainingPercent.map { "\(formatPercent($0)) left" } ?? "Unknown",
-            supporting: hourlyReplenishment.map { "Replenishes about \(formatInt($0)) units per hour" } ?? "Live browser cookie import"
-        )
-        base.metrics = [
-            MetricInfo(label: "Used",        value: formatInt(extraInt(usage, "used") ?? 0)),
-            MetricInfo(label: "Remaining",   value: formatInt(remaining ?? 0)),
-            MetricInfo(label: "Hourly Refill", value: hourlyReplenishment.map { "\(formatInt($0))/h" } ?? "Unknown"),
-            MetricInfo(label: "Source",      value: formatSourceLabel(usage.source))
-        ]
-        base.windows = windows
-        base.spotlight = "Amp is best viewed as a replenishing credit pool, so the card highlights remaining balance and refill cadence instead of a hard billing period."
-        return base
-    }
-
-    // MARK: - Droid
-
-    private static func normalizeDroid(base: inout ProviderSummary, usage: ProviderUsage) -> ProviderSummary {
-        var windows: [WindowInfo] = []
-        if let w = usage.primary   { windows.append(createPercentWindow(label: "Standard", window: w)) }
-        if let w = usage.secondary { windows.append(createPercentWindow(label: "Premium", window: w)) }
-
-        let remainingPercent = pickSmallestRemaining(windows)
-        let (status, statusLabel) = resolveStatus(remainingPercent)
-        let planName = extraString(usage, "planName") ?? "Factory usage"
-        let orgName = extraString(usage, "organizationName")
-        let periodEnd = extraString(usage, "periodEnd")
-
-        let stdUserTokens = extraInt(usage, "standard.userTokens") ?? 0
-        let stdTotalAllowance = extraInt(usage, "standard.totalAllowance") ?? 0
-        let stdUnlimited = extra(usage, "standard.unlimited") as? Bool ?? false
-        let premUserTokens = extraInt(usage, "premium.userTokens") ?? 0
-        let premTotalAllowance = extraInt(usage, "premium.totalAllowance") ?? 0
-        let premUnlimited = extra(usage, "premium.unlimited") as? Bool ?? false
-
-        let periodStart = extraString(usage, "periodStart")
-
-        base.accountLabel = preferredAccountEmail(usage)
-        base.membershipLabel = membershipBadge(from: planName)
-        base.category = "quota"
-        base.status = status
-        base.statusLabel = statusLabel
-        base.remainingPercent = remainingPercent
-        base.nextResetAt = periodEnd
-        base.nextResetLabel = formatShortDateTime(periodEnd)
-        base.headline = HeadlineInfo(
-            eyebrow: "Plan · \(planName)",
-            primary: remainingPercent.map { formatPercent($0) } ?? "Connected",
-            secondary: remainingPercent == nil ? "Token telemetry ready" : "lowest remaining token pool",
-            supporting: orgName ?? usage.accountEmail ?? "Factory account"
-        )
-        base.metrics = [
-            MetricInfo(label: "Standard Tokens", value: "\(formatInt(stdUserTokens)) / \(stdUnlimited ? "Unlimited" : formatInt(stdTotalAllowance))"),
-            MetricInfo(label: "Premium Tokens",  value: "\(formatInt(premUserTokens)) / \(premUnlimited ? "Unlimited" : formatInt(premTotalAllowance))"),
-            MetricInfo(label: "Billing Period",  value: formatRange(periodStart, periodEnd)),
-            MetricInfo(label: "Source",          value: formatSourceLabel(usage.source))
-        ]
-        base.windows = windows
-        base.spotlight = "Droid usage is token-heavy, so the panel keeps raw token counts visible next to the percentage-based pools."
-        return base
-    }
-
     // MARK: - Dashboard Overview
 
     public static func createDashboardOverview(summaries: [ProviderSummary], generatedAt: String) -> DashboardOverview {
@@ -652,7 +154,7 @@ public enum UsageNormalizer {
 
     // MARK: - Window Helpers
 
-    private static func createPercentWindow(label: String, window: RawQuotaWindow) -> WindowInfo {
+    static func createPercentWindow(label: String, window: RawQuotaWindow) -> WindowInfo {
         let remaining = window.remainingPercent
         let used = window.usedPercent ?? remaining.map { 100 - $0 }
         let note = window.resetDescription ?? formatShortDateTime(window.resetAt) ?? "Live snapshot"
@@ -666,7 +168,7 @@ public enum UsageNormalizer {
         )
     }
 
-    private static func createEntitlementWindow(label: String, window: RawQuotaWindow) -> WindowInfo {
+    static func createEntitlementWindow(label: String, window: RawQuotaWindow) -> WindowInfo {
         if window.unlimited == true {
             return WindowInfo(label: label, remainingPercent: nil, usedPercent: nil, value: "Unlimited", note: window.resetDescription ?? "No fixed cap detected", resetAt: window.resetAt)
         }
@@ -685,7 +187,7 @@ public enum UsageNormalizer {
         )
     }
 
-    private static func createQuotaWindow(label: String, window: RawQuotaWindow) -> WindowInfo {
+    static func createQuotaWindow(label: String, window: RawQuotaWindow) -> WindowInfo {
         if window.unlimited == true {
             return WindowInfo(label: label, remainingPercent: nil, usedPercent: nil, value: "Unlimited", note: window.resetDescription ?? "No cap detected", resetAt: window.resetAt)
         }
@@ -701,12 +203,12 @@ public enum UsageNormalizer {
         )
     }
 
-    private static func pickSmallestRemaining(_ windows: [WindowInfo]) -> Double? {
+    static func pickSmallestRemaining(_ windows: [WindowInfo]) -> Double? {
         let values = windows.compactMap { $0.remainingPercent }
         return values.isEmpty ? nil : values.min()
     }
 
-    private static func resolveStatus(_ remaining: Double?) -> (String, String) {
+    static func resolveStatus(_ remaining: Double?) -> (String, String) {
         guard let r = remaining else { return ("healthy", "Active") }
         if r <= 12 { return ("critical", "Critical") }
         if r <= 30 { return ("watch", "Watch") }
@@ -715,15 +217,15 @@ public enum UsageNormalizer {
 
     // MARK: - Extra field accessors
 
-    private static func extra(_ usage: ProviderUsage, _ key: String) -> Any? {
+    static func extra(_ usage: ProviderUsage, _ key: String) -> Any? {
         usage.extra[key]?.value
     }
 
-    private static func extraString(_ usage: ProviderUsage, _ key: String) -> String? {
+    static func extraString(_ usage: ProviderUsage, _ key: String) -> String? {
         usage.extra[key]?.value as? String
     }
 
-    private static func extraInt(_ usage: ProviderUsage, _ key: String) -> Int? {
+    static func extraInt(_ usage: ProviderUsage, _ key: String) -> Int? {
         switch usage.extra[key]?.value {
         case let v as Int: return v
         case let v as Double: return Int(v)
@@ -731,7 +233,7 @@ public enum UsageNormalizer {
         }
     }
 
-    private static func extraDouble(_ usage: ProviderUsage, _ key: String) -> Double? {
+    static func extraDouble(_ usage: ProviderUsage, _ key: String) -> Double? {
         switch usage.extra[key]?.value {
         case let v as Double: return v
         case let v as Int: return Double(v)
@@ -739,11 +241,11 @@ public enum UsageNormalizer {
         }
     }
 
-    private static func extraStringArray(_ usage: ProviderUsage, _ key: String) -> [String] {
+    static func extraStringArray(_ usage: ProviderUsage, _ key: String) -> [String] {
         (usage.extra[key]?.value as? [AnyCodable])?.compactMap { $0.value as? String } ?? []
     }
 
-    private static func extraCostTimeline(_ usage: ProviderUsage, _ key: String) -> [CostTimelinePoint] {
+    static func extraCostTimeline(_ usage: ProviderUsage, _ key: String) -> [CostTimelinePoint] {
         guard let items = usage.extra[key]?.value as? [AnyCodable] else { return [] }
         return items.compactMap { item in
             guard let dict = item.value as? [String: AnyCodable],
@@ -776,7 +278,7 @@ public enum UsageNormalizer {
         }
     }
 
-    private static func extractModelBreakdown(_ usage: ProviderUsage, _ key: String) -> [ModelCostInfo] {
+    static func extractModelBreakdown(_ usage: ProviderUsage, _ key: String) -> [ModelCostInfo] {
         let rawItems = (usage.extra[key]?.value as? [AnyCodable]) ?? []
         return rawItems.compactMap { item in
             guard let m = item.value as? [String: AnyCodable],
@@ -808,20 +310,6 @@ public enum UsageNormalizer {
         }
     }
 
-    private static func extraModelTimelines(_ usage: ProviderUsage, _ key: String) -> [ModelTimelineSeries] {
-        guard let items = usage.extra[key]?.value as? [AnyCodable] else { return [] }
-        return items.compactMap { item in
-            guard let dict = item.value as? [String: AnyCodable],
-                  let model = dict["model"]?.value as? String else { return nil }
-            let hourlyRaw = dict["hourly"]?.value as? [AnyCodable] ?? []
-            let dailyRaw = dict["daily"]?.value as? [AnyCodable] ?? []
-            let hourly = parseCostTimelinePoints(hourlyRaw)
-            let daily = parseCostTimelinePoints(dailyRaw)
-            guard !hourly.isEmpty || !daily.isEmpty else { return nil }
-            return ModelTimelineSeries(model: model, hourly: hourly, daily: daily)
-        }
-    }
-
     private static func parseCostTimelinePoints(_ items: [AnyCodable]) -> [CostTimelinePoint] {
         items.compactMap { item in
             guard let dict = item.value as? [String: AnyCodable],
@@ -843,14 +331,28 @@ public enum UsageNormalizer {
         }
     }
 
-    private struct TrackedModel {
+    static func extraModelTimelines(_ usage: ProviderUsage, _ key: String) -> [ModelTimelineSeries] {
+        guard let items = usage.extra[key]?.value as? [AnyCodable] else { return [] }
+        return items.compactMap { item in
+            guard let dict = item.value as? [String: AnyCodable],
+                  let model = dict["model"]?.value as? String else { return nil }
+            let hourlyRaw = dict["hourly"]?.value as? [AnyCodable] ?? []
+            let dailyRaw = dict["daily"]?.value as? [AnyCodable] ?? []
+            let hourly = parseCostTimelinePoints(hourlyRaw)
+            let daily = parseCostTimelinePoints(dailyRaw)
+            guard !hourly.isEmpty || !daily.isEmpty else { return nil }
+            return ModelTimelineSeries(model: model, hourly: hourly, daily: daily)
+        }
+    }
+
+    struct TrackedModel {
         let label: String
         let remainingPercent: Double
         let resetAt: String?
         let providerLabel: String?
     }
 
-    private static func extraTrackedModels(_ usage: ProviderUsage) -> [TrackedModel] {
+    static func extraTrackedModels(_ usage: ProviderUsage) -> [TrackedModel] {
         guard let items = usage.extra["trackedModels"]?.value as? [AnyCodable] else { return [] }
         return items.compactMap { item in
             guard let dict = item.value as? [String: AnyCodable],
@@ -923,7 +425,7 @@ public enum UsageNormalizer {
         }
     }
 
-    private static func preferredAccountEmail(_ usage: ProviderUsage) -> String? {
+    static func preferredAccountEmail(_ usage: ProviderUsage) -> String? {
         guard let email = usage.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
               email.contains("@") else {
             return nil
@@ -931,7 +433,7 @@ public enum UsageNormalizer {
         return email
     }
 
-    private static func membershipBadge(from raw: String?) -> String? {
+    static func membershipBadge(from raw: String?) -> String? {
         guard let raw else { return nil }
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return nil }
@@ -952,7 +454,7 @@ public enum UsageNormalizer {
         return titleCase(value)
     }
 
-    private static func formatKiroAuthMethod(_ value: String?) -> String? {
+    static func formatKiroAuthMethod(_ value: String?) -> String? {
         guard let value else { return nil }
         switch value.lowercased() {
         case "social": return "Google OAuth"
@@ -986,7 +488,7 @@ public enum UsageNormalizer {
         return fmt.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
-    private static func formatRange(_ start: String?, _ end: String?) -> String {
+    static func formatRange(_ start: String?, _ end: String?) -> String {
         [start, end].compactMap { $0 }.compactMap { s -> String? in
             guard let d = SharedFormatters.parseISO8601(s) else { return nil }
             return DateFormat.string(from: d, format: "MMM d")
@@ -998,7 +500,7 @@ public enum UsageNormalizer {
         return DateFormat.string(from: date, format: "MMM d, HH:mm")
     }
 
-    private static func parseDate(_ s: String) -> Date? {
+    static func parseDate(_ s: String) -> Date? {
         SharedFormatters.parseISO8601(s)
     }
 
@@ -1008,12 +510,12 @@ public enum UsageNormalizer {
         return diff > 0 && diff <= hours * 3600
     }
 
-    private static func joinParts(_ parts: [String?]) -> String? {
+    static func joinParts(_ parts: [String?]) -> String? {
         let filtered = parts.compactMap { $0 }
         return filtered.isEmpty ? nil : filtered.joined(separator: " / ")
     }
 
-    private static func titleCase(_ s: String) -> String {
+    static func titleCase(_ s: String) -> String {
         s.components(separatedBy: CharacterSet(charactersIn: "_- ")).map { $0.capitalized }.joined(separator: " ")
     }
 

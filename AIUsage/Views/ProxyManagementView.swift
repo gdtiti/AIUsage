@@ -8,11 +8,6 @@ struct ProxyManagementView: View {
     @State private var showingNewConfigEditor = false
     @State private var editingConfig: ProxyConfiguration?
     @State private var selectedConfigId: String?
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             if viewModel.configurations.isEmpty {
@@ -38,7 +33,7 @@ struct ProxyManagementView: View {
                 Button(action: { showingNewConfigEditor = true }) {
                     HStack(spacing: 5) {
                         Image(systemName: "plus.circle.fill")
-                        Text(t("New Node", "新建节点"))
+                        Text(L("New Node", "新建节点"))
                     }
                 }
             }
@@ -61,37 +56,37 @@ struct ProxyManagementView: View {
         HStack(spacing: 12) {
             summaryCell(
                 icon: "point.3.connected.trianglepath.dotted",
-                title: t("Nodes", "节点数"),
+                title: L("Nodes", "节点数"),
                 value: "\(viewModel.configurations.count)",
                 tint: .blue
             )
             summaryCell(
                 icon: "checkmark.circle.fill",
-                title: t("Active", "已激活"),
+                title: L("Active", "已激活"),
                 value: viewModel.activatedConfigId != nil ? "1" : "0",
                 tint: .green
             )
             summaryCell(
                 icon: "arrow.up.arrow.down",
-                title: t("Total Requests", "总请求"),
+                title: L("Total Requests", "总请求"),
                 value: formatCompactNumber(Double(totalRequests)),
                 tint: .orange
             )
             summaryCell(
                 icon: "checkmark.shield.fill",
-                title: t("Success Rate", "成功率"),
+                title: L("Success Rate", "成功率"),
                 value: String(format: "%.1f%%", totalSuccessRate),
                 tint: .purple
             )
             summaryCell(
                 icon: "bolt.fill",
-                title: t("Total Tokens", "总 Tokens"),
+                title: L("Total Tokens", "总 Tokens"),
                 value: formatCompactNumber(Double(totalTokens)),
                 tint: .pink
             )
             summaryCell(
                 icon: "dollarsign.circle.fill",
-                title: t("Total Cost", "总费用"),
+                title: L("Total Cost", "总费用"),
                 value: formatProxyCurrency(totalCost),
                 tint: .red
             )
@@ -134,7 +129,7 @@ struct ProxyManagementView: View {
     private var configurationsList: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(t("Node Configurations", "节点配置"))
+                Text(L("Node Configurations", "节点配置"))
                     .font(.headline.weight(.bold))
                 Spacer()
             }
@@ -205,7 +200,7 @@ struct ProxyManagementView: View {
                             .foregroundStyle(isActive ? .orange : .green)
                     }
                     .buttonStyle(.plain)
-                    .help(isActive ? t("Deactivate", "停用") : t("Activate", "激活"))
+                    .help(isActive ? L("Deactivate", "停用") : L("Activate", "激活"))
 
                     Button(action: { editConfig(config) }) {
                         Image(systemName: "pencil.circle.fill")
@@ -213,7 +208,7 @@ struct ProxyManagementView: View {
                             .foregroundStyle(.blue)
                     }
                     .buttonStyle(.plain)
-                    .help(t("Edit", "编辑"))
+                    .help(L("Edit", "编辑"))
 
                     Button(action: { deleteConfig(config) }) {
                         Image(systemName: "trash.circle.fill")
@@ -221,7 +216,7 @@ struct ProxyManagementView: View {
                             .foregroundStyle(.red)
                     }
                     .buttonStyle(.plain)
-                    .help(t("Delete", "删除"))
+                    .help(L("Delete", "删除"))
                 }
             }
 
@@ -258,18 +253,18 @@ struct ProxyManagementView: View {
             Button {
                 editingConfig = config
             } label: {
-                Label(t("Edit", "编辑"), systemImage: "pencil")
+                Label(L("Edit", "编辑"), systemImage: "pencil")
             }
             Button {
                 duplicateConfig(config)
             } label: {
-                Label(t("Duplicate", "复制节点"), systemImage: "doc.on.doc")
+                Label(L("Duplicate", "复制节点"), systemImage: "doc.on.doc")
             }
             Divider()
             Button(role: .destructive) {
                 deleteConfig(config)
             } label: {
-                Label(t("Delete", "删除"), systemImage: "trash")
+                Label(L("Delete", "删除"), systemImage: "trash")
             }
         }
     }
@@ -321,18 +316,18 @@ struct ProxyManagementView: View {
             case .anthropicDirect:
                 detailItem(label: "Base URL", value: config.anthropicBaseURL)
                 if config.usePassthroughProxy {
-                    detailItem(label: t("Local Proxy", "本地代理"), value: "http://\(config.host):\(config.port)")
+                    detailItem(label: L("Local Proxy", "本地代理"), value: "http://\(config.host):\(config.port)")
                 }
             case .openaiProxy:
-                detailItem(label: t("Upstream", "上游"), value: config.upstreamBaseURL)
+                detailItem(label: L("Upstream", "上游"), value: config.upstreamBaseURL)
                 detailItem(
-                    label: t("Model Mapping", "模型映射"),
+                    label: L("Model Mapping", "模型映射"),
                     value: "Opus\u{2192}\(config.modelMapping.bigModel.name), Sonnet\u{2192}\(config.modelMapping.middleModel.name), Haiku\u{2192}\(config.modelMapping.smallModel.name)"
                 )
-                detailItem(label: t("LAN Access", "局域网访问"), value: config.allowLAN ? t("Enabled", "已启用") : t("Disabled", "已禁用"))
+                detailItem(label: L("LAN Access", "局域网访问"), value: config.allowLAN ? L("Enabled", "已启用") : L("Disabled", "已禁用"))
             }
             if let lastUsed = config.lastUsedAt {
-                detailItem(label: t("Last Used", "最后使用"), value: formatRelativeTime(lastUsed))
+                detailItem(label: L("Last Used", "最后使用"), value: formatRelativeTime(lastUsed))
             }
         }
         .font(.caption)
@@ -354,30 +349,30 @@ struct ProxyManagementView: View {
         let stats = viewModel.statistics[config.id] ?? .empty
 
         return VStack(alignment: .leading, spacing: 12) {
-            Text(t("Statistics", "统计信息"))
+            Text(L("Statistics", "统计信息"))
                 .font(.headline.weight(.bold))
 
             HStack(spacing: 12) {
                 statsCard(
-                    title: t("Total Requests", "总请求"),
+                    title: L("Total Requests", "总请求"),
                     value: "\(stats.totalRequests)",
                     icon: "arrow.up.arrow.down",
                     color: .blue
                 )
                 statsCard(
-                    title: t("Successful", "成功"),
+                    title: L("Successful", "成功"),
                     value: "\(stats.successfulRequests)",
                     icon: "checkmark.circle",
                     color: .green
                 )
                 statsCard(
-                    title: t("Failed", "失败"),
+                    title: L("Failed", "失败"),
                     value: "\(stats.failedRequests)",
                     icon: "xmark.circle",
                     color: .red
                 )
                 statsCard(
-                    title: t("Avg Response", "平均响应"),
+                    title: L("Avg Response", "平均响应"),
                     value: String(format: "%.0fms", stats.averageResponseTime),
                     icon: "timer",
                     color: .orange
@@ -386,25 +381,25 @@ struct ProxyManagementView: View {
 
             HStack(spacing: 12) {
                 statsCard(
-                    title: t("Input Tokens", "输入 Tokens"),
+                    title: L("Input Tokens", "输入 Tokens"),
                     value: formatCompactNumber(Double(stats.totalTokensInput)),
                     icon: "arrow.down.circle",
                     color: .purple
                 )
                 statsCard(
-                    title: t("Output Tokens", "输出 Tokens"),
+                    title: L("Output Tokens", "输出 Tokens"),
                     value: formatCompactNumber(Double(stats.totalTokensOutput)),
                     icon: "arrow.up.circle",
                     color: .pink
                 )
                 statsCard(
-                    title: t("Cache Tokens", "缓存 Tokens"),
+                    title: L("Cache Tokens", "缓存 Tokens"),
                     value: formatCompactNumber(Double(stats.totalTokensCache)),
                     icon: "memorychip",
                     color: .cyan
                 )
                 statsCard(
-                    title: t("Estimated Cost", "预估费用"),
+                    title: L("Estimated Cost", "预估费用"),
                     value: formatProxyCurrency(stats.estimatedCostUSD),
                     icon: "dollarsign.circle",
                     color: .red
@@ -453,11 +448,11 @@ struct ProxyManagementView: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(t("Recent Requests", "最近请求"))
+                Text(L("Recent Requests", "最近请求"))
                     .font(.headline.weight(.bold))
                 Spacer()
                 if !logs.isEmpty {
-                    Button(t("Clear", "清除")) {
+                    Button(L("Clear", "清除")) {
                         viewModel.clearLogs(for: config.id)
                     }
                     .font(.caption.weight(.semibold))
@@ -465,7 +460,7 @@ struct ProxyManagementView: View {
             }
 
             if logs.isEmpty {
-                Text(t("No requests yet", "暂无请求"))
+                Text(L("No requests yet", "暂无请求"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 100)
@@ -537,9 +532,9 @@ struct ProxyManagementView: View {
             Image(systemName: "point.3.connected.trianglepath.dotted")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text(t("No Nodes", "暂无节点"))
+            Text(L("No Nodes", "暂无节点"))
                 .font(.title3.weight(.bold))
-            Text(t("Add Anthropic Direct or OpenAI Proxy nodes to manage Claude Code endpoints.",
+            Text(L("Add Anthropic Direct or OpenAI Proxy nodes to manage Claude Code endpoints.",
                     "添加 Anthropic 直连或 OpenAI 代理节点来管理 Claude Code 端点。"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -547,7 +542,7 @@ struct ProxyManagementView: View {
             Button(action: { showingNewConfigEditor = true }) {
                 HStack {
                     Image(systemName: "plus.circle.fill")
-                    Text(t("Add Node", "添加节点"))
+                    Text(L("Add Node", "添加节点"))
                 }
                 .font(.headline)
                 .padding(.horizontal, 20)
@@ -599,7 +594,7 @@ struct ProxyManagementView: View {
         while usedPorts.contains(newPort) && newPort < 65535 { newPort += 1 }
 
         let copy = ProxyConfiguration(
-            name: config.name + " " + t("(Copy)", "(副本)"),
+            name: config.name + " " + L("(Copy)", "(副本)"),
             nodeType: config.nodeType,
             anthropicBaseURL: config.anthropicBaseURL,
             anthropicAPIKey: config.anthropicAPIKey,

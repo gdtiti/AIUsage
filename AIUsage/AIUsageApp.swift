@@ -141,6 +141,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             rootView: MenuBarView()
                 .environmentObject(AppState.shared)
                 .environmentObject(ProviderActivationManager.shared)
+                .environmentObject(ProviderRefreshCoordinator.shared)
         )
         self.popover = popover
 
@@ -156,15 +157,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showContextMenu(from sender: NSStatusBarButton) {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: menuText("Open Dashboard", "打开仪表盘"), action: #selector(openDashboard), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: menuText("Open Cost Tracking", "打开费用追踪"), action: #selector(openCostTracking), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: L("Open Dashboard", "打开仪表盘"), action: #selector(openDashboard), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: L("Open Cost Tracking", "打开费用追踪"), action: #selector(openCostTracking), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: menuText("Refresh All", "全部刷新"), action: #selector(refreshAll), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: menuText("Refresh Claude Code", "刷新 Claude Code"), action: #selector(refreshClaudeCode), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: L("Refresh All", "全部刷新"), action: #selector(refreshAll), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: L("Refresh Claude Code", "刷新 Claude Code"), action: #selector(refreshClaudeCode), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: menuText("Settings...", "设置..."), action: #selector(openSettings), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: L("Settings...", "设置..."), action: #selector(openSettings), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: menuText("Quit AIUsage", "退出 AIUsage"), action: #selector(quit), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: L("Quit AIUsage", "退出 AIUsage"), action: #selector(quit), keyEquivalent: ""))
 
         for item in menu.items { item.target = self }
 
@@ -196,7 +197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func refreshClaudeCode() {
-        AppState.shared.refreshClaudeCodeOnly()
+        ProviderRefreshCoordinator.shared.refreshClaudeCodeOnly()
     }
 
     @objc func openSettings() {
@@ -206,9 +207,5 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func quit() {
         NSApplication.shared.terminate(nil)
-    }
-
-    private func menuText(_ en: String, _ zh: String) -> String {
-        AppSettings.shared.language == "zh" ? zh : en
     }
 }

@@ -41,32 +41,12 @@ class AppState: ObservableObject {
     var errorMessage: String? { refreshCoordinator.errorMessage }
     var lastRefreshTime: Date? { refreshCoordinator.lastRefreshTime }
     var isRefreshingAllProviders: Bool { refreshCoordinator.isRefreshingAllProviders }
-    var refreshingProviderIDs: Set<String> { refreshCoordinator.refreshingProviderIDs }
-    var refreshingAccountIDs: Set<String> { refreshCoordinator.refreshingAccountIDs }
-    var providerRefreshTimes: [String: Date] { refreshCoordinator.providerRefreshTimes }
-    var accountRefreshTimes: [String: Date] { refreshCoordinator.accountRefreshTimes }
-
     let accountStore = AccountStore.shared
     let activationManager = ProviderActivationManager.shared
 
     typealias ActivationResult = ProviderActivationManager.ActivationResult
-    typealias CodexActivationResult = ProviderActivationManager.CodexActivationResult
 
-    var accountRegistry: [StoredProviderAccount] {
-        accountStore.accountRegistry
-    }
-
-    // MARK: - Settings (read-through for existing `appState.*` callers; mutations go through `AppSettings.shared`)
-
-    var autoRefreshInterval: Int { settings.autoRefreshInterval }
-    var claudeCodeRefreshInterval: Int { settings.claudeCodeRefreshInterval }
     var language: String { settings.language }
-    var quotaIndicatorStyle: CardQuotaIndicatorStyle { settings.quotaIndicatorStyle }
-    var quotaIndicatorMetric: CardQuotaIndicatorMetric { settings.quotaIndicatorMetric }
-    var claudeCodeDailyThreshold: Double { settings.claudeCodeDailyThreshold }
-    var backendMode: String { settings.backendMode }
-    var remoteHost: String { settings.remoteHost }
-    var remotePort: Int { settings.remotePort }
 
     @Published var showSettings = false
     @Published var selectedProviderId: String?
@@ -175,7 +155,7 @@ class AppState: ObservableObject {
     }
 
     var needsInitialProviderSetup: Bool {
-        selectedProviderIds.isEmpty && accountRegistry.isEmpty
+        selectedProviderIds.isEmpty && accountStore.accountRegistry.isEmpty
     }
 
     func presentAddProviderPicker() {
@@ -313,12 +293,12 @@ class AppState: ObservableObject {
         return providerCatalog
             .filter { item in
                 selectedProviderIds.contains(item.id)
-                    || accountRegistry.contains(where: { $0.providerId == item.id && !$0.isHidden })
+                    || accountStore.accountRegistry.contains(where: { $0.providerId == item.id && !$0.isHidden })
                     || !(liveProvidersById[item.id] ?? []).isEmpty
             }
             .compactMap { item in
                 let liveProviders = liveProvidersById[item.id] ?? []
-                let storedAccounts = accountRegistry.filter { $0.providerId == item.id && !$0.isHidden }
+                let storedAccounts = accountStore.accountRegistry.filter { $0.providerId == item.id && !$0.isHidden }
                 let entries = refreshCoordinator.buildProviderEntries(
                     providerId: item.id,
                     providerTitle: item.title(for: language),
@@ -360,56 +340,8 @@ class AppState: ObservableObject {
         refreshCoordinator.refreshAllProviders()
     }
 
-    func refreshClaudeCodeOnly() {
-        refreshCoordinator.refreshClaudeCodeOnly()
-    }
-
     func refreshProvider(_ providerId: String) {
         refreshCoordinator.refreshProvider(providerId)
-    }
-
-    func refreshProviderCard(_ provider: ProviderData) {
-        refreshCoordinator.refreshProviderCard(provider)
-    }
-
-    func refreshProviderCardNow(_ provider: ProviderData) async {
-        await refreshCoordinator.refreshProviderCardNow(provider)
-    }
-
-    func refreshAccount(credentialId: String, providerId: String) {
-        refreshCoordinator.refreshAccount(credentialId: credentialId, providerId: providerId)
-    }
-
-    func refreshProviderNow(_ providerId: String) async {
-        await refreshCoordinator.refreshProviderNow(providerId)
-    }
-
-    func refreshAccountNow(credentialId: String, providerId: String) async {
-        await refreshCoordinator.refreshAccountNow(credentialId: credentialId, providerId: providerId)
-    }
-
-    func fetchDashboard() async {
-        await refreshCoordinator.fetchDashboard()
-    }
-
-    func fetchSingleProvider(_ providerId: String) async {
-        await refreshCoordinator.fetchSingleProvider(providerId)
-    }
-
-    func providerRefreshDate(for providerId: String) -> Date? {
-        refreshCoordinator.providerRefreshDate(for: providerId)
-    }
-
-    func accountRefreshDate(for provider: ProviderData) -> Date? {
-        refreshCoordinator.accountRefreshDate(for: provider)
-    }
-
-    func isProviderRefreshInFlight(_ providerId: String) -> Bool {
-        refreshCoordinator.isProviderRefreshInFlight(providerId)
-    }
-
-    func isRefreshInProgress(for provider: ProviderData) -> Bool {
-        refreshCoordinator.isRefreshInProgress(for: provider)
     }
 
     private func saveSelectedProviderIds() {
@@ -425,25 +357,11 @@ class AppState: ObservableObject {
         return Set(ids.filter { validIDs.contains($0) })
     }
 
-    // MARK: - Provider Account Activation (forwarded)
-
-    static var activatableProviders: Set<String> { ProviderActivationManager.activatableProviders }
-
-    var activeProviderAccountIds: [String: String] { activationManager.activeProviderAccountIds }
+    // MARK: - Activation (still used by Views via appState)
 
     var activationResult: ActivationResult? {
         get { activationManager.activationResult }
         set { activationManager.activationResult = newValue }
-    }
-
-    var activeCodexAccountId: String? {
-        get { activationManager.activeCodexAccountId }
-        set { activationManager.activeCodexAccountId = newValue }
-    }
-
-    var codexActivationResult: CodexActivationResult? {
-        get { activationManager.codexActivationResult }
-        set { activationManager.codexActivationResult = newValue }
     }
 
     func canActivateProvider(_ providerId: String) -> Bool {
@@ -456,25 +374,5 @@ class AppState: ObservableObject {
 
     func isActiveAccount(_ entry: ProviderAccountEntry) -> Bool {
         activationManager.isActiveAccount(entry)
-    }
-
-    func activateCodexAccount(entry: ProviderAccountEntry) throws {
-        try activationManager.activateCodexAccount(entry: entry)
-    }
-
-    func activateGeminiAccount(entry: ProviderAccountEntry) throws {
-        try activationManager.activateGeminiAccount(entry: entry)
-    }
-
-    func detectActiveCodexAccount() {
-        activationManager.detectActiveCodexAccount()
-    }
-
-    func detectActiveGeminiAccount() {
-        activationManager.detectActiveGeminiAccount()
-    }
-
-    func isActiveCodexAccount(_ entry: ProviderAccountEntry) -> Bool {
-        activationManager.isActiveCodexAccount(entry)
     }
 }

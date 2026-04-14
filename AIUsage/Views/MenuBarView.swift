@@ -4,13 +4,9 @@ import SwiftUI
 
 struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
     @State private var activationMessage: String?
     @State private var activationSuccess = true
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             menuBarHeader
@@ -31,7 +27,7 @@ struct MenuBarView: View {
                 Text("AIUsage")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
 
-                if let lastRefresh = appState.lastRefreshTime {
+                if let lastRefresh = refreshCoordinator.lastRefreshTime {
                     RefreshableTimeView(
                         date: lastRefresh,
                         language: appState.language,
@@ -39,7 +35,7 @@ struct MenuBarView: View {
                         foregroundStyle: .secondary
                     )
                 } else {
-                    Text(t("Not refreshed yet", "尚未刷新"))
+                    Text(L("Not refreshed yet", "尚未刷新"))
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
@@ -48,10 +44,10 @@ struct MenuBarView: View {
             Spacer()
 
             Button {
-                appState.refreshAllProviders()
+                refreshCoordinator.refreshAllProviders()
             } label: {
                 Group {
-                    if appState.isLoading || appState.isRefreshingAllProviders {
+                    if refreshCoordinator.isLoading || refreshCoordinator.isRefreshingAllProviders {
                         SmallProgressView().frame(width: 14, height: 14)
                     } else {
                         Image(systemName: "arrow.clockwise")
@@ -63,7 +59,7 @@ struct MenuBarView: View {
                 .clipShape(Circle())
             }
             .buttonStyle(.plain)
-            .disabled(appState.isLoading || appState.isRefreshingAllProviders)
+            .disabled(refreshCoordinator.isLoading || refreshCoordinator.isRefreshingAllProviders)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -73,10 +69,10 @@ struct MenuBarView: View {
 
     private var menuBarContent: some View {
         Group {
-            if appState.isLoading && appState.providers.isEmpty {
+            if refreshCoordinator.isLoading && refreshCoordinator.providers.isEmpty {
                 VStack(spacing: 12) {
                     SmallProgressView().frame(width: 20, height: 20)
-                    Text(t("Loading...", "加载中..."))
+                    Text(L("Loading...", "加载中..."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -86,7 +82,7 @@ struct MenuBarView: View {
                     Image(systemName: "tray")
                         .font(.system(size: 28))
                         .foregroundStyle(.tertiary)
-                    Text(t("No providers", "暂无服务"))
+                    Text(L("No providers", "暂无服务"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -145,19 +141,19 @@ struct MenuBarView: View {
 
     private var menuBarFooter: some View {
         HStack(spacing: 0) {
-            footerButton(t("Dashboard", "面板"), icon: "rectangle.3.group") {
+            footerButton(L("Dashboard", "面板"), icon: "rectangle.3.group") {
                 openMainWindow(section: .dashboard)
             }
-            footerButton(t("Cost", "费用"), icon: "dollarsign.circle") {
+            footerButton(L("Cost", "费用"), icon: "dollarsign.circle") {
                 openMainWindow(section: .costTracking)
             }
-            footerButton(t("Settings", "设置"), icon: "gearshape") {
+            footerButton(L("Settings", "设置"), icon: "gearshape") {
                 openSettings()
             }
 
             Spacer()
 
-            footerButton(t("Quit", "退出"), icon: "power") {
+            footerButton(L("Quit", "退出"), icon: "power") {
                 NSApplication.shared.terminate(nil)
             }
         }
@@ -209,11 +205,6 @@ struct MenuBarProviderSection: View {
     @Binding var activationSuccess: Bool
     @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) private var colorScheme
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     private var accentColor: Color {
         switch group.providerId {
         case "antigravity": return .cyan
@@ -293,19 +284,15 @@ struct MenuBarAccountRow: View {
     @Binding var activationMessage: String?
     @Binding var activationSuccess: Bool
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var activationManager: ProviderActivationManager
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     private var isActive: Bool {
-        appState.isActiveAccount(entry)
+        activationManager.isActiveAccount(entry)
     }
 
     private var canActivate: Bool {
-        appState.canActivateProvider(providerId) && !isActive
+        activationManager.canActivateProvider(providerId) && !isActive
     }
 
     private var remainingPercent: Double? {
@@ -369,7 +356,7 @@ struct MenuBarAccountRow: View {
                     .foregroundStyle(percentColor(percent))
             }
 
-            if isActive && appState.canActivateProvider(providerId) {
+            if isActive && activationManager.canActivateProvider(providerId) {
                 activeBadge
             } else if canActivate {
                 switchButton
@@ -401,7 +388,7 @@ struct MenuBarAccountRow: View {
             Circle()
                 .fill(.green)
                 .frame(width: 6, height: 6)
-            Text(t("Active", "活跃"))
+            Text(L("Active", "活跃"))
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.green)
         }
@@ -415,7 +402,7 @@ struct MenuBarAccountRow: View {
         Button {
             performActivation()
         } label: {
-            Text(t("Switch", "切换"))
+            Text(L("Switch", "切换"))
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(accentColor)
                 .padding(.horizontal, 6)
@@ -428,15 +415,15 @@ struct MenuBarAccountRow: View {
 
     private func performActivation() {
         do {
-            try appState.activateAccount(entry: entry)
+            try activationManager.activateAccount(entry: entry)
             withAnimation(.easeInOut(duration: 0.3)) {
                 activationSuccess = true
-                activationMessage = t("Switched to ", "已切换至 ") + primaryLabel
+                activationMessage = L("Switched to ", "已切换至 ") + primaryLabel
             }
         } catch {
             withAnimation(.easeInOut(duration: 0.3)) {
                 activationSuccess = false
-                activationMessage = t("Switch failed", "切换失败")
+                activationMessage = L("Switch failed", "切换失败")
             }
         }
     }
@@ -533,4 +520,6 @@ struct VisualEffectBlur: NSViewRepresentable {
 #Preview {
     MenuBarView()
         .environmentObject(AppState.shared)
+        .environmentObject(ProviderRefreshCoordinator.shared)
+        .environmentObject(ProviderActivationManager.shared)
 }

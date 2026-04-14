@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 // MARK: - Provider Data Models
 
@@ -286,13 +286,14 @@ struct ProviderData: Identifiable, Codable {
         remainingPercent ?? 100.0
     }
     
-    var statusColor: String {
+    var statusColor: Color {
         switch status {
-        case .healthy: return "green"
-        case .watch: return "orange"
-        case .critical: return "red"
-        case .error: return "gray"
-        case .idle, .tracking: return "blue"
+        case .healthy: return .green
+        case .watch: return .orange
+        case .critical: return .red
+        case .error: return .gray
+        case .idle: return .secondary
+        case .tracking: return .blue
         }
     }
 

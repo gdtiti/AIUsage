@@ -5,14 +5,10 @@ struct SavedAccountCard: View {
     var onReconnect: (() -> Void)?
 
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
     @Environment(\.colorScheme) private var colorScheme
     @State private var showingDetail = false
     @State private var isRefreshing = false
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     private var hasSecureCredential: Bool {
         account.storedAccount?.credentialId != nil
     }
@@ -44,7 +40,7 @@ struct SavedAccountCard: View {
 
                 HStack(spacing: 6) {
                     if hasSecureCredential {
-                        Text(t("Offline", "离线"))
+                        Text(L("Offline", "离线"))
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.orange)
                             .padding(.horizontal, 10)
@@ -52,7 +48,7 @@ struct SavedAccountCard: View {
                             .background(Color.orange.opacity(0.10))
                             .clipShape(Capsule())
                     } else {
-                        Text(t("Saved", "已保存"))
+                        Text(L("Saved", "已保存"))
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.blue)
                             .padding(.horizontal, 10)
@@ -66,8 +62,8 @@ struct SavedAccountCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(
                     hasSecureCredential
-                        ? t("Credential may have expired", "凭证可能已过期")
-                        : t("Awaiting a live session", "等待在线会话")
+                        ? L("Credential may have expired", "凭证可能已过期")
+                        : L("Awaiting a live session", "等待在线会话")
                 )
                     .font(.title3)
                     .bold()
@@ -81,8 +77,8 @@ struct SavedAccountCard: View {
 
                 Text(
                     hasSecureCredential
-                        ? t("The stored credential could not fetch live data. Try refreshing or reconnecting.", "已存储的凭证未能获取实时数据。可尝试刷新或重新连接。")
-                        : t("Account saved locally. Will auto-match when the app session appears.", "账号已保存到本地。对应应用出现在线会话后会自动匹配。")
+                        ? L("The stored credential could not fetch live data. Try refreshing or reconnecting.", "已存储的凭证未能获取实时数据。可尝试刷新或重新连接。")
+                        : L("Account saved locally. Will auto-match when the app session appears.", "账号已保存到本地。对应应用出现在线会话后会自动匹配。")
                 )
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -96,14 +92,14 @@ struct SavedAccountCard: View {
                     Button {
                         guard !isRefreshing, let credentialId = account.storedAccount?.credentialId else { return }
                         isRefreshing = true
-                        appState.refreshAccount(credentialId: credentialId, providerId: account.providerId)
+                        refreshCoordinator.refreshAccount(credentialId: credentialId, providerId: account.providerId)
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isRefreshing = false }
                     } label: {
                         if isRefreshing {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
-                            Label(t("Retry", "重试"), systemImage: "arrow.clockwise")
+                            Label(L("Retry", "重试"), systemImage: "arrow.clockwise")
                         }
                     }
                     .buttonStyle(.bordered)
@@ -112,7 +108,7 @@ struct SavedAccountCard: View {
 
                     if let onReconnect {
                         Button(action: onReconnect) {
-                            Label(t("Reconnect", "重新连接"), systemImage: "arrow.triangle.2.circlepath")
+                            Label(L("Reconnect", "重新连接"), systemImage: "arrow.triangle.2.circlepath")
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
@@ -152,15 +148,11 @@ struct SavedAccountDetailView: View {
     var onReconnect: (() -> Void)?
 
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
     @Environment(\.dismiss) private var dismiss
     @State private var showingNoteEditor = false
     @State private var showingRemovalAlert = false
     @State private var isRefreshing = false
-
-    private func t(_ en: String, _ zh: String) -> String {
-        appState.language == "zh" ? zh : en
-    }
-
     private var hasSecureCredential: Bool {
         account.storedAccount?.credentialId != nil
     }
@@ -192,7 +184,7 @@ struct SavedAccountDetailView: View {
 
                 HStack(spacing: 6) {
                     if hasSecureCredential {
-                        Text(t("Offline", "离线"))
+                        Text(L("Offline", "离线"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.orange)
                             .padding(.horizontal, 10)
@@ -200,7 +192,7 @@ struct SavedAccountDetailView: View {
                             .background(Color.orange.opacity(0.10))
                             .clipShape(Capsule())
                     } else {
-                        Text(t("Saved", "已保存"))
+                        Text(L("Saved", "已保存"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.blue)
                             .padding(.horizontal, 10)
@@ -212,12 +204,12 @@ struct SavedAccountDetailView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text(t("Account Note", "账号注释"))
+                Text(L("Account Note", "账号注释"))
                     .font(.headline)
 
                 Text(
                     account.accountNote?.nilIfBlank
-                        ?? t("No note yet.", "当前还没有注释。")
+                        ?? L("No note yet.", "当前还没有注释。")
                 )
                 .font(.body)
                 .foregroundStyle(.secondary)
@@ -227,11 +219,11 @@ struct SavedAccountDetailView: View {
             .cornerRadius(12)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(t("Storage", "存储"))
+                Text(L("Storage", "存储"))
                     .font(.headline)
 
                 Label(
-                    hasSecureCredential ? t("Credential stored in Keychain", "凭证已存入钥匙串") : t("Account record stored locally", "账号记录已保存到本地"),
+                    hasSecureCredential ? L("Credential stored in Keychain", "凭证已存入钥匙串") : L("Account record stored locally", "账号记录已保存到本地"),
                     systemImage: hasSecureCredential ? "lock.shield" : "tray.full"
                 )
                 .font(.subheadline)
@@ -252,13 +244,13 @@ struct SavedAccountDetailView: View {
                     Button {
                         guard !isRefreshing, let credentialId = account.storedAccount?.credentialId else { return }
                         isRefreshing = true
-                        appState.refreshAccount(credentialId: credentialId, providerId: account.providerId)
+                        refreshCoordinator.refreshAccount(credentialId: credentialId, providerId: account.providerId)
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isRefreshing = false }
                     } label: {
                         if isRefreshing {
                             ProgressView().controlSize(.small)
                         } else {
-                            Label(t("Retry Fetch", "重试拉取"), systemImage: "arrow.clockwise")
+                            Label(L("Retry Fetch", "重试拉取"), systemImage: "arrow.clockwise")
                         }
                     }
                     .buttonStyle(.bordered)
@@ -269,7 +261,7 @@ struct SavedAccountDetailView: View {
                             onReconnect()
                             dismiss()
                         } label: {
-                            Label(t("Reconnect", "重新连接"), systemImage: "arrow.triangle.2.circlepath")
+                            Label(L("Reconnect", "重新连接"), systemImage: "arrow.triangle.2.circlepath")
                         }
                         .buttonStyle(.borderedProminent)
                     }
@@ -278,20 +270,20 @@ struct SavedAccountDetailView: View {
                 Button {
                     showingNoteEditor = true
                 } label: {
-                    Label(t("Edit Note", "编辑注释"), systemImage: "square.and.pencil")
+                    Label(L("Edit Note", "编辑注释"), systemImage: "square.and.pencil")
                 }
                 .buttonStyle(.bordered)
 
                 Button(role: .destructive) {
                     showingRemovalAlert = true
                 } label: {
-                    Label(t("Remove from Monitor", "移出监控"), systemImage: "trash")
+                    Label(L("Remove from Monitor", "移出监控"), systemImage: "trash")
                 }
                 .buttonStyle(.bordered)
 
                 Spacer()
 
-                Button(t("Done", "完成")) {
+                Button(L("Done", "完成")) {
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
@@ -311,19 +303,19 @@ struct SavedAccountDetailView: View {
             .environmentObject(appState)
         }
         .alert(
-            t("Remove Account", "删除账号"),
+            L("Remove Account", "删除账号"),
             isPresented: $showingRemovalAlert
         ) {
-            Button(t("Delete", "删除"), role: .destructive) {
+            Button(L("Delete", "删除"), role: .destructive) {
                 appState.deleteAccount(account)
                 dismiss()
             }
-            Button(t("Cancel", "取消"), role: .cancel) {}
+            Button(L("Cancel", "取消"), role: .cancel) {}
         } message: {
             Text(
                 hasSecureCredential
-                    ? t("This removes the account and its Keychain credential.", "这会移除账号及其钥匙串凭证。")
-                    : t("This removes the account from the monitor list.", "这会从监控列表中移除该账号。")
+                    ? L("This removes the account and its Keychain credential.", "这会移除账号及其钥匙串凭证。")
+                    : L("This removes the account from the monitor list.", "这会从监控列表中移除该账号。")
             )
         }
     }

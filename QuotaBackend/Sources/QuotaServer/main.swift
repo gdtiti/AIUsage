@@ -28,10 +28,11 @@ print("QuotaServer starting on \(host):\(port)")
 // Load proxy configuration from environment
 let proxyConfig = ClaudeProxyConfiguration.loadFromEnvironment()
 
-if proxyConfig != nil {
-    print("Claude Code Proxy: enabled (upstream configured)")
+if let cfg = proxyConfig {
+    let modeStr = cfg.mode == .anthropicPassthrough ? "passthrough" : "openai-convert"
+    print("Claude Code Proxy: enabled (mode=\(modeStr), upstream=\(cfg.upstreamBaseURL))")
 } else {
-    print("Claude Code Proxy: disabled (set OPENAI_API_KEY to enable)")
+    print("Claude Code Proxy: disabled (set OPENAI_API_KEY or PROXY_MODE=passthrough)")
 }
 
 let server = QuotaHTTPServer(host: host, port: port, proxyConfig: proxyConfig)

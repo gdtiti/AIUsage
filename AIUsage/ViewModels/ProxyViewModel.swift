@@ -142,16 +142,11 @@ class ProxyViewModel: ObservableObject {
 
         print("⟳ Restoring node: \(config.name) (type=\(config.nodeType.rawValue))")
 
-        switch config.nodeType {
-        case .anthropicDirect:
-            settingsManager.writeEnv(envConfig(for: config))
-        case .openaiProxy:
+        if config.needsProxyProcess {
             startProxy(config)
-            settingsManager.writeEnv(envConfig(for: config))
-            if config.nodeType == .openaiProxy {
-                writePricingOverrides(config)
-            }
         }
+        settingsManager.writeEnv(envConfig(for: config))
+        writePricingOverrides(config)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self = self else { return }
@@ -232,6 +227,11 @@ class ProxyViewModel: ObservableObject {
 
         switch config.nodeType {
         case .anthropicDirect:
+            if config.usePassthroughProxy {
+                let proxyURL = "http://\(config.host):\(config.port)"
+                return .init(baseURL: proxyURL, authToken: config.anthropicAPIKey,
+                             defaultModel: dm, opusModel: opus, sonnetModel: sonnet, haikuModel: haiku)
+            }
             return .init(baseURL: config.anthropicBaseURL, authToken: config.anthropicAPIKey,
                          defaultModel: dm, opusModel: opus, sonnetModel: sonnet, haikuModel: haiku)
         case .openaiProxy:
@@ -248,19 +248,11 @@ class ProxyViewModel: ObservableObject {
             deactivateConfiguration(currentId)
         }
 
-        switch config.nodeType {
-        case .anthropicDirect:
-            settingsManager.writeEnv(envConfig(for: config))
-        case .openaiProxy:
+        if config.needsProxyProcess {
             startProxy(config)
-            settingsManager.writeEnv(envConfig(for: config))
         }
-
-        if config.nodeType == .openaiProxy {
-            writePricingOverrides(config)
-        } else {
-            clearPricingOverrides()
-        }
+        settingsManager.writeEnv(envConfig(for: config))
+        writePricingOverrides(config)
 
         activatedConfigId = id
         if let index = configurations.firstIndex(where: { $0.id == id }) {
@@ -275,7 +267,7 @@ class ProxyViewModel: ObservableObject {
     func deactivateConfiguration(_ id: String) {
         guard let config = configurations.first(where: { $0.id == id }) else { return }
 
-        if config.nodeType == .openaiProxy {
+        if config.needsProxyProcess {
             stopProxy(config)
         }
 
@@ -351,7 +343,7 @@ class ProxyViewModel: ObservableObject {
         var updatedLogs: [ProxyRequestLog] = []
 
         for log in logs {
-            let pricing = config.modelMapping.pricingForUpstreamModel(log.upstreamModel)
+            let pricing = config.pricingForModel(log.upstreamModel)
             let cost = pricing?.costForTokens(input: log.tokensInput, output: log.tokensOutput, cache: log.tokensCache) ?? 0
             totalCost += cost
 
@@ -434,7 +426,7 @@ class ProxyViewModel: ObservableObject {
     // MARK: - Proxy Server Control
 
     private func startProxy(_ config: ProxyConfiguration) {
-        guard config.nodeType == .openaiProxy else { return }
+        guard config.needsProxyProcess else { return }
         if runningProcesses[config.id]?.isRunning == true {
             print("  Proxy already running for \(config.name)")
             return
@@ -443,18 +435,28 @@ class ProxyViewModel: ObservableObject {
         killStaleProcess(port: config.port)
 
         var environment = ProcessInfo.processInfo.environment
-        environment["OPENAI_API_KEY"] = config.upstreamAPIKey
-        environment["OPENAI_BASE_URL"] = config.upstreamBaseURL
-        environment["BIG_MODEL"] = config.modelMapping.bigModel.name
-        environment["MIDDLE_MODEL"] = config.modelMapping.middleModel.name
-        environment["SMALL_MODEL"] = config.modelMapping.smallModel.name
 
-        if config.maxOutputTokens > 0 {
-            environment["MAX_OUTPUT_TOKENS"] = "\(config.maxOutputTokens)"
-        }
+        if config.nodeType == .anthropicDirect && config.usePassthroughProxy {
+            environment["PROXY_MODE"] = "passthrough"
+            environment["ANTHROPIC_UPSTREAM_URL"] = config.anthropicBaseURL
+            environment["ANTHROPIC_UPSTREAM_KEY"] = config.anthropicAPIKey
+            if !config.expectedClientKey.isEmpty {
+                environment["ANTHROPIC_API_KEY"] = config.expectedClientKey
+            }
+        } else {
+            environment["OPENAI_API_KEY"] = config.upstreamAPIKey
+            environment["OPENAI_BASE_URL"] = config.upstreamBaseURL
+            environment["BIG_MODEL"] = config.modelMapping.bigModel.name
+            environment["MIDDLE_MODEL"] = config.modelMapping.middleModel.name
+            environment["SMALL_MODEL"] = config.modelMapping.smallModel.name
 
-        if !config.expectedClientKey.isEmpty {
-            environment["ANTHROPIC_API_KEY"] = config.expectedClientKey
+            if config.maxOutputTokens > 0 {
+                environment["MAX_OUTPUT_TOKENS"] = "\(config.maxOutputTokens)"
+            }
+
+            if !config.expectedClientKey.isEmpty {
+                environment["ANTHROPIC_API_KEY"] = config.expectedClientKey
+            }
         }
 
         let quotaServerPath = findQuotaServerExecutable()
@@ -673,9 +675,8 @@ class ProxyViewModel: ObservableObject {
         let tokensOutput = json["output_tokens"] as? Int ?? 0
         let tokensCache = json["cache_tokens"] as? Int ?? 0
 
-        // Calculate cost using configured pricing
         let config = configurations.first { $0.id == configId }
-        let pricing = config?.modelMapping.pricingForUpstreamModel(upstreamModel)
+        let pricing = config?.pricingForModel(upstreamModel)
         let estimatedCost = pricing?.costForTokens(input: tokensInput, output: tokensOutput, cache: tokensCache) ?? 0
 
         let log = ProxyRequestLog(
@@ -807,12 +808,15 @@ class ProxyViewModel: ObservableObject {
               let maxDate = logs.map(\.timestamp).max() else { return map.values.sorted { $0.date < $1.date } }
 
         let step: Calendar.Component = granularity == "hourly" ? .hour : .day
-        var cursor = granularity == "hourly"
-            ? cal.date(from: cal.dateComponents([.year, .month, .day, .hour], from: minDate))!
-            : cal.startOfDay(for: minDate)
-        let end = granularity == "hourly"
-            ? cal.date(from: cal.dateComponents([.year, .month, .day, .hour], from: maxDate))!
-            : cal.startOfDay(for: maxDate)
+        var cursor: Date
+        let end: Date
+        if granularity == "hourly" {
+            cursor = cal.date(from: cal.dateComponents([.year, .month, .day, .hour], from: minDate)) ?? minDate
+            end = cal.date(from: cal.dateComponents([.year, .month, .day, .hour], from: maxDate)) ?? maxDate
+        } else {
+            cursor = cal.startOfDay(for: minDate)
+            end = cal.startOfDay(for: maxDate)
+        }
 
         while cursor <= end {
             let timeKey = df.string(from: cursor)
@@ -822,7 +826,8 @@ class ProxyViewModel: ObservableObject {
                     map[key] = ModelTimePoint(id: key, date: cursor, model: model, cost: 0, tokens: 0)
                 }
             }
-            cursor = cal.date(byAdding: step, value: 1, to: cursor)!
+            guard let next = cal.date(byAdding: step, value: 1, to: cursor) else { break }
+            cursor = next
         }
 
         return map.values.sorted { ($0.date, $0.model) < ($1.date, $1.model) }
@@ -881,7 +886,7 @@ class ProxyViewModel: ObservableObject {
         guard let earliest = logs.last?.timestamp, let latest = logs.first?.timestamp else {
             return (nil, nil, 0)
         }
-        let days = max(1, Calendar.current.dateComponents([.day], from: earliest, to: latest).day ?? 0 + 1)
+        let days = max(1, (Calendar.current.dateComponents([.day], from: earliest, to: latest).day ?? 0) + 1)
         return (earliest, latest, days)
     }
 }

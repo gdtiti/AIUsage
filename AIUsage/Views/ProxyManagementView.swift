@@ -23,7 +23,7 @@ struct ProxyManagementView: View {
                         summaryStrip
                         configurationsList
                         if let config = selectedConfiguration,
-                           config.nodeType == .openaiProxy {
+                           config.needsProxyProcess {
                             statisticsSection(for: config)
                             recentRequestsSection(for: config)
                         }
@@ -161,17 +161,19 @@ struct ProxyManagementView: View {
         let isSelected = selectedConfigId == config.id
         let stats = viewModel.statistics[config.id] ?? .empty
 
+        let brandColor: Color = config.nodeType == .anthropicDirect ? Self.anthropicBrand : Self.openAIBrand
+
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Circle()
-                    .fill(isActive ? Color.green : Color.gray.opacity(0.4))
+                    .fill(isActive ? brandColor : Color.gray.opacity(0.4))
                     .frame(width: 10, height: 10)
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(config.name)
                             .font(.system(size: 15, weight: .bold))
-                        nodeTypeBadge(config.nodeType)
+                        nodeTypeBadge(config)
                     }
                     Text(config.displayURL)
                         .font(.caption)
@@ -181,7 +183,7 @@ struct ProxyManagementView: View {
 
                 Spacer()
 
-                if config.nodeType == .openaiProxy {
+                if config.needsProxyProcess {
                     HStack(spacing: 16) {
                         statPill(
                             icon: "arrow.up.arrow.down",
@@ -232,17 +234,17 @@ struct ProxyManagementView: View {
         .background(
             RoundedRectangle(cornerRadius: 14)
                 .fill(isActive
-                      ? Color.green.opacity(0.06)
+                      ? brandColor.opacity(0.06)
                       : isSelected
-                        ? Color.accentColor.opacity(0.06)
+                        ? brandColor.opacity(0.04)
                         : Color(nsColor: .controlBackgroundColor).opacity(0.5))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(isActive
-                        ? Color.green.opacity(0.4)
+                        ? brandColor.opacity(0.5)
                         : isSelected
-                          ? Color.accentColor.opacity(0.3)
+                          ? brandColor.opacity(0.25)
                           : Color.primary.opacity(0.06),
                         lineWidth: isActive ? 1.5 : 1)
         )
@@ -254,20 +256,32 @@ struct ProxyManagementView: View {
         }
     }
 
-    private func nodeTypeBadge(_ type: NodeType) -> some View {
-        let (label, color): (String, Color) = {
-            switch type {
-            case .anthropicDirect: return ("Anthropic", .indigo)
-            case .openaiProxy: return ("OpenAI Proxy", .teal)
+    private static let anthropicBrand = Color(red: 0.85, green: 0.47, blue: 0.34)
+    private static let openAIBrand = Color(red: 0.29, green: 0.73, blue: 0.56)
+
+    private func nodeTypeBadge(_ config: ProxyConfiguration) -> some View {
+        let (label, icon, color): (String, String, Color) = {
+            switch config.nodeType {
+            case .anthropicDirect:
+                if config.usePassthroughProxy {
+                    return ("Anthropic Proxy", "bolt.shield.fill", Self.anthropicBrand)
+                }
+                return ("Anthropic Direct", "bolt.horizontal.fill", Self.anthropicBrand)
+            case .openaiProxy:
+                return ("OpenAI Proxy", "arrow.triangle.swap", Self.openAIBrand)
             }
         }()
 
-        return Text(label)
-            .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(color.opacity(0.12)))
+        return HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 7, weight: .bold))
+            Text(label)
+        }
+        .font(.system(size: 9, weight: .bold))
+        .foregroundStyle(color)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(color.opacity(0.12)))
     }
 
     private func statPill(icon: String, value: String, color: Color) -> some View {
@@ -288,6 +302,9 @@ struct ProxyManagementView: View {
             switch config.nodeType {
             case .anthropicDirect:
                 detailItem(label: "Base URL", value: config.anthropicBaseURL)
+                if config.usePassthroughProxy {
+                    detailItem(label: t("Local Proxy", "本地代理"), value: "http://\(config.host):\(config.port)")
+                }
             case .openaiProxy:
                 detailItem(label: t("Upstream", "上游"), value: config.upstreamBaseURL)
                 detailItem(
@@ -465,7 +482,7 @@ struct ProxyManagementView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(log.method) \(log.path)")
                     .font(.caption.weight(.semibold))
-                Text("\(log.claudeModel) \u{2192} \(log.upstreamModel)")
+                Text(log.upstreamModel)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -559,6 +576,7 @@ struct ProxyManagementView: View {
     }
 
     private func deleteConfig(_ config: ProxyConfiguration) {
+        if selectedConfigId == config.id { selectedConfigId = nil }
         viewModel.deleteConfiguration(config.id)
     }
 

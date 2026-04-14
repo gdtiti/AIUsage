@@ -23,6 +23,17 @@ struct ProxyStatsView: View {
         appState.language == "zh" ? zh : en
     }
 
+    private func validateSelections() {
+        if !selectedNodeIdRaw.isEmpty,
+           !viewModel.configurations.contains(where: { $0.id == selectedNodeIdRaw }) {
+            selectedNodeIdRaw = ""
+        }
+        if !selectedModelRaw.isEmpty,
+           !viewModel.allUpstreamModels(nodeFilter: selectedNodeId).contains(selectedModelRaw) {
+            selectedModelRaw = ""
+        }
+    }
+
     enum StatGranularity: String, CaseIterable { case hourly, daily }
     enum StatMetric: String, CaseIterable { case cost, tokens }
 
@@ -46,6 +57,8 @@ struct ProxyStatsView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear { validateSelections() }
+        .onChange(of: selectedNodeIdRaw) { _ in validateSelections() }
     }
 
     // MARK: - Empty State
@@ -103,15 +116,20 @@ struct ProxyStatsView: View {
         viewModel.dataDateRange(nodeFilter: selectedNodeId, modelFilter: selectedModel)
     }
 
+    private static let bannerDateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy/MM/dd"
+        return df
+    }()
+
     private var dataRangeBanner: some View {
         let range = dateRange
         let retentionDays = UserDefaults.standard.integer(forKey: "proxyLogRetentionDays")
         let effectiveDays = retentionDays > 0 ? retentionDays : 30
+        let df = Self.bannerDateFormatter
 
         return Group {
             if let earliest = range.earliest {
-                let df = DateFormatter()
-                let _ = df.dateFormat = "yyyy/MM/dd"
                 HStack(spacing: 6) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.secondary)

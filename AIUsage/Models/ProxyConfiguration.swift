@@ -19,6 +19,7 @@ struct ProxyConfiguration: Codable, Identifiable {
     // Anthropic Direct fields
     var anthropicBaseURL: String
     var anthropicAPIKey: String
+    var usePassthroughProxy: Bool
 
     // OpenAI Proxy fields
     var host: String
@@ -30,6 +31,7 @@ struct ProxyConfiguration: Codable, Identifiable {
     var defaultModel: String
     var modelMapping: ModelMapping
     var maxOutputTokens: Int // 0 = no cap, pass through original value
+    var passthroughPricing: [String: ModelPricing]
 
     var createdAt: Date
     var lastUsedAt: Date?
@@ -96,13 +98,23 @@ struct ProxyConfiguration: Codable, Identifiable {
         var middleModel: MappedModel   // sonnet -> this
         var smallModel: MappedModel    // haiku -> this
 
-        static var `default`: ModelMapping {
+        static var openAIDefault: ModelMapping {
             ModelMapping(
-                bigModel: MappedModel(name: "gpt-4o"),
-                middleModel: MappedModel(name: "gpt-4o-mini"),
-                smallModel: MappedModel(name: "gpt-3.5-turbo")
+                bigModel: MappedModel(name: "gpt-5.4"),
+                middleModel: MappedModel(name: "gpt-5.4-mini"),
+                smallModel: MappedModel(name: "gpt-4o-mini")
             )
         }
+
+        static var anthropicDefault: ModelMapping {
+            ModelMapping(
+                bigModel: MappedModel(name: "claude-opus-4-6"),
+                middleModel: MappedModel(name: "claude-sonnet-4-6"),
+                smallModel: MappedModel(name: "claude-haiku-4-5")
+            )
+        }
+
+        static var `default`: ModelMapping { openAIDefault }
 
         func pricingForUpstreamModel(_ model: String) -> ModelPricing? {
             if bigModel.name == model { return bigModel.pricing }
@@ -119,6 +131,7 @@ struct ProxyConfiguration: Codable, Identifiable {
         isEnabled: Bool = false,
         anthropicBaseURL: String = "https://api.anthropic.com",
         anthropicAPIKey: String = "",
+        usePassthroughProxy: Bool = false,
         host: String = "127.0.0.1",
         port: Int = 8080,
         allowLAN: Bool = false,
@@ -128,6 +141,7 @@ struct ProxyConfiguration: Codable, Identifiable {
         defaultModel: String = "",
         modelMapping: ModelMapping = .default,
         maxOutputTokens: Int = 0,
+        passthroughPricing: [String: ModelPricing] = [:],
         createdAt: Date = Date(),
         lastUsedAt: Date? = nil
     ) {
@@ -137,6 +151,7 @@ struct ProxyConfiguration: Codable, Identifiable {
         self.isEnabled = isEnabled
         self.anthropicBaseURL = anthropicBaseURL
         self.anthropicAPIKey = anthropicAPIKey
+        self.usePassthroughProxy = usePassthroughProxy
         self.host = host
         self.port = port
         self.allowLAN = allowLAN
@@ -146,6 +161,7 @@ struct ProxyConfiguration: Codable, Identifiable {
         self.defaultModel = defaultModel
         self.modelMapping = modelMapping
         self.maxOutputTokens = maxOutputTokens
+        self.passthroughPricing = passthroughPricing
         self.createdAt = createdAt
         self.lastUsedAt = lastUsedAt
     }
@@ -158,6 +174,7 @@ struct ProxyConfiguration: Codable, Identifiable {
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
         anthropicBaseURL = try container.decodeIfPresent(String.self, forKey: .anthropicBaseURL) ?? "https://api.anthropic.com"
         anthropicAPIKey = try container.decodeIfPresent(String.self, forKey: .anthropicAPIKey) ?? ""
+        usePassthroughProxy = try container.decodeIfPresent(Bool.self, forKey: .usePassthroughProxy) ?? false
         host = try container.decode(String.self, forKey: .host)
         port = try container.decode(Int.self, forKey: .port)
         allowLAN = try container.decode(Bool.self, forKey: .allowLAN)
@@ -167,6 +184,7 @@ struct ProxyConfiguration: Codable, Identifiable {
         defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? ""
         modelMapping = try container.decode(ModelMapping.self, forKey: .modelMapping)
         maxOutputTokens = try container.decodeIfPresent(Int.self, forKey: .maxOutputTokens) ?? 0
+        passthroughPricing = try container.decodeIfPresent([String: ModelPricing].self, forKey: .passthroughPricing) ?? [:]
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         lastUsedAt = try container.decodeIfPresent(Date.self, forKey: .lastUsedAt)
     }
@@ -178,10 +196,23 @@ struct ProxyConfiguration: Codable, Identifiable {
     var displayURL: String {
         switch nodeType {
         case .anthropicDirect:
-            return anthropicBaseURL
+            return usePassthroughProxy ? "http://\(host):\(port)" : anthropicBaseURL
         case .openaiProxy:
             return "http://\(host):\(port)"
         }
+    }
+
+    var needsProxyProcess: Bool {
+        nodeType == .openaiProxy || (nodeType == .anthropicDirect && usePassthroughProxy)
+    }
+
+    func pricingForModel(_ model: String) -> ModelPricing? {
+        if let p = modelMapping.pricingForUpstreamModel(model) { return p }
+        if let p = passthroughPricing[model] { return p }
+        for (key, pricing) in passthroughPricing {
+            if model.lowercased().contains(key.lowercased()) { return pricing }
+        }
+        return nil
     }
 }
 

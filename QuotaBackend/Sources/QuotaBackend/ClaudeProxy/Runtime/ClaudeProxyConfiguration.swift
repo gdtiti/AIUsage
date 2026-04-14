@@ -2,8 +2,14 @@ import Foundation
 
 // MARK: - Proxy Configuration for QuotaBackend
 
+public enum ProxyMode: String, Sendable {
+    case openaiConvert
+    case anthropicPassthrough
+}
+
 public struct ClaudeProxyConfiguration: Sendable {
     public let enabled: Bool
+    public let mode: ProxyMode
     public let upstreamBaseURL: String
     public let upstreamAPIKey: String
     public let expectedClientKey: String?
@@ -16,6 +22,7 @@ public struct ClaudeProxyConfiguration: Sendable {
 
     public init(
         enabled: Bool,
+        mode: ProxyMode = .openaiConvert,
         upstreamBaseURL: String,
         upstreamAPIKey: String,
         expectedClientKey: String? = nil,
@@ -27,6 +34,7 @@ public struct ClaudeProxyConfiguration: Sendable {
         customHeaders: [String: String] = [:]
     ) {
         self.enabled = enabled
+        self.mode = mode
         self.upstreamBaseURL = upstreamBaseURL
         self.upstreamAPIKey = upstreamAPIKey
         self.expectedClientKey = expectedClientKey
@@ -66,6 +74,23 @@ public struct ClaudeProxyConfiguration: Sendable {
     }
 
     public static func loadFromEnvironment() -> ClaudeProxyConfiguration? {
+        let proxyModeStr = ProcessInfo.processInfo.environment["PROXY_MODE"] ?? "openai"
+        let proxyMode: ProxyMode = proxyModeStr == "passthrough" ? .anthropicPassthrough : .openaiConvert
+
+        if proxyMode == .anthropicPassthrough {
+            let baseURL = ProcessInfo.processInfo.environment["ANTHROPIC_UPSTREAM_URL"] ?? "https://api.anthropic.com"
+            let apiKey = ProcessInfo.processInfo.environment["ANTHROPIC_UPSTREAM_KEY"] ?? ""
+            let clientKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]
+
+            return ClaudeProxyConfiguration(
+                enabled: true,
+                mode: .anthropicPassthrough,
+                upstreamBaseURL: baseURL,
+                upstreamAPIKey: apiKey,
+                expectedClientKey: clientKey
+            )
+        }
+
         guard let apiKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] else {
             return nil
         }
@@ -79,6 +104,7 @@ public struct ClaudeProxyConfiguration: Sendable {
 
         return ClaudeProxyConfiguration(
             enabled: true,
+            mode: .openaiConvert,
             upstreamBaseURL: baseURL,
             upstreamAPIKey: apiKey,
             expectedClientKey: clientKey,

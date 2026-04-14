@@ -19,7 +19,11 @@ struct ProxyConfigEditorView: View {
             _isNew = State(initialValue: false)
             _pricingCurrency = State(initialValue: config.modelMapping.bigModel.pricing.currency)
         } else {
-            _config = State(initialValue: ProxyConfiguration(name: ""))
+            _config = State(initialValue: ProxyConfiguration(
+                name: "",
+                defaultModel: "gpt-5.4",
+                modelMapping: .openAIDefault
+            ))
             _isNew = State(initialValue: true)
             _pricingCurrency = State(initialValue: .usd)
         }
@@ -47,6 +51,9 @@ struct ProxyConfigEditorView: View {
                     switch config.nodeType {
                     case .anthropicDirect:
                         anthropicDirectSection
+                        if config.usePassthroughProxy {
+                            passthroughPricingSection
+                        }
                         modelMappingSection
                     case .openaiProxy:
                         networkSection
@@ -105,6 +112,18 @@ struct ProxyConfigEditorView: View {
                 .tag(NodeType.openaiProxy)
             }
             .pickerStyle(.segmented)
+            .onChange(of: config.nodeType) { newType in
+                if isNew {
+                    switch newType {
+                    case .anthropicDirect:
+                        config.modelMapping = .anthropicDefault
+                        config.defaultModel = "claude-sonnet-4-6"
+                    case .openaiProxy:
+                        config.modelMapping = .openAIDefault
+                        config.defaultModel = "gpt-5.4"
+                    }
+                }
+            }
 
             Text(config.nodeType == .anthropicDirect
                  ? t("Connect directly to Anthropic or compatible API. No proxy process needed.",
@@ -171,13 +190,56 @@ struct ProxyConfigEditorView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            HStack(spacing: 6) {
-                Image(systemName: "info.circle.fill")
-                    .foregroundStyle(.blue)
-                Text(t("These values will be written to ~/.claude/settings.json when activated.",
-                       "激活时会将这些值写入 ~/.claude/settings.json。"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            Divider()
+
+            Toggle(isOn: $config.usePassthroughProxy) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(t("Transparent Proxy (Log Usage)", "透明代理（记录用量）"))
+                        .font(.subheadline.weight(.semibold))
+                    Text(t("Route requests through a local proxy to log token usage without modifying the API format.",
+                           "请求经由本地代理透传，记录 Token 用量但不修改 API 格式。"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(.switch)
+
+            if config.usePassthroughProxy {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(t("Host", "主机"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        TextField("127.0.0.1", text: $config.host)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(t("Port", "端口"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        TextField("8080", value: $config.port, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
+                    }
+                }
+
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(.teal)
+                    Text(t("ANTHROPIC_BASE_URL will point to the local proxy. Requests are forwarded to the upstream API as-is.",
+                           "ANTHROPIC_BASE_URL 将指向本地代理，请求原样转发至上游 API。"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(.blue)
+                    Text(t("These values will be written to ~/.claude/settings.json when activated.",
+                           "激活时会将这些值写入 ~/.claude/settings.json。"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .padding(16)
@@ -278,6 +340,121 @@ struct ProxyConfigEditorView: View {
         )
     }
 
+    // MARK: - Passthrough Pricing Section
+
+    @State private var newModelName: String = ""
+
+    private var passthroughPricingSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(t("Model Pricing", "模型定价"))
+                    .font(.headline.weight(.bold))
+                Spacer()
+                Picker("", selection: $pricingCurrency) {
+                    Text("USD ($)").tag(ProxyConfiguration.PricingCurrency.usd)
+                    Text("CNY (¥)").tag(ProxyConfiguration.PricingCurrency.cny)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 160)
+                .onChange(of: pricingCurrency) { newCurrency in
+                    for key in config.passthroughPricing.keys {
+                        config.passthroughPricing[key]?.currency = newCurrency
+                    }
+                }
+            }
+
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle.fill")
+                    .foregroundStyle(.teal)
+                Text(t("Model names are matched by substring (e.g. \"sonnet\" matches \"claude-sonnet-4-20250514\").",
+                       "模型名按子串匹配（如 \"sonnet\" 可匹配 \"claude-sonnet-4-20250514\"）。"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !config.passthroughPricing.isEmpty {
+                HStack(spacing: 0) {
+                    Text(t("Model", "模型"))
+                        .frame(width: 100, alignment: .leading)
+                    Text(t("Input", "输入"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(t("Output", "输出"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(t("Cache", "缓存"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(t("/ M tokens", "/ 百万"))
+                        .frame(width: 64, alignment: .trailing)
+                    Spacer().frame(width: 28)
+                }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.tertiary)
+            }
+
+            ForEach(Array(config.passthroughPricing.keys.sorted()), id: \.self) { modelKey in
+                let binding = Binding<ProxyConfiguration.ModelPricing>(
+                    get: { config.passthroughPricing[modelKey] ?? .zero },
+                    set: { config.passthroughPricing[modelKey] = $0 }
+                )
+                HStack(spacing: 0) {
+                    Text(modelKey)
+                        .font(.system(.caption, design: .monospaced).weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 100, alignment: .leading)
+                        .lineLimit(1)
+
+                    TextField("0", value: binding.inputPerMillion, format: .number.precision(.fractionLength(0...4)))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(maxWidth: .infinity)
+
+                    Spacer().frame(width: 6)
+
+                    TextField("0", value: binding.outputPerMillion, format: .number.precision(.fractionLength(0...4)))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(maxWidth: .infinity)
+
+                    Spacer().frame(width: 6)
+
+                    TextField("0", value: binding.cachePerMillion, format: .number.precision(.fractionLength(0...4)))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(maxWidth: .infinity)
+
+                    Spacer().frame(width: 6)
+
+                    Button(role: .destructive) {
+                        config.passthroughPricing.removeValue(forKey: modelKey)
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.red.opacity(0.7))
+                    .frame(width: 22)
+                }
+            }
+
+            HStack(spacing: 8) {
+                TextField(t("Model name, e.g. sonnet", "模型名，如 sonnet"), text: $newModelName)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                Button {
+                    let key = newModelName.trimmingCharacters(in: .whitespaces)
+                    guard !key.isEmpty, config.passthroughPricing[key] == nil else { return }
+                    config.passthroughPricing[key] = ProxyConfiguration.ModelPricing(currency: pricingCurrency)
+                    newModelName = ""
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                    Text(t("Add", "添加"))
+                }
+                .disabled(newModelName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(nsColor: .controlBackgroundColor)))
+    }
+
     // MARK: - Model Mapping Section (OpenAI Proxy)
 
     // MARK: - Model Configuration Section
@@ -292,11 +469,10 @@ struct ProxyConfigEditorView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            // Default Model
             VStack(alignment: .leading, spacing: 6) {
                 Text(t("Default Model", "主模型"))
                     .font(.subheadline.weight(.semibold))
-                TextField(config.nodeType == .openaiProxy ? "deepseek-chat" : "claude-sonnet-4-20250514",
+                TextField(config.nodeType == .openaiProxy ? "gpt-5.4" : "claude-sonnet-4-6",
                           text: $config.defaultModel)
                     .textFieldStyle(.roundedBorder)
                 Text(t("The model field in settings.json. Claude Code uses this as the active model.",
@@ -313,19 +489,19 @@ struct ProxyConfigEditorView: View {
                     .font(.subheadline.weight(.semibold))
 
                 modelSlotRow(label: "Opus", binding: $config.modelMapping.bigModel.name,
-                             placeholder: config.nodeType == .openaiProxy ? "gpt-4o" : "claude-3-opus-20240229")
+                             placeholder: config.nodeType == .openaiProxy ? "gpt-5.4" : "claude-opus-4-6")
                 modelSlotRow(label: "Sonnet", binding: $config.modelMapping.middleModel.name,
-                             placeholder: config.nodeType == .openaiProxy ? "gpt-4o-mini" : "claude-sonnet-4-20250514")
+                             placeholder: config.nodeType == .openaiProxy ? "gpt-5.4-mini" : "claude-sonnet-4-6")
                 modelSlotRow(label: "Haiku", binding: $config.modelMapping.smallModel.name,
-                             placeholder: config.nodeType == .openaiProxy ? "gpt-3.5-turbo" : "claude-3-haiku-20240307")
+                             placeholder: config.nodeType == .openaiProxy ? "gpt-4o-mini" : "claude-haiku-4-5")
+            }
+
+            if config.needsProxyProcess {
+                Divider()
+                modelPricingSection
             }
 
             if config.nodeType == .openaiProxy {
-                Divider()
-
-                // Pricing
-                modelPricingSection
-
                 Divider()
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -478,7 +654,11 @@ struct ProxyConfigEditorView: View {
 
         switch config.nodeType {
         case .anthropicDirect:
-            return nameValid && !config.anthropicBaseURL.isEmpty && !config.anthropicAPIKey.isEmpty
+            let baseValid = nameValid && !config.anthropicBaseURL.isEmpty && !config.anthropicAPIKey.isEmpty
+            if config.usePassthroughProxy {
+                return baseValid && !config.host.isEmpty && config.port > 0 && config.port < 65536
+            }
+            return baseValid
         case .openaiProxy:
             return nameValid &&
                 !config.host.isEmpty &&

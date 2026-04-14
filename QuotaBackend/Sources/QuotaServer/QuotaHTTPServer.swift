@@ -11,11 +11,15 @@ public final class QuotaHTTPServer: @unchecked Sendable {
     let port: Int
     let engine = ProviderEngine()
     var proxyService: ClaudeProxyService?
+    var proxyConfig: ClaudeProxyConfiguration?
+
+    var isPassthrough: Bool { proxyConfig?.mode == .anthropicPassthrough }
 
     public init(host: String, port: Int, proxyConfig: ClaudeProxyConfiguration? = nil) {
         self.host = host
         self.port = port
-        if let config = proxyConfig, config.enabled {
+        self.proxyConfig = proxyConfig
+        if let config = proxyConfig, config.enabled, config.mode == .openaiConvert {
             self.proxyService = try? ClaudeProxyService(configuration: config)
         }
     }
@@ -63,8 +67,11 @@ public final class QuotaHTTPServer: @unchecked Sendable {
         print("  GET /api/health")
         print("  GET /health")
         if proxyService != nil {
-            print("  POST /v1/messages (Claude Proxy)")
+            print("  POST /v1/messages (Claude Proxy - OpenAI Convert)")
             print("  POST /v1/messages/count_tokens (Claude Proxy)")
+        }
+        if isPassthrough {
+            print("  POST /v1/messages (Anthropic Passthrough)")
         }
 
         // Keep alive until IPv4 listener fails
@@ -88,22 +95,25 @@ public final class QuotaHTTPServer: @unchecked Sendable {
         }
 
         let request = parseHTTPRequest(requestData)
+        let cleanPath = request.path.split(separator: "?").first.map(String.init) ?? request.path
 
-        // Check if this is a proxy request that needs streaming
         if request.method == "POST",
-           request.path == "/v1/messages",
-           proxyService != nil {
-            // Parse body to check stream flag
-            let isStreaming: Bool
-            if let json = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any] {
-                isStreaming = json["stream"] as? Bool ?? false
-            } else {
-                isStreaming = false
-            }
-
-            if isStreaming {
-                await handleStreamingProxy(connection, request: request)
+           cleanPath == "/v1/messages" || cleanPath.hasPrefix("/v1/messages/") {
+            if isPassthrough {
+                await handlePassthroughProxy(connection, request: request)
                 return
+            }
+            if proxyService != nil {
+                let isStreaming: Bool
+                if let json = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any] {
+                    isStreaming = json["stream"] as? Bool ?? false
+                } else {
+                    isStreaming = false
+                }
+                if isStreaming {
+                    await handleStreamingProxy(connection, request: request)
+                    return
+                }
             }
         }
 
@@ -147,6 +157,9 @@ public final class QuotaHTTPServer: @unchecked Sendable {
             return await handleCountTokensEndpoint(request: request, headers: corsHeaders)
 
         case ("POST", "/api/event_logging/batch"):
+            if isPassthrough {
+                return await forwardPassthrough(request: request, path: "/api/event_logging/batch")
+            }
             return await handleEventLoggingEndpoint(request: request, headers: corsHeaders)
 
         case ("GET", "/api/providers"):
@@ -312,6 +325,219 @@ public final class QuotaHTTPServer: @unchecked Sendable {
         } catch {
             let errorResponse = await proxy.buildErrorResponse(error: error)
             return jsonResponse(encodable: errorResponse, status: 500, headers: headers)
+        }
+    }
+
+    // MARK: - Anthropic Passthrough Proxy
+
+    private func handlePassthroughProxy(_ connection: NWConnection, request: HTTPRequest) async {
+        guard let config = proxyConfig else {
+            let resp = HTTPResponse(status: 502, headers: [:], body: "{\"error\":\"Passthrough not configured\"}")
+            await sendResponse(connection, response: resp)
+            connection.cancel()
+            return
+        }
+
+        if let expectedKey = config.expectedClientKey, !expectedKey.isEmpty {
+            let clientKey = request.headers["x-api-key"] ?? request.headers["authorization"]?.replacingOccurrences(of: "Bearer ", with: "")
+            if clientKey != expectedKey {
+                let resp = claudeErrorResponse(type: "authentication_error", message: "Invalid API key", status: 401, headers: [:])
+                await sendResponse(connection, response: resp)
+                connection.cancel()
+                return
+            }
+        }
+
+        let startTime = Date()
+        let cleanPath = request.path.split(separator: "?").first.map(String.init) ?? request.path
+        let queryPart = request.path.contains("?") ? "?" + request.path.split(separator: "?").dropFirst().joined(separator: "?") : ""
+        let upstreamURL = config.upstreamBaseURL.hasSuffix("/")
+            ? config.upstreamBaseURL + cleanPath.dropFirst() + queryPart
+            : config.upstreamBaseURL + cleanPath + queryPart
+
+        print("→ PASSTHROUGH \(request.method) \(request.path) → \(upstreamURL)")
+
+        guard let url = URL(string: upstreamURL) else {
+            let resp = HTTPResponse(status: 502, headers: [:], body: "{\"error\":\"Invalid upstream URL\"}")
+            await sendResponse(connection, response: resp)
+            connection.cancel()
+            return
+        }
+
+        var upstreamReq = URLRequest(url: url)
+        upstreamReq.httpMethod = request.method
+        upstreamReq.httpBody = request.body
+
+        for (key, value) in request.headers {
+            let lk = key.lowercased()
+            if lk == "host" || lk == "content-length" { continue }
+            upstreamReq.setValue(value, forHTTPHeaderField: key)
+        }
+        if !config.upstreamAPIKey.isEmpty {
+            upstreamReq.setValue(config.upstreamAPIKey, forHTTPHeaderField: "x-api-key")
+        }
+        upstreamReq.setValue("application/json", forHTTPHeaderField: "content-type")
+
+        let isStreaming: Bool
+        let requestModel: String
+        if let json = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any] {
+            isStreaming = json["stream"] as? Bool ?? false
+            requestModel = json["model"] as? String ?? "unknown"
+        } else {
+            isStreaming = false
+            requestModel = "unknown"
+        }
+
+        if isStreaming {
+            await handlePassthroughStreaming(connection, upstreamRequest: upstreamReq, requestModel: requestModel, startTime: startTime)
+        } else {
+            await handlePassthroughNonStreaming(connection, upstreamRequest: upstreamReq, requestModel: requestModel, startTime: startTime)
+        }
+    }
+
+    private func handlePassthroughNonStreaming(_ connection: NWConnection, upstreamRequest: URLRequest, requestModel: String, startTime: Date) async {
+        do {
+            let (data, response) = try await URLSession.shared.data(for: upstreamRequest)
+            let httpResp = response as? HTTPURLResponse
+            let statusCode = httpResp?.statusCode ?? 502
+
+            let responseStr = String(data: data, encoding: .utf8) ?? ""
+            var respHeaders: [String: String] = ["Content-Type": "application/json"]
+            httpResp?.allHeaderFields.forEach { key, value in
+                if let k = key as? String, let v = value as? String {
+                    let lk = k.lowercased()
+                    if lk != "content-length" && lk != "transfer-encoding" {
+                        respHeaders[k] = v
+                    }
+                }
+            }
+
+            let elapsed = Date().timeIntervalSince(startTime) * 1000
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let usage = json["usage"] as? [String: Any] {
+                emitPassthroughLog(model: requestModel, usage: usage, responseTimeMs: Int(elapsed), success: statusCode < 400)
+            }
+
+            let resp = HTTPResponse(status: statusCode, headers: respHeaders, body: responseStr)
+            await sendResponse(connection, response: resp)
+            connection.cancel()
+        } catch {
+            let resp = HTTPResponse(status: 502, headers: [:], body: "{\"error\":\"Upstream error: \(error.localizedDescription)\"}")
+            await sendResponse(connection, response: resp)
+            connection.cancel()
+        }
+    }
+
+    private func handlePassthroughStreaming(_ connection: NWConnection, upstreamRequest: URLRequest, requestModel: String, startTime: Date) async {
+        let streamer = StreamingResponse(connection: connection)
+
+        do {
+            let (bytes, response) = try await URLSession.shared.bytes(for: upstreamRequest)
+            let httpResp = response as? HTTPURLResponse
+            let statusCode = httpResp?.statusCode ?? 502
+
+            await streamer.sendHeaders(status: statusCode, headers: [
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive"
+            ])
+
+            var totalInputTokens = 0
+            var totalOutputTokens = 0
+            var cacheCreationTokens = 0
+            var cacheReadTokens = 0
+
+            for try await line in bytes.lines {
+                await streamer.sendChunk(line + "\n")
+
+                if line.hasPrefix("data: "), let jsonStart = line.firstIndex(of: Character("{")) {
+                    let jsonStr = String(line[jsonStart...])
+                    if let eventData = try? JSONSerialization.jsonObject(with: Data(jsonStr.utf8)) as? [String: Any] {
+                        if let usage = eventData["usage"] as? [String: Any] {
+                            if let v = usage["input_tokens"] as? Int { totalInputTokens = v }
+                            if let v = usage["output_tokens"] as? Int { totalOutputTokens = v }
+                            if let v = usage["cache_creation_input_tokens"] as? Int { cacheCreationTokens = v }
+                            if let v = usage["cache_read_input_tokens"] as? Int { cacheReadTokens = v }
+                        }
+                    }
+                }
+            }
+
+            let elapsed = Date().timeIntervalSince(startTime) * 1000
+            let usageDict: [String: Any] = [
+                "input_tokens": totalInputTokens,
+                "output_tokens": totalOutputTokens,
+                "cache_creation_input_tokens": cacheCreationTokens,
+                "cache_read_input_tokens": cacheReadTokens
+            ]
+            emitPassthroughLog(model: requestModel, usage: usageDict, responseTimeMs: Int(elapsed), success: statusCode < 400)
+
+            streamer.close()
+        } catch {
+            await streamer.sendChunk("event: error\ndata: {\"error\":\"\(error.localizedDescription)\"}\n\n")
+            streamer.close()
+        }
+    }
+
+    private func forwardPassthrough(request: HTTPRequest, path: String) async -> HTTPResponse {
+        guard let config = proxyConfig else {
+            return HTTPResponse(status: 502, headers: [:], body: "{\"error\":\"Not configured\"}")
+        }
+
+        let upstreamURL = config.upstreamBaseURL.hasSuffix("/")
+            ? config.upstreamBaseURL + path.dropFirst()
+            : config.upstreamBaseURL + path
+
+        guard let url = URL(string: upstreamURL) else {
+            return HTTPResponse(status: 502, headers: [:], body: "{\"error\":\"Invalid URL\"}")
+        }
+
+        var upstreamReq = URLRequest(url: url)
+        upstreamReq.httpMethod = request.method
+        upstreamReq.httpBody = request.body
+        for (key, value) in request.headers {
+            let lk = key.lowercased()
+            if lk == "host" || lk == "content-length" { continue }
+            upstreamReq.setValue(value, forHTTPHeaderField: key)
+        }
+        if !config.upstreamAPIKey.isEmpty {
+            upstreamReq.setValue(config.upstreamAPIKey, forHTTPHeaderField: "x-api-key")
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: upstreamReq)
+            let httpResp = response as? HTTPURLResponse
+            return HTTPResponse(
+                status: httpResp?.statusCode ?? 502,
+                headers: ["Content-Type": "application/json"],
+                body: String(data: data, encoding: .utf8) ?? ""
+            )
+        } catch {
+            return HTTPResponse(status: 502, headers: [:], body: "{\"error\":\"\(error.localizedDescription)\"}")
+        }
+    }
+
+    private func emitPassthroughLog(model: String, usage: [String: Any], responseTimeMs: Int, success: Bool) {
+        let inputTokens = usage["input_tokens"] as? Int ?? 0
+        let outputTokens = usage["output_tokens"] as? Int ?? 0
+        let cacheCreation = usage["cache_creation_input_tokens"] as? Int ?? 0
+        let cacheRead = usage["cache_read_input_tokens"] as? Int ?? 0
+        let cacheTokens = cacheCreation + cacheRead
+
+        let log: [String: Any] = [
+            "type": "proxy_request_log",
+            "claude_model": model,
+            "upstream_model": model,
+            "success": success,
+            "response_time_ms": responseTimeMs,
+            "input_tokens": inputTokens,
+            "output_tokens": outputTokens,
+            "cache_tokens": cacheTokens,
+        ]
+
+        if let data = try? JSONSerialization.data(withJSONObject: log),
+           let jsonStr = String(data: data, encoding: .utf8) {
+            print("PROXY_LOG:\(jsonStr)")
         }
     }
 

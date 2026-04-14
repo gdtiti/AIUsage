@@ -118,7 +118,7 @@ Available release assets:
 
 ## Claude Code Proxy
 
-AIUsage includes a built-in Claude Code proxy — all configuration is done through the app UI, no manual environment variables needed.
+AIUsage includes a built-in Claude Code proxy that lets you use Claude Code CLI with any OpenAI-compatible backend or transparently log Anthropic API usage.
 
 ### Quick Start
 

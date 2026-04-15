@@ -71,7 +71,8 @@ extension ProxyViewModel {
             return
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard let self = self else { return }
             if let description = self.runtimeService.processDebugDescription(for: id) {
                 proxyRuntimeLog.info("Restored node process state: \(description, privacy: .public)")

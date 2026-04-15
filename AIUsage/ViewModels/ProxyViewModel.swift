@@ -41,6 +41,7 @@ enum ProxyRuntimeError: LocalizedError {
     }
 }
 
+@MainActor
 class ProxyViewModel: ObservableObject {
     @Published var configurations: [ProxyConfiguration] = []
     @Published var activatedConfigId: String?

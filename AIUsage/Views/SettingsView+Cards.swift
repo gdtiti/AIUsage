@@ -298,8 +298,8 @@ extension SettingsView {
                 title: L("Automatic Updates", "自动检查更新"),
                 subtitle: L("Periodically check for new versions in the background.", "后台定期检查是否有新版本。"),
                 isOn: Binding(
-                    get: { sparkle.updaterController.updater.automaticallyChecksForUpdates },
-                    set: { sparkle.updaterController.updater.automaticallyChecksForUpdates = $0 }
+                    get: { sparkle.automaticallyChecksForUpdates },
+                    set: { sparkle.setAutoCheckEnabled($0) }
                 )
             )
 

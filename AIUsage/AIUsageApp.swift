@@ -8,21 +8,29 @@ private let appDelegateLog = Logger(subsystem: "com.aiusage.desktop", category: 
 
 final class SparkleController: ObservableObject {
     @Published var canCheckForUpdates = false
-    
+    @Published private(set) var automaticallyChecksForUpdates = false
+
     let updaterController: SPUStandardUpdaterController
-    
+
     init() {
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
-        updaterController.updater.publisher(for: \.canCheckForUpdates)
+        let updater = updaterController.updater
+        updater.publisher(for: \.canCheckForUpdates)
             .assign(to: &$canCheckForUpdates)
+        updater.publisher(for: \.automaticallyChecksForUpdates)
+            .assign(to: &$automaticallyChecksForUpdates)
     }
-    
+
     func checkForUpdates() {
         updaterController.updater.checkForUpdates()
+    }
+
+    func setAutoCheckEnabled(_ enabled: Bool) {
+        updaterController.updater.automaticallyChecksForUpdates = enabled
     }
 }
 

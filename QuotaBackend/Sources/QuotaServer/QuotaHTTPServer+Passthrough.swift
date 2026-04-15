@@ -28,7 +28,7 @@ extension QuotaHTTPServer {
         let cleanPath = request.path.split(separator: "?").first.map(String.init) ?? request.path
         let queryPart = request.path.contains("?") ? "?" + request.path.split(separator: "?").dropFirst().joined(separator: "?") : ""
         let upstreamURL = config.upstreamBaseURL.hasSuffix("/")
-            ? config.upstreamBaseURL + cleanPath.dropFirst() + queryPart
+            ? config.upstreamBaseURL + String(cleanPath.dropFirst()) + queryPart
             : config.upstreamBaseURL + cleanPath + queryPart
 
         httpLog.debug("→ PASSTHROUGH \(request.method) \(request.path, privacy: .public) → \(upstreamURL, privacy: .private)")
@@ -161,7 +161,7 @@ extension QuotaHTTPServer {
         }
 
         let upstreamURL = config.upstreamBaseURL.hasSuffix("/")
-            ? config.upstreamBaseURL + path.dropFirst()
+            ? config.upstreamBaseURL + String(path.dropFirst())
             : config.upstreamBaseURL + path
 
         guard let url = URL(string: upstreamURL) else {

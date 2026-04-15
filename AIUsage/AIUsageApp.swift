@@ -43,7 +43,7 @@ struct AIUsageApp: App {
     @StateObject private var sparkle = SparkleController()
     
     var body: some Scene {
-        WindowGroup("AIUsage", id: AppState.mainWindowID) {
+        Window("AIUsage", id: AppState.mainWindowID) {
             ContentView()
                 .environmentObject(appState)
                 .environmentObject(ProviderActivationManager.shared)

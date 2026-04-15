@@ -12,6 +12,13 @@ OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/dist}"
 INFO_PLIST_PATH="${INFO_PLIST_PATH:-$ROOT_DIR/AIUsage/Info.plist}"
 VERSION="${1:-${VERSION:-}}"
 REQUIRE_SPARKLE_SIGNING="${REQUIRE_SPARKLE_SIGNING:-0}"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aiusage-release.XXXXXX")"
+
+cleanup() {
+  rm -rf "$WORK_DIR"
+}
+
+trap cleanup EXIT
 
 if [[ -z "${VERSION}" ]]; then
   VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST_PATH")"
@@ -21,12 +28,23 @@ mkdir -p "$OUTPUT_DIR"
 
 strip_bundle_detritus() {
   local target="$1"
+  local pass
+  local attrs_pattern='com\.apple\.(FinderInfo|ResourceFork|fileprovider\.fpfs#P)'
 
-  xattr -cr "$target" || true
+  for pass in 1 2 3; do
+    for attr in com.apple.FinderInfo com.apple.ResourceFork com.apple.fileprovider.fpfs#P; do
+      find "$target" -exec xattr -d "$attr" {} + 2>/dev/null || true
+      find -H "$target" -type l -exec xattr -ds "$attr" {} + 2>/dev/null || true
+    done
 
-  for attr in com.apple.FinderInfo com.apple.ResourceFork com.apple.fileprovider.fpfs#P; do
-    find "$target" -exec xattr -d "$attr" {} + 2>/dev/null || true
+    if ! xattr -lr "$target" 2>/dev/null | rg -q "$attrs_pattern"; then
+      return 0
+    fi
   done
+
+  echo "Failed to strip all detritus from $target" >&2
+  xattr -lr "$target" 2>/dev/null | rg "$attrs_pattern" >&2 || true
+  return 1
 }
 
 echo "Building ${APP_NAME} ${VERSION}..."
@@ -43,15 +61,24 @@ xcodebuild \
   CURRENT_PROJECT_VERSION="$VERSION" \
   build
 
-APP_PATH="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/$APP_NAME.app"
+SOURCE_APP_PATH="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/$APP_NAME.app"
 ZIP_PATH="$OUTPUT_DIR/${APP_NAME}-${VERSION}-macOS.zip"
 DMG_PATH="$OUTPUT_DIR/${APP_NAME}-${VERSION}-macOS.dmg"
-DMG_STAGING_DIR="$OUTPUT_DIR/dmg-root"
+DMG_STAGING_DIR="$WORK_DIR/dmg-root"
+APP_STAGING_ROOT="$WORK_DIR/app-staging"
+APP_PATH="$APP_STAGING_ROOT/$APP_NAME.app"
 
-if [[ ! -d "$APP_PATH" ]]; then
-  echo "Expected app bundle not found at $APP_PATH" >&2
+if [[ ! -d "$SOURCE_APP_PATH" ]]; then
+  echo "Expected app bundle not found at $SOURCE_APP_PATH" >&2
   exit 1
 fi
+
+rm -rf "$APP_STAGING_ROOT"
+mkdir -p "$APP_STAGING_ROOT"
+
+echo "Creating sanitized app bundle staging copy..."
+ditto --norsrc --noextattr --noqtn --noacl "$SOURCE_APP_PATH" "$APP_PATH"
+strip_bundle_detritus "$APP_PATH"
 
 echo "Injecting custom Sparkle localization strings..."
 SPARKLE_RES=$(find "$APP_PATH/Contents/Frameworks" -path "*/Sparkle.framework/*/Resources" -type d 2>/dev/null | head -1)
@@ -75,7 +102,6 @@ codesign --force --deep -s - "$APP_PATH"
 codesign --verify --verbose "$APP_PATH" || true
 
 rm -f "$ZIP_PATH" "$DMG_PATH"
-rm -rf "$DMG_STAGING_DIR"
 mkdir -p "$DMG_STAGING_DIR"
 
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
@@ -83,8 +109,7 @@ ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
 cp -R "$APP_PATH" "$DMG_STAGING_DIR/"
 ln -s /Applications "$DMG_STAGING_DIR/Applications"
 
-DMG_RW_PATH="$OUTPUT_DIR/${APP_NAME}-rw.dmg"
-rm -f "$DMG_RW_PATH"
+DMG_RW_PATH="$WORK_DIR/${APP_NAME}-rw.dmg"
 
 DMG_SIZE_KB=$(du -sk "$DMG_STAGING_DIR" | awk '{print $1}')
 DMG_SIZE_KB=$(( DMG_SIZE_KB + 10240 ))
@@ -126,8 +151,6 @@ APPLESCRIPT
 sync
 hdiutil detach "$MOUNT_DIR" -quiet || hdiutil detach "$MOUNT_DIR" -force
 hdiutil convert "$DMG_RW_PATH" -format UDZO -o "$DMG_PATH" >/dev/null
-rm -f "$DMG_RW_PATH"
-rm -rf "$DMG_STAGING_DIR"
 
 echo "Created release artifacts:"
 echo "  $ZIP_PATH"

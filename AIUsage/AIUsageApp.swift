@@ -35,7 +35,7 @@ struct AIUsageApp: App {
     @StateObject private var sparkle = SparkleController()
     
     var body: some Scene {
-        Window("AIUsage", id: AppState.mainWindowID) {
+        WindowGroup("AIUsage", id: AppState.mainWindowID) {
             ContentView()
                 .environmentObject(appState)
                 .environmentObject(ProviderActivationManager.shared)
@@ -88,6 +88,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if UserDefaults.standard.bool(forKey: DefaultsKey.hideDockIcon) {
             NSApp.setActivationPolicy(.accessory)
         }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !flag else { return true }
+        AppState.shared.presentMainWindow(section: AppState.shared.selectedSection)
+        return true
     }
 
     func requestNotificationPermission() {

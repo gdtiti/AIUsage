@@ -246,6 +246,31 @@ resource fork, Finder information, or similar detritus not allowed
 - 打包脚本里要显式清理这些属性后再 `codesign`
 - 不要删掉 `scripts/package-release.sh` 里的 detritus 清理逻辑
 
+### 7. 不要在桌面仓库目录里给 staging `.app` 做签名
+
+这次 `0.3.6` 又补到一个更隐蔽的问题：
+
+- 仓库放在 `Desktop` 下时，`dist/app-staging/AIUsage.app` 这种目录本身可能被系统自动挂上 `File Provider` 相关扩展属性
+- 即使包内文件已经清干净，顶层 `.app` 目录也可能重新出现：
+  - `com.apple.FinderInfo`
+  - `com.apple.fileprovider.fpfs#P`
+- 结果就是 `codesign` 依然会报：
+
+```text
+resource fork, Finder information, or similar detritus not allowed
+```
+
+经验结论：
+
+- 不要在仓库内的 `dist/` 或其他桌面同步目录中完成签名
+- `package-release.sh` 应该先把 `.app` 复制到 `/tmp` 之类的临时工作目录
+- 在临时目录完成：
+  - Sparkle 语言文件注入
+  - detritus 清理
+  - ad-hoc `codesign`
+  - DMG staging
+- 最终只把产出的 `zip/dmg` 放回 `dist/`
+
 ## 推荐发布命令清单
 
 把下面这组命令当成默认手顺：

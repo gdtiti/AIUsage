@@ -180,10 +180,13 @@ extension ProxyViewModel {
 
     func dataDateRange(nodeFilter: String?, modelFilter: String?) -> (earliest: Date?, latest: Date?, days: Int) {
         let logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
-        guard let earliest = logs.last?.timestamp, let latest = logs.first?.timestamp else {
+        guard let earliest = logs.first?.timestamp, let latest = logs.last?.timestamp else {
             return (nil, nil, 0)
         }
-        let days = max(1, (Calendar.current.dateComponents([.day], from: earliest, to: latest).day ?? 0) + 1)
+        let calendar = Calendar.current
+        let earliestDay = calendar.startOfDay(for: earliest)
+        let latestDay = calendar.startOfDay(for: latest)
+        let days = max(1, (calendar.dateComponents([.day], from: earliestDay, to: latestDay).day ?? 0) + 1)
         return (earliest, latest, days)
     }
 }

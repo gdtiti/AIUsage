@@ -3,6 +3,8 @@ import Charts
 
 extension CostTrackingView {
 
+    private var maxVisibleChartModels: Int { 8 }
+
     var chartSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -30,6 +32,8 @@ extension CostTrackingView {
 
             spendChart
                 .frame(height: 220)
+
+            chartLegendSection
         }
         .padding(16)
         .background(
@@ -53,11 +57,11 @@ extension CostTrackingView {
                 }
             }
             Divider()
-            ForEach(models) { model in
-                Button(action: { toggleModelSelection(model.model) }) {
+            ForEach(chartSelectableModels, id: \.self) { model in
+                Button(action: { toggleModelSelection(model) }) {
                     HStack {
-                        Text(shortModelName(model.model))
-                        if selectedModels.contains(model.model) {
+                        Text(model)
+                        if selectedModels.contains(model) {
                             Image(systemName: "checkmark")
                         }
                     }
@@ -101,7 +105,7 @@ extension CostTrackingView {
 
     @ViewBuilder
     var spendChart: some View {
-        let series = chartModelSeries()
+        let series = displayedChartSeries(limit: maxVisibleChartModels)
         if selectedModels.isEmpty {
             let points = aggregateChartPoints()
             if points.isEmpty {
@@ -130,14 +134,14 @@ extension CostTrackingView {
     }
 
     var multiModelChart: some View {
-        multiModelChartFor(chartModelSeries())
+        multiModelChartFor(displayedChartSeries(limit: maxVisibleChartModels))
     }
 
     var multiModelChartFiltered: some View {
-        multiModelChartFor(chartModelSeries().filter { selectedModels.contains($0.model) })
+        multiModelChartFor(displayedChartSeries(limit: maxVisibleChartModels))
     }
 
-    func multiModelChartFor(_ allSeries: [(model: String, points: [CostTimelinePoint])]) -> some View {
+    func multiModelChartFor(_ allSeries: [ChartSeriesDescriptor]) -> some View {
         Chart {
             ForEach(allSeries, id: \.model) { series in
                 ForEach(series.points, id: \.bucket) { point in
@@ -145,13 +149,13 @@ extension CostTrackingView {
                         x: .value("Time", point.label),
                         y: .value("Value", selectedMetric == .usd ? point.usd : Double(point.tokens))
                     )
-                    .foregroundStyle(by: .value("Model", shortModelName(series.model)))
+                    .foregroundStyle(modelColor(for: series.model))
                     .interpolationMethod(.catmullRom)
                     .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round))
                 }
             }
         }
-        .chartLegend(position: .bottom, spacing: 8)
+        .chartLegend(.hidden)
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: selectedGranularity == .hourly ? 6 : 7)) { _ in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
@@ -168,6 +172,38 @@ extension CostTrackingView {
                     if let v = value.as(Double.self) {
                         Text(selectedMetric == .usd ? chartCurrencyLabel(v) : formatCompactNumber(v))
                             .font(.caption2)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    var chartLegendSection: some View {
+        let series = displayedChartSeries(limit: maxVisibleChartModels)
+        if series.count > 1 {
+            VStack(alignment: .leading, spacing: 8) {
+                if hiddenChartSeriesCount > 0 && selectedModels.isEmpty {
+                    Text(
+                        L(
+                            "Showing Top \(series.count) models by current metric",
+                            "按当前指标仅显示前 \(series.count) 个模型"
+                        )
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 8)], alignment: .leading, spacing: 8) {
+                    ForEach(series, id: \.model) { series in
+                        StatsLegendChip(
+                            color: modelColor(for: series.model),
+                            title: series.model,
+                            value: selectedMetric == .usd
+                                ? formatCurrency(series.totalUsd)
+                                : formatCompactNumber(Double(series.totalTokens))
+                        )
+                        .help(series.model)
                     }
                 }
             }

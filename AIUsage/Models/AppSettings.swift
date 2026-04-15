@@ -52,6 +52,7 @@ enum DefaultsKey {
     static let proxyLogs = "proxyLogs"
     static let proxyStatistics = "proxyStatistics"
     static let proxyStatsGranularity = "proxyStatsGranularity"
+    static let proxyStatsDistributionMetric = "proxyStatsDistributionMetric"
     static let proxyStatsMetric = "proxyStatsMetric"
     static let proxyStatsModel = "proxyStatsModel"
     static let proxyStatsNodeId = "proxyStatsNodeId"

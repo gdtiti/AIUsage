@@ -12,7 +12,8 @@ struct CostTrackingView: View {
     @AppStorage(DefaultsKey.ccStatsDistMetric) var distributionMetric: CostMetric = .usd
     @AppStorage(DefaultsKey.ccStatsDistPeriod) var distributionPeriod: DistributionPeriod = .today
     @State var detailProvider: ProviderData?
-    @State var expandedModel: String?
+    @State var expandedModels: Set<String> = []
+    @State var contentWidth: CGFloat = 0
 
     var costProviders: [ProviderData] {
         refreshCoordinator.providers.filter { $0.category == "local-cost" }
@@ -39,18 +40,24 @@ struct CostTrackingView: View {
                     VStack(spacing: 16) {
                         summaryStrip
                         chartSection
-                        HStack(alignment: .top, spacing: 16) {
-                            modelDistribution
-                            modelTable
-                        }
+                        insightPanels
                     }
                     .padding(20)
+                    .background(
+                        GeometryReader { proxy in
+                            Color.clear
+                                .preference(key: CostTrackingContentWidthPreferenceKey.self, value: proxy.size.width)
+                        }
+                    )
                 }
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .sheet(item: $detailProvider) { provider in
             ProviderDetailView(provider: provider)
+        }
+        .onPreferenceChange(CostTrackingContentWidthPreferenceKey.self) { newWidth in
+            contentWidth = newWidth
         }
     }
 
@@ -68,5 +75,18 @@ struct CostTrackingView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+enum CostTrackingInsightsLayout {
+    case split
+    case stacked
+}
+
+private struct CostTrackingContentWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

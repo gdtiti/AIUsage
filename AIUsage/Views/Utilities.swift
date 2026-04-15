@@ -194,6 +194,58 @@ func formatNumber(_ value: Int) -> String {
     return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
 }
 
+func stablePaletteIndex(for value: String, paletteCount: Int) -> Int {
+    guard paletteCount > 0 else { return 0 }
+
+    let hash = value.unicodeScalars.reduce(5381) { partial, scalar in
+        ((partial << 5) &+ partial) &+ Int(scalar.value)
+    }
+
+    return abs(hash) % paletteCount
+}
+
+struct StatsLegendChip: View {
+    let color: Color
+    let title: String
+    let value: String?
+
+    init(color: Color, title: String, value: String? = nil) {
+        self.color = color
+        self.title = title
+        self.value = value
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+
+            Text(title)
+                .font(.caption.weight(.medium))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let value, !value.isEmpty {
+                Text(value)
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.primary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
+
 func parseISO8601(_ value: String) -> Date? {
     SharedFormatters.parseISO8601(value)
 }

@@ -12,7 +12,50 @@ extension CostTrackingView {
         }
     }
 
-    var modelDistribution: some View {
+    var rankedDistributionModels: [ModelCostBreakdown] {
+        distributionModels.sorted { lhs, rhs in
+            let lhsValue = distributionMetric == .usd ? lhs.estimatedCostUsd : Double(lhs.totalTokens)
+            let rhsValue = distributionMetric == .usd ? rhs.estimatedCostUsd : Double(rhs.totalTokens)
+            if lhsValue == rhsValue {
+                return lhs.model.localizedCaseInsensitiveCompare(rhs.model) == .orderedAscending
+            }
+            return lhsValue > rhsValue
+        }
+    }
+
+    var usesStackedInsightsLayout: Bool {
+        contentWidth > 0 && contentWidth < 1080
+    }
+
+    var splitDistributionWidth: CGFloat {
+        let availableWidth = max(contentWidth, 980)
+        return min(max(availableWidth * 0.34, 310), 380)
+    }
+
+    var insightPanels: some View {
+        Group {
+            if usesStackedInsightsLayout {
+                VStack(alignment: .leading, spacing: 16) {
+                    modelDistribution(layout: .stacked)
+                    modelTable(layout: .stacked)
+                }
+            } else {
+                HStack(alignment: .top, spacing: 16) {
+                    modelDistribution(layout: .split)
+                        .frame(width: splitDistributionWidth, alignment: .topLeading)
+                    modelTable(layout: .split)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .layoutPriority(1)
+                }
+            }
+        }
+    }
+
+    func distributionChartHeight(for layout: CostTrackingInsightsLayout) -> CGFloat {
+        layout == .split ? 210 : 230
+    }
+
+    func modelDistribution(layout: CostTrackingInsightsLayout) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(L("Model Distribution", "模型分布"))
@@ -20,27 +63,49 @@ extension CostTrackingView {
                 Spacer()
             }
 
-            HStack(spacing: 8) {
-                Picker("", selection: $distributionPeriod) {
-                    Text(L("Today", "今日")).tag(DistributionPeriod.today)
-                    Text(L("Week", "本周")).tag(DistributionPeriod.week)
-                    Text(L("Month", "本月")).tag(DistributionPeriod.month)
-                    Text(L("All", "全部")).tag(DistributionPeriod.overall)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 240)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    Picker("", selection: $distributionPeriod) {
+                        Text(L("Today", "今日")).tag(DistributionPeriod.today)
+                        Text(L("Week", "本周")).tag(DistributionPeriod.week)
+                        Text(L("Month", "本月")).tag(DistributionPeriod.month)
+                        Text(L("All", "全部")).tag(DistributionPeriod.overall)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 240)
 
-                Spacer()
+                    Spacer(minLength: 8)
 
-                Picker("", selection: $distributionMetric) {
-                    Text("USD").tag(CostMetric.usd)
-                    Text("Tokens").tag(CostMetric.tokens)
+                    Picker("", selection: $distributionMetric) {
+                        Text("USD").tag(CostMetric.usd)
+                        Text("Tokens").tag(CostMetric.tokens)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 120)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 120)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker("", selection: $distributionPeriod) {
+                        Text(L("Today", "今日")).tag(DistributionPeriod.today)
+                        Text(L("Week", "本周")).tag(DistributionPeriod.week)
+                        Text(L("Month", "本月")).tag(DistributionPeriod.month)
+                        Text(L("All", "全部")).tag(DistributionPeriod.overall)
+                    }
+                    .pickerStyle(.segmented)
+
+                    HStack {
+                        Spacer()
+                        Picker("", selection: $distributionMetric) {
+                            Text("USD").tag(CostMetric.usd)
+                            Text("Tokens").tag(CostMetric.tokens)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 120)
+                    }
+                }
             }
 
-            let distModels = distributionModels
+            let distModels = rankedDistributionModels
             if distModels.isEmpty {
                 Text(L("No data for this period", "该时段暂无数据"))
                     .font(.caption)
@@ -48,31 +113,31 @@ extension CostTrackingView {
                     .frame(maxWidth: .infinity, minHeight: 160)
             } else {
                 donutChart
-                    .frame(height: 200)
+                    .frame(height: distributionChartHeight(for: layout))
 
                 VStack(spacing: 6) {
-                    ForEach(Array(distModels.prefix(6).enumerated()), id: \.element.id) { index, model in
-                        let color = modelColor(index)
+                    ForEach(Array(distModels.prefix(6)), id: \.id) { model in
+                        let color = modelColor(for: model.model)
                         HStack(spacing: 8) {
                             Circle().fill(color).frame(width: 8, height: 8)
-                            Text(shortModelName(model.model))
+                            Text(model.model)
                                 .font(.caption.weight(.medium))
                                 .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(model.model)
                             Spacer()
                             if distributionMetric == .usd {
                                 Text(formatCurrency(model.estimatedCostUsd))
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(color)
-                                Text(String(format: "%.1f%%", model.percentage))
+                                Text(String(format: "%.1f%%", distributionShare(for: model)))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             } else {
                                 Text(formatCompactNumber(Double(model.totalTokens)))
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(color)
-                                let totalTokens = distModels.reduce(0) { $0 + $1.totalTokens }
-                                let pct = totalTokens > 0 ? Double(model.totalTokens) / Double(totalTokens) * 100 : 0
-                                Text(String(format: "%.1f%%", pct))
+                                Text(String(format: "%.1f%%", distributionShare(for: model)))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -94,19 +159,17 @@ extension CostTrackingView {
     }
 
     var donutChart: some View {
-        let items = Array(distributionModels.prefix(6))
-        let totalTokens = distributionModels.reduce(0) { $0 + $1.totalTokens }
-        return Chart(Array(items.enumerated()), id: \.element.id) { index, model in
+        let items = Array(rankedDistributionModels.prefix(6))
+        return Chart(items, id: \.id) { model in
             SectorMark(
                 angle: .value("Value", max(donutValue(model), 0.001)),
                 innerRadius: .ratio(0.6),
                 angularInset: 1.5
             )
-            .foregroundStyle(modelColor(index))
+            .foregroundStyle(modelColor(for: model.model))
             .cornerRadius(4)
             .annotation(position: .overlay) {
-                let pct = distributionMetric == .usd ? model.percentage :
-                    (totalTokens > 0 ? Double(model.totalTokens) / Double(totalTokens) * 100 : 0)
+                let pct = distributionShare(for: model)
                 if pct >= 10 {
                     Text(String(format: "%.0f%%", pct))
                         .font(.system(size: 10, weight: .bold))

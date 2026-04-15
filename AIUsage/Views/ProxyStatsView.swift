@@ -10,7 +10,9 @@ struct ProxyStatsView: View {
     @AppStorage(DefaultsKey.proxyStatsModel) private var selectedModelRaw: String = ""
     @AppStorage(DefaultsKey.proxyStatsGranularity) private var granularity: StatGranularity = .daily
     @AppStorage(DefaultsKey.proxyStatsMetric) private var metric: StatMetric = .cost
+    @AppStorage(DefaultsKey.proxyStatsDistributionMetric) private var distributionMetric: StatMetric = .cost
     @State private var contentWidth: CGFloat = 0
+    @State private var expandedModels: Set<String> = []
 
     private var nodeBinding: Binding<String> {
         Binding(get: { selectedNodeIdRaw }, set: { selectedNodeIdRaw = $0 })
@@ -36,6 +38,15 @@ struct ProxyStatsView: View {
     private enum InsightsLayout {
         case split
         case stacked
+    }
+
+    private struct TrendSeriesDescriptor: Identifiable {
+        let model: String
+        let points: [ProxyViewModel.ModelTimePoint]
+        let totalCost: Double
+        let totalTokens: Int
+
+        var id: String { model }
     }
 
     var body: some View {
@@ -205,6 +216,40 @@ struct ProxyStatsView: View {
         viewModel.modelTimeSeries(nodeFilter: selectedNodeId, granularity: granularity == .hourly ? "hourly" : "daily")
     }
 
+    private var maxVisibleTrendModels: Int { 8 }
+
+    private var rankedTrendSeries: [TrendSeriesDescriptor] {
+        Dictionary(grouping: modelTimeSeries, by: \.model)
+            .map { model, points in
+                let sortedPoints = points.sorted { $0.date < $1.date }
+                return TrendSeriesDescriptor(
+                    model: model,
+                    points: sortedPoints,
+                    totalCost: sortedPoints.reduce(0) { $0 + $1.cost },
+                    totalTokens: sortedPoints.reduce(0) { $0 + $1.tokens }
+                )
+            }
+            .sorted { lhs, rhs in
+                let lhsValue = metric == .cost ? lhs.totalCost : Double(lhs.totalTokens)
+                let rhsValue = metric == .cost ? rhs.totalCost : Double(rhs.totalTokens)
+                if lhsValue == rhsValue {
+                    return lhs.model.localizedCaseInsensitiveCompare(rhs.model) == .orderedAscending
+                }
+                return lhsValue > rhsValue
+            }
+    }
+
+    private var displayedTrendSeries: [TrendSeriesDescriptor] {
+        if let selectedModel {
+            return rankedTrendSeries.filter { $0.model == selectedModel }
+        }
+        return Array(rankedTrendSeries.prefix(maxVisibleTrendModels))
+    }
+
+    private var hiddenTrendSeriesCount: Int {
+        max(0, rankedTrendSeries.count - displayedTrendSeries.count)
+    }
+
     private var trendChart: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -226,73 +271,42 @@ struct ProxyStatsView: View {
                 .frame(width: 140)
             }
 
-            let data = modelTimeSeries
-            let models = Array(Set(data.map(\.model))).sorted()
-            if data.isEmpty {
+            let series = displayedTrendSeries
+            if series.isEmpty {
                 Text(L("No data yet", "暂无数据"))
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, minHeight: 200, alignment: .center)
             } else {
-                let yLabel = metric == .cost ? "Cost" : "Tokens"
+                proxyTrendChart(for: series)
+                    .frame(height: 260)
 
-                Chart(data) { item in
-                    let yVal = metric == .cost ? item.cost : Double(item.tokens)
-
-                    AreaMark(
-                        x: .value("Time", item.date),
-                        y: .value(yLabel, yVal)
-                    )
-                    .foregroundStyle(by: .value("Model", item.model))
-                    .opacity(0.2)
-                    .interpolationMethod(.catmullRom)
-
-                    LineMark(
-                        x: .value("Time", item.date),
-                        y: .value(yLabel, yVal)
-                    )
-                    .foregroundStyle(by: .value("Model", item.model))
-                    .lineStyle(StrokeStyle(lineWidth: 2))
-                    .interpolationMethod(.catmullRom)
-
-                    if data.count <= 30 {
-                        PointMark(
-                            x: .value("Time", item.date),
-                            y: .value(yLabel, yVal)
+                VStack(alignment: .leading, spacing: 8) {
+                    if hiddenTrendSeriesCount > 0 && selectedModel == nil {
+                        Text(
+                            L(
+                                "Showing Top \(series.count) models by current metric",
+                                "按当前指标仅显示前 \(series.count) 个模型"
+                            )
                         )
-                        .foregroundStyle(by: .value("Model", item.model))
-                        .symbolSize(16)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                     }
-                }
-                .chartForegroundStyleScale(domain: models, range: chartColors)
-                .chartLegend(position: .top, alignment: .trailing)
-                .chartYAxis {
-                    AxisMarks { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
-                            .foregroundStyle(Color.primary.opacity(0.1))
-                        AxisValueLabel {
-                            if metric == .cost {
-                                Text(formatCurrency(value.as(Double.self) ?? 0))
-                                    .font(.system(size: 9, design: .monospaced))
-                            } else {
-                                Text(formatCompactNumber(value.as(Double.self) ?? 0))
-                                    .font(.system(size: 9, design: .monospaced))
+
+                    if series.count > 1 {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 8)], alignment: .leading, spacing: 8) {
+                            ForEach(series) { descriptor in
+                                StatsLegendChip(
+                                    color: colorForProxyModel(descriptor.model),
+                                    title: descriptor.model,
+                                    value: metric == .cost
+                                        ? formatCurrency(descriptor.totalCost)
+                                        : formatCompactNumber(Double(descriptor.totalTokens))
+                                )
+                                .help(descriptor.model)
                             }
                         }
                     }
                 }
-                .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 8)) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
-                            .foregroundStyle(Color.primary.opacity(0.1))
-                        AxisValueLabel {
-                            if let date = value.as(Date.self) {
-                                Text(formatAxisDate(date))
-                                    .font(.system(size: 9))
-                            }
-                        }
-                    }
-                }
-                .frame(height: 260)
             }
         }
         .padding(16)
@@ -302,19 +316,30 @@ struct ProxyStatsView: View {
 
     // MARK: - Model Distribution
 
-    private var modelData: [ProxyViewModel.ModelAggregate] {
+    private var rawModelData: [ProxyViewModel.ModelAggregate] {
         viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: selectedModel)
     }
 
-    private let chartColors: [Color] = [.blue, .orange, .green, .purple, .pink, .cyan, .red, .yellow]
+    private var modelData: [ProxyViewModel.ModelAggregate] {
+        rawModelData.sorted { lhs, rhs in
+            let lhsValue = distributionMetric == .cost ? lhs.cost : Double(lhs.tokens)
+            let rhsValue = distributionMetric == .cost ? rhs.cost : Double(rhs.tokens)
+            if lhsValue == rhsValue {
+                return lhs.model.localizedCaseInsensitiveCompare(rhs.model) == .orderedAscending
+            }
+            return lhsValue > rhsValue
+        }
+    }
+
+    private let chartColors: [Color] = [.blue, .orange, .green, .purple, .pink, .cyan, .red, .yellow, .mint, .indigo]
 
     private var usesStackedInsightsLayout: Bool {
-        contentWidth > 0 && contentWidth < 980
+        contentWidth > 0 && contentWidth < 1080
     }
 
     private var splitDistributionWidth: CGFloat {
         let availableWidth = max(contentWidth, 980)
-        return min(max(availableWidth * 0.34, 300), 360)
+        return min(max(availableWidth * 0.34, 320), 380)
     }
 
     private var insightPanels: some View {
@@ -337,28 +362,130 @@ struct ProxyStatsView: View {
     }
 
     private func distributionChartHeight(for layout: InsightsLayout) -> CGFloat {
-        layout == .split ? 170 : 190
+        layout == .split ? 210 : 225
     }
 
     private func tableColumnWidth(_ column: ProxyStatsTableColumn, layout: InsightsLayout) -> CGFloat {
         switch (layout, column) {
-        case (.split, .requests): return 60
-        case (.split, .input): return 72
-        case (.split, .output): return 72
-        case (.split, .cache): return 72
-        case (.split, .cost): return 82
-        case (.stacked, .requests): return 64
-        case (.stacked, .input): return 78
-        case (.stacked, .output): return 78
-        case (.stacked, .cache): return 78
-        case (.stacked, .cost): return 88
+        case (.split, .cost): return 88
+        case (.split, .tokens): return 86
+        case (.split, .share): return 62
+        case (.split, .trend): return 70
+        case (.stacked, .cost): return 94
+        case (.stacked, .tokens): return 92
+        case (.stacked, .share): return 68
+        case (.stacked, .trend): return 76
+        }
+    }
+
+    private func colorForProxyModel(_ model: String) -> Color {
+        chartColors[stablePaletteIndex(for: model, paletteCount: chartColors.count)]
+    }
+
+    private func distributionValue(_ item: ProxyViewModel.ModelAggregate) -> Double {
+        distributionMetric == .cost ? item.cost : Double(item.tokens)
+    }
+
+    private func distributionShare(_ item: ProxyViewModel.ModelAggregate) -> Double {
+        let total = modelData.reduce(0.0) { $0 + distributionValue($1) }
+        guard total > 0 else { return 0 }
+        return distributionValue(item) / total * 100
+    }
+
+    private func distributionValueText(_ item: ProxyViewModel.ModelAggregate) -> String {
+        distributionMetric == .cost
+            ? formatCurrency(item.cost)
+            : formatCompactNumber(Double(item.tokens))
+    }
+
+    private func proxySparklineValues(_ model: String) -> [Double] {
+        rankedTrendSeries.first(where: { $0.model == model })?.points.map {
+            metric == .cost ? $0.cost : Double($0.tokens)
+        } ?? []
+    }
+
+    private func proxyTrendChart(for series: [TrendSeriesDescriptor]) -> some View {
+        Chart {
+            ForEach(series) { descriptor in
+                let color = colorForProxyModel(descriptor.model)
+
+                ForEach(descriptor.points, id: \.id) { point in
+                    let value = metric == .cost ? point.cost : Double(point.tokens)
+
+                    AreaMark(
+                        x: .value("Time", point.date),
+                        y: .value(metric == .cost ? "Cost" : "Tokens", value)
+                    )
+                    .foregroundStyle(color.opacity(series.count == 1 ? 0.22 : 0.12))
+                    .interpolationMethod(.catmullRom)
+
+                    LineMark(
+                        x: .value("Time", point.date),
+                        y: .value(metric == .cost ? "Cost" : "Tokens", value)
+                    )
+                    .foregroundStyle(color)
+                    .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round))
+                    .interpolationMethod(.catmullRom)
+                }
+            }
+        }
+        .chartLegend(.hidden)
+        .chartYAxis {
+            AxisMarks { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
+                    .foregroundStyle(Color.primary.opacity(0.1))
+                AxisValueLabel {
+                    if metric == .cost {
+                        Text(formatCurrency(value.as(Double.self) ?? 0))
+                            .font(.system(size: 9, design: .monospaced))
+                    } else {
+                        Text(formatCompactNumber(value.as(Double.self) ?? 0))
+                            .font(.system(size: 9, design: .monospaced))
+                    }
+                }
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 8)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
+                    .foregroundStyle(Color.primary.opacity(0.1))
+                AxisValueLabel {
+                    if let date = value.as(Date.self) {
+                        Text(formatAxisDate(date))
+                            .font(.system(size: 9))
+                    }
+                }
+            }
         }
     }
 
     private func modelDistribution(layout: InsightsLayout) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(L("Model Distribution", "模型分布"))
-                .font(.headline.weight(.bold))
+            HStack {
+                Text(L("Model Distribution", "模型分布"))
+                    .font(.headline.weight(.bold))
+                Spacer()
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    Spacer()
+                    Picker("", selection: $distributionMetric) {
+                        Text(L("Cost", "费用")).tag(StatMetric.cost)
+                        Text("Tokens").tag(StatMetric.tokens)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 140)
+                }
+
+                HStack {
+                    Picker("", selection: $distributionMetric) {
+                        Text(L("Cost", "费用")).tag(StatMetric.cost)
+                        Text("Tokens").tag(StatMetric.tokens)
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
 
             let data = modelData
             if data.isEmpty {
@@ -366,22 +493,30 @@ struct ProxyStatsView: View {
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, minHeight: 180, alignment: .center)
             } else {
-                Chart(Array(data.enumerated()), id: \.element.id) { idx, item in
+                Chart(Array(data.prefix(6)), id: \.id) { item in
                     SectorMark(
-                        angle: .value("Cost", item.cost),
+                        angle: .value(distributionMetric == .cost ? "Cost" : "Tokens", max(distributionValue(item), 0.001)),
                         innerRadius: .ratio(0.55),
                         angularInset: 1.5
                     )
-                    .foregroundStyle(chartColors[idx % chartColors.count])
+                    .foregroundStyle(colorForProxyModel(item.model))
                     .cornerRadius(4)
+                    .annotation(position: .overlay) {
+                        let share = distributionShare(item)
+                        if share >= 10 {
+                            Text(String(format: "%.0f%%", share))
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                    }
                 }
                 .frame(height: distributionChartHeight(for: layout))
 
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(data.prefix(6).enumerated()), id: \.element.id) { idx, item in
+                    ForEach(Array(data.prefix(6)), id: \.id) { item in
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(chartColors[idx % chartColors.count])
+                                .fill(colorForProxyModel(item.model))
                                 .frame(width: 8, height: 8)
                             Text(item.model)
                                 .font(.caption)
@@ -389,8 +524,12 @@ struct ProxyStatsView: View {
                                 .truncationMode(.middle)
                                 .help(item.model)
                             Spacer()
-                            Text(formatCurrency(item.cost))
+                            Text(distributionValueText(item))
                                 .font(.caption.weight(.medium).monospacedDigit())
+                                .foregroundStyle(colorForProxyModel(item.model))
+                            Text(String(format: "%.1f%%", distributionShare(item)))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -405,11 +544,10 @@ struct ProxyStatsView: View {
     // MARK: - Model Table
 
     private func modelTable(layout: InsightsLayout) -> some View {
-        let requestsWidth = tableColumnWidth(.requests, layout: layout)
-        let inputWidth = tableColumnWidth(.input, layout: layout)
-        let outputWidth = tableColumnWidth(.output, layout: layout)
-        let cacheWidth = tableColumnWidth(.cache, layout: layout)
         let costWidth = tableColumnWidth(.cost, layout: layout)
+        let tokensWidth = tableColumnWidth(.tokens, layout: layout)
+        let shareWidth = tableColumnWidth(.share, layout: layout)
+        let trendWidth = tableColumnWidth(.trend, layout: layout)
 
         return VStack(alignment: .leading, spacing: 12) {
             Text(L("Model Details", "模型明细"))
@@ -422,14 +560,12 @@ struct ProxyStatsView: View {
                     .frame(maxWidth: .infinity, minHeight: 180, alignment: .center)
             } else {
                 VStack(spacing: 0) {
-                    // Header
                     HStack(spacing: 0) {
                         Text(L("Model", "模型")).frame(maxWidth: .infinity, alignment: .leading)
-                        Text(L("Requests", "请求")).frame(width: requestsWidth, alignment: .trailing)
-                        Text(L("Input", "输入")).frame(width: inputWidth, alignment: .trailing)
-                        Text(L("Output", "输出")).frame(width: outputWidth, alignment: .trailing)
-                        Text(L("Cache", "缓存")).frame(width: cacheWidth, alignment: .trailing)
                         Text(L("Cost", "费用")).frame(width: costWidth, alignment: .trailing)
+                        Text("Tokens").frame(width: tokensWidth, alignment: .trailing)
+                        Text(L("Share", "占比")).frame(width: shareWidth, alignment: .trailing)
+                        Text(L("Trend", "趋势")).frame(width: trendWidth, alignment: .center)
                     }
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -438,31 +574,23 @@ struct ProxyStatsView: View {
 
                     Divider()
 
-                    ForEach(data) { item in
-                        HStack(spacing: 0) {
-                            Text(item.model)
-                                .font(.caption.weight(.medium))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .help(item.model)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text("\(item.requests)")
-                                .frame(width: requestsWidth, alignment: .trailing)
-                            Text(formatCompactNumber(Double(item.inputTokens)))
-                                .frame(width: inputWidth, alignment: .trailing)
-                            Text(formatCompactNumber(Double(item.outputTokens)))
-                                .frame(width: outputWidth, alignment: .trailing)
-                            Text(formatCompactNumber(Double(item.cacheTokens)))
-                                .frame(width: cacheWidth, alignment: .trailing)
-                            Text(formatCurrency(item.cost))
-                                .font(.caption.weight(.semibold))
-                                .frame(width: costWidth, alignment: .trailing)
-                        }
-                        .font(.caption.monospacedDigit())
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
+                    ForEach(Array(data.enumerated()), id: \.element.id) { index, item in
+                        proxyModelRow(
+                            item,
+                            color: colorForProxyModel(item.model),
+                            costWidth: costWidth,
+                            tokensWidth: tokensWidth,
+                            shareWidth: shareWidth,
+                            trendWidth: trendWidth
+                        )
 
-                        Divider()
+                        if expandedModels.contains(item.model) {
+                            proxyModelDetailRow(item, color: colorForProxyModel(item.model))
+                        }
+
+                        if index < data.count - 1 {
+                            Divider().padding(.horizontal, 8)
+                        }
                     }
                 }
             }
@@ -473,6 +601,107 @@ struct ProxyStatsView: View {
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.primary.opacity(0.06), lineWidth: 1))
     }
 
+    private func proxyModelRow(
+        _ item: ProxyViewModel.ModelAggregate,
+        color: Color,
+        costWidth: CGFloat,
+        tokensWidth: CGFloat,
+        shareWidth: CGFloat,
+        trendWidth: CGFloat
+    ) -> some View {
+        let isExpanded = expandedModels.contains(item.model)
+
+        return HStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12)
+                Circle()
+                    .fill(color)
+                    .frame(width: 8, height: 8)
+                Text(item.model)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(item.model)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(formatCurrency(item.cost))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .frame(width: costWidth, alignment: .trailing)
+
+            Text(formatCompactNumber(Double(item.tokens)))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .frame(width: tokensWidth, alignment: .trailing)
+
+            Text(String(format: "%.1f%%", distributionShare(item)))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(color)
+                .frame(width: shareWidth, alignment: .trailing)
+
+            MiniSparkline(values: proxySparklineValues(item.model), color: color)
+                .frame(width: max(52, trendWidth - 8), height: 20)
+                .padding(.leading, 8)
+        }
+        .font(.caption.monospacedDigit())
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if isExpanded {
+                    expandedModels.remove(item.model)
+                } else {
+                    expandedModels.insert(item.model)
+                }
+            }
+        }
+        .background(
+            isExpanded
+                ? RoundedRectangle(cornerRadius: 8).fill(color.opacity(0.08))
+                : nil
+        )
+    }
+
+    private func proxyModelDetailRow(_ item: ProxyViewModel.ModelAggregate, color: Color) -> some View {
+        let detailItems: [(String, String, Color)] = [
+            (L("Requests", "请求"), "\(item.requests)", .secondary),
+            (L("Input", "输入"), formatCompactNumber(Double(item.inputTokens)), .blue),
+            (L("Output", "输出"), formatCompactNumber(Double(item.outputTokens)), .green),
+            (L("Cache", "缓存"), formatCompactNumber(Double(item.cacheTokens)), .orange)
+        ]
+
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 8)], alignment: .leading, spacing: 8) {
+            ForEach(detailItems, id: \.0) { item in
+                proxyMetricPill(label: item.0, value: item.1, color: item.2)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .background(color.opacity(0.04))
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private func proxyMetricPill(label: String, value: String, color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 8).fill(color.opacity(0.10)))
+    }
+
     // MARK: - Formatting
 
     private func formatAxisDate(_ date: Date) -> String {
@@ -481,11 +710,10 @@ struct ProxyStatsView: View {
 }
 
 private enum ProxyStatsTableColumn {
-    case requests
-    case input
-    case output
-    case cache
     case cost
+    case tokens
+    case share
+    case trend
 }
 
 private struct ProxyStatsContentWidthPreferenceKey: PreferenceKey {

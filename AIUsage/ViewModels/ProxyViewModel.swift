@@ -46,8 +46,7 @@ class ProxyViewModel: ObservableObject {
     @Published var operationErrorMessage: String?
     @Published var operationInProgressConfigIds: Set<String> = []
 
-    var runningProcesses: [String: Process] = [:]
-    let settingsManager = ClaudeSettingsManager.shared
+    let runtimeService: ProxyRuntimeService
 
     var logRetentionDays: Int {
         let days = UserDefaults.standard.integer(forKey: DefaultsKey.proxyLogRetentionDays)
@@ -60,6 +59,8 @@ class ProxyViewModel: ObservableObject {
     }
 
     init() {
+        runtimeService = ProxyRuntimeService()
+        runtimeService.delegate = self
         loadConfigurations()
         loadStatistics()
         loadLogs()
@@ -336,68 +337,5 @@ class ProxyViewModel: ObservableObject {
 
     func logPersistenceError(_ action: String, error: Error) {
         proxyPersistenceLog.error("Failed to \(action, privacy: .public): \(String(describing: error), privacy: .public)")
-    }
-}
-
-// MARK: - QuotaServer discovery
-// `#filePath` must stay in ProxyViewModel.swift so DerivedData / workspace resolution matches prior builds.
-
-extension ProxyViewModel {
-    private static let sourceFileDir: String = {
-        let filePath = #filePath
-        return (filePath as NSString).deletingLastPathComponent
-    }()
-
-    func findQuotaServerExecutable() -> String? {
-        let fileManager = FileManager.default
-
-        // Strategy 1: derive from #filePath (compile-time source location)
-        let sourceProjectRoot = (Self.sourceFileDir as NSString)
-            .deletingLastPathComponent
-        let projectRootFromSource = (sourceProjectRoot as NSString)
-            .deletingLastPathComponent
-
-        // Strategy 2: derive from Bundle.main.bundleURL for Xcode DerivedData builds
-        // e.g., .../DerivedData/.../Debug/AIUsage.app -> walk up to find workspace
-        let bundlePath = Bundle.main.bundlePath
-
-        let candidateRoots = [
-            projectRootFromSource,
-            bundlePath,
-        ]
-
-        let relativePaths = [
-            "QuotaBackend/.build/debug/QuotaServer",
-            "QuotaBackend/.build/release/QuotaServer",
-        ]
-
-        // Try each candidate root
-        for root in candidateRoots {
-            for relPath in relativePaths {
-                let fullPath = (root as NSString).appendingPathComponent(relPath)
-                if fileManager.fileExists(atPath: fullPath) {
-                    print("Found QuotaServer at: \(fullPath)")
-                    return fullPath
-                }
-            }
-        }
-
-        // Strategy 3: walk up from source root looking for QuotaBackend
-        var searchDir = projectRootFromSource
-        for _ in 0..<5 {
-            for relPath in relativePaths {
-                let fullPath = (searchDir as NSString).appendingPathComponent(relPath)
-                if fileManager.fileExists(atPath: fullPath) {
-                    print("Found QuotaServer at: \(fullPath)")
-                    return fullPath
-                }
-            }
-            searchDir = (searchDir as NSString).deletingLastPathComponent
-        }
-
-        print("✗ QuotaServer executable not found in expected build outputs")
-        print("  #filePath resolved to: \(Self.sourceFileDir)")
-        print("  Bundle.main.bundlePath: \(bundlePath)")
-        return nil
     }
 }

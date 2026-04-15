@@ -32,6 +32,7 @@
 		5EFREF012F93000100A15674 /* ProviderRefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFREF002F93000100A15674 /* ProviderRefreshCoordinator.swift */; };
 		5EFREF222F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFREF212F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift */; };
 		5EFREF322F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFREF312F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift */; };
+		B1REFB012F97002000A15674 /* ProviderRefreshResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1REFB002F97002000A15674 /* ProviderRefreshResult.swift */; };
 		5EFACT012F94000100A15674 /* ProviderActivationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFACT002F94000100A15674 /* ProviderActivationManager.swift */; };
 		5EF87F072F8D0EED002FE291 /* ProxyConfigEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F052F8D0EED002FE291 /* ProxyConfigEditorView.swift */; };
 		5EF87F082F8D0EED002FE291 /* ProxyManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F062F8D0EED002FE291 /* ProxyManagementView.swift */; };
@@ -40,6 +41,7 @@
 		5EFAD7712F87AFE700A15674 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5EFAD7402F87AC7100A15674 /* Preview Assets.xcassets */; };
 		5EFAD7732F87AFE700A15674 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7472F87AC7100A15674 /* DashboardView.swift */; };
 		5EFAD7742F87AFE700A15674 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7442F87AC7100A15674 /* APIService.swift */; };
+		B1REFA012F97002000A15674 /* ProxyRuntimeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1REFA002F97002000A15674 /* ProxyRuntimeService.swift */; };
 		5EFAD7752F87AFE700A15674 /* ProviderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7492F87AC7100A15674 /* ProviderCard.swift */; };
 		5EF0C0D22F95000100A15674 /* ProviderCard+MultiWindowQuota.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0C0D12F95000100A15674 /* ProviderCard+MultiWindowQuota.swift */; };
 		5EF0C0D42F95000100A15674 /* ProviderCard+QuotaIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF0C0D32F95000100A15674 /* ProviderCard+QuotaIndicator.swift */; };
@@ -107,6 +109,7 @@
 		5EFREF002F93000100A15674 /* ProviderRefreshCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderRefreshCoordinator.swift; sourceTree = "<group>"; };
 		5EFREF212F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderRefreshCoordinator+FetchPipeline.swift"; sourceTree = "<group>"; };
 		5EFREF312F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderRefreshCoordinator+Conversion.swift"; sourceTree = "<group>"; };
+		B1REFB002F97002000A15674 /* ProviderRefreshResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderRefreshResult.swift; sourceTree = "<group>"; };
 		5EFACT002F94000100A15674 /* ProviderActivationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderActivationManager.swift; sourceTree = "<group>"; };
 		5EF87F052F8D0EED002FE291 /* ProxyConfigEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyConfigEditorView.swift; sourceTree = "<group>"; };
 		5EF87F062F8D0EED002FE291 /* ProxyManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyManagementView.swift; sourceTree = "<group>"; };
@@ -121,6 +124,7 @@
 		5EFAD7402F87AC7100A15674 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		5EFAD7422F87AC7100A15674 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5EFAD7442F87AC7100A15674 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
+		B1REFA002F97002000A15674 /* ProxyRuntimeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyRuntimeService.swift; sourceTree = "<group>"; };
 		5EFAD7462F87AC7100A15674 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5EFAD7472F87AC7100A15674 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		5EFAD7482F87AC7100A15674 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
@@ -180,6 +184,7 @@
 				5EFREF002F93000100A15674 /* ProviderRefreshCoordinator.swift */,
 				5EFREF212F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift */,
 				5EFREF312F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift */,
+				B1REFB002F97002000A15674 /* ProviderRefreshResult.swift */,
 				5EFACT002F94000100A15674 /* ProviderActivationManager.swift */,
 			);
 			path = ViewModels;
@@ -250,6 +255,7 @@
 			isa = PBXGroup;
 			children = (
 				5EFAD7442F87AC7100A15674 /* APIService.swift */,
+				B1REFA002F97002000A15674 /* ProxyRuntimeService.swift */,
 				5EFPA0002F91000000A15674 /* ProviderAuth */,
 				5EFAD7592F87B10100A15674 /* ProviderAuthManager.swift */,
 				5EFAD7572F87AC7200A15674 /* SecureAccountVault.swift */,
@@ -415,6 +421,7 @@
 			files = (
 				5EFAD7732F87AFE700A15674 /* DashboardView.swift in Sources */,
 				5EFAD7742F87AFE700A15674 /* APIService.swift in Sources */,
+				B1REFA012F97002000A15674 /* ProxyRuntimeService.swift in Sources */,
 				5EFAD7752F87AFE700A15674 /* ProviderCard.swift in Sources */,
 				5EF0C0D22F95000100A15674 /* ProviderCard+MultiWindowQuota.swift in Sources */,
 				5EF0C0D42F95000100A15674 /* ProviderCard+QuotaIndicator.swift in Sources */,
@@ -478,6 +485,7 @@
 				5EFREF012F93000100A15674 /* ProviderRefreshCoordinator.swift in Sources */,
 				5EFREF222F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift in Sources */,
 				5EFREF322F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift in Sources */,
+				B1REFB012F97002000A15674 /* ProviderRefreshResult.swift in Sources */,
 				5EFACT012F94000100A15674 /* ProviderActivationManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

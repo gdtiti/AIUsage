@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+"""Generate Localizable.strings entries from static L(en, zh) calls.
+
+See docs/LOCALIZATION_STRATEGY.md for when to use explicit keys, when the
+bridge-only fallback is still acceptable, and why dynamic strings are skipped.
+"""
+
 import pathlib
 import re
 

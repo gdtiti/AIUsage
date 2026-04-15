@@ -206,6 +206,7 @@ final class AppSettings: ObservableObject {
 /// Localization bridge used while the app migrates from inline bilingual strings to
 /// stable `.strings` keys. Prefer passing `key:` for new static UI copy so generated
 /// `Localizable.strings` entries are no longer tied to call-site file paths.
+/// Strategy note: `docs/LOCALIZATION_STRATEGY.md`.
 func L(_ en: String, _ zh: String, key: String? = nil, file: StaticString = #fileID) -> String {
     let fallback = AppSettings.localized(en, zh)
     let language = AppSettings.shared.language == "zh" ? "zh_CN" : "en"

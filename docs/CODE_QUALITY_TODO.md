@@ -336,7 +336,7 @@ cd QuotaBackend && swift test
 
 ## 可选重构项
 
-### [ ] Refactor A: 抽离 Proxy Runtime Service
+### [x] Refactor A: 抽离 Proxy Runtime Service
 
 目的：
 - 把 `ProxyViewModel` 中的“配置状态”和“进程管理”拆开，降低 ViewModel 复杂度。
@@ -348,7 +348,13 @@ cd QuotaBackend && swift test
   - pricing override 写入
   - QuotaServer 可执行文件发现
 
-### [ ] Refactor B: 抽离 Refresh Result Model
+完成记录：
+- 日期：2026-04-15
+- 改动：新增 `AIUsage/Services/ProxyRuntimeService.swift`，把代理运行时的进程启停、陈旧端口清理、pricing override 写入/清理、以及 `QuotaServer` 可执行文件发现全部迁出 `ProxyViewModel`；`ProxyViewModel` 改为保留激活事务、持久化提交和 UI 状态，并通过 delegate 回收代理日志。
+- 验证：`xcodebuild -project AIUsage.xcodeproj -scheme AIUsage -configuration Debug build` 通过；`cd QuotaBackend && swift test` 通过（23 tests, 0 failures）。
+- 备注：顺手修掉了新 service 默认参数触发的 MainActor warning，当前只剩 Xcode 目的地和 AppIntents 元数据提取这类环境级提示。
+
+### [x] Refactor B: 抽离 Refresh Result Model
 
 目的：
 - 让刷新链路从“依赖副作用”转向“依赖显式结果对象”。
@@ -360,7 +366,13 @@ cd QuotaBackend && swift test
   - `failure`
 - 把时间戳更新、错误展示、账号对账都建立在结果对象上，而不是分散判断。
 
-### [ ] Refactor C: 抽离 Localization Strategy Note
+完成记录：
+- 日期：2026-04-15
+- 改动：新增 `AIUsage/ViewModels/ProviderRefreshResult.swift`，将 provider/account/dashboard 刷新链路统一改为返回 `ProviderRefreshResult`；时间戳更新、失败消息传播、部分成功判定都收敛到结果对象之上，调用端不再依赖散落的布尔值和可选值副作用。
+- 验证：`xcodebuild -project AIUsage.xcodeproj -scheme AIUsage -configuration Debug build` 通过；`cd QuotaBackend && swift test` 通过（23 tests, 0 failures）。
+- 备注：当前结果模型仍以 `ProviderData` 为中心，后续如果补 App 侧测试 target，可以直接围绕这个结果对象补行为测试。
+
+### [x] Refactor C: 抽离 Localization Strategy Note
 
 目的：
 - 把当前本地化桥接方案正式文档化，避免后续新增代码继续分叉。
@@ -371,3 +383,9 @@ cd QuotaBackend && swift test
   - 何时允许 `L()`
   - 动态字符串如何处理
   - 资源生成脚本如何使用
+
+完成记录：
+- 日期：2026-04-15
+- 改动：扩写 `docs/LOCALIZATION_STRATEGY.md`，补充 source-of-truth、review checklist、迁移优先级和动态字符串约束；同时在 `scripts/generate_localizable_strings.py` 和 `AppSettings.L(...)` 注释处挂上文档说明，方便后续沿同一路径推进标准 `.strings` 方案。
+- 验证：`xcodebuild -project AIUsage.xcodeproj -scheme AIUsage -configuration Debug build` 通过；`cd QuotaBackend && swift test` 通过（23 tests, 0 failures）。
+- 备注：文档化已经完成，但真正把动态/复数字符串迁到 `.stringsdict` 仍属于后续功能型演进，不在本次重构范围内。

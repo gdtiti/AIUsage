@@ -135,12 +135,10 @@ final class ProviderRefreshCoordinator: ObservableObject {
               !refreshingProviderIDs.contains(providerId) else { return }
         refreshingProviderIDs.insert(providerId)
         defer { refreshingProviderIDs.remove(providerId) }
-        let refreshedProviders = await fetchSingleProvider(providerId)
-        completeProviderRefresh(
-            providerId: providerId,
-            refreshedProviders: refreshedProviders,
-            at: Date()
-        )
+        errorMessage = nil
+        let result = await fetchSingleProvider(providerId)
+        completeProviderRefresh(providerId: providerId, result: result)
+        errorMessage = result.userMessage
     }
 
     @MainActor
@@ -150,19 +148,20 @@ final class ProviderRefreshCoordinator: ObservableObject {
         guard !refreshingAccountIDs.contains(refreshKey) else { return }
         refreshingAccountIDs.insert(refreshKey)
         defer { refreshingAccountIDs.remove(refreshKey) }
-        if let refreshedProvider = await fetchAccountByCredential(
+        errorMessage = nil
+        let result = await fetchAccountByCredential(
             credentialId: credentialId,
             providerId: providerId
-        ) {
-            let refreshedAt = Date()
-            accountRefreshTimes[refreshKey] = refreshedAt
-            markAccountRefreshed(refreshedProvider, at: refreshedAt)
-        }
+        )
+        completeAccountRefresh(refreshKey: refreshKey, result: result)
+        errorMessage = result.userMessage
     }
 
     @MainActor
-    func fetchSingleProvider(_ providerId: String) async -> [ProviderData] {
-        guard selectedProviderIds().contains(providerId) else { return [] }
+    func fetchSingleProvider(_ providerId: String) async -> ProviderRefreshResult {
+        guard selectedProviderIds().contains(providerId) else {
+            return .failure()
+        }
         if settings.backendMode == "local" {
             return await fetchSingleProviderLocal(providerId)
         } else {
@@ -172,7 +171,7 @@ final class ProviderRefreshCoordinator: ObservableObject {
 
     @MainActor
     @discardableResult
-    func fetchDashboard() async -> Bool {
+    func fetchDashboard() async -> ProviderRefreshResult {
         let isInitialLoad = providers.isEmpty && overview == nil
         if isInitialLoad { isLoading = true }
         errorMessage = nil
@@ -184,14 +183,20 @@ final class ProviderRefreshCoordinator: ObservableObject {
                 generatedAt: SharedFormatters.iso8601String(from: Date())
             )))
             isLoading = false
-            return true
+            return .emptySuccess()
         }
 
+        let result: ProviderRefreshResult
         if settings.backendMode == "local" {
-            return await fetchDashboardLocal()
+            result = await fetchDashboardLocal()
         } else {
-            return await fetchDashboardRemote()
+            result = await fetchDashboardRemote(showMessageOnFailure: providers.isEmpty)
         }
+
+        completeGlobalRefresh(result)
+        errorMessage = result.userMessage
+        isLoading = false
+        return result
     }
 
     func registerAuthenticatedCredential(

@@ -78,6 +78,7 @@
 		5EFAD78B2F87B10400A15674 /* SavedAccountViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD78C2F87B10400A15674 /* SavedAccountViews.swift */; };
 		5EFAD78D2F87B10500A15674 /* AccountNoteEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD78E2F87B10500A15674 /* AccountNoteEditorView.swift */; };
 		5EFAD78F2F87B10600A15674 /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7902F87B10600A15674 /* Utilities.swift */; };
+		B1C2D3E4F5A60001 /* StatusBarItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60002 /* StatusBarItemView.swift */; };
 		A1B2C3D4E5F60001 /* QuotaBackend in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60002 /* QuotaBackend */; };
 		F1A2B3C4D5E60001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = F1A2B3C4D5E60002 /* Sparkle */; };
 /* End PBXBuildFile section */
@@ -106,6 +107,7 @@
 		A2B3C4F12F96001000A15674 /* SettingsView+Titles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Titles.swift"; sourceTree = "<group>"; };
 		A2B3C4F32F96001000A15674 /* SettingsView+QuotaPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+QuotaPreview.swift"; sourceTree = "<group>"; };
 		A2B3C4F52F96001000A15674 /* SettingsView+Remote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Remote.swift"; sourceTree = "<group>"; };
+		B1C2D3E4F5A60002 /* StatusBarItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarItemView.swift; sourceTree = "<group>"; };
 		5EFREF002F93000100A15674 /* ProviderRefreshCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderRefreshCoordinator.swift; sourceTree = "<group>"; };
 		5EFREF212F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderRefreshCoordinator+FetchPipeline.swift"; sourceTree = "<group>"; };
 		5EFREF312F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderRefreshCoordinator+Conversion.swift"; sourceTree = "<group>"; };
@@ -272,6 +274,7 @@
 				5EFAD7462F87AC7100A15674 /* ContentView.swift */,
 				5EFAD7472F87AC7100A15674 /* DashboardView.swift */,
 				5EFAD7482F87AC7100A15674 /* MenuBarView.swift */,
+				B1C2D3E4F5A60002 /* StatusBarItemView.swift */,
 				5EFAD7492F87AC7100A15674 /* ProviderCard.swift */,
 				5EF0C0D12F95000100A15674 /* ProviderCard+MultiWindowQuota.swift */,
 				5EF0C0D32F95000100A15674 /* ProviderCard+QuotaIndicator.swift */,
@@ -459,6 +462,7 @@
 				5EFAD7792F87AFE700A15674 /* ContentView.swift in Sources */,
 				5EFAD77A2F87AFE700A15674 /* AIUsageApp.swift in Sources */,
 				5EFAD77B2F87AFE700A15674 /* MenuBarView.swift in Sources */,
+				B1C2D3E4F5A60001 /* StatusBarItemView.swift in Sources */,
 				5EF87F012F8D0E9E002FE291 /* ProxyConfiguration.swift in Sources */,
 				5EFAD77C2F87AFE700A15674 /* ProviderModels.swift in Sources */,
 				5EFAD77D2F87AFE700A15674 /* ProviderDetailView.swift in Sources */,

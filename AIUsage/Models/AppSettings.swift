@@ -27,6 +27,23 @@ enum CardQuotaIndicatorMetric: String, CaseIterable {
     case used
 }
 
+// MARK: - Menu bar display
+
+enum MenuBarDisplayMode: String, CaseIterable {
+    case iconOnly
+    case iconAndMetric
+    case metricOnly
+}
+
+enum MenuBarMetricType: String, CaseIterable {
+    case quota
+    case cost
+    case both
+
+    var showsQuota: Bool { self == .quota || self == .both }
+    var showsCost: Bool { self == .cost || self == .both }
+}
+
 // MARK: - UserDefaults keys
 
 /// Central namespace for `UserDefaults` / `@AppStorage` keys (values must stay stable for migration).
@@ -46,6 +63,10 @@ enum DefaultsKey {
     static let displayCurrency = "displayCurrency"
     static let hideDockIcon = "hideDockIcon"
     static let lowQuotaThreshold = "lowQuotaThreshold"
+    static let menuBarDisplayMode = "menuBarDisplayMode"
+    static let menuBarMetricType = "menuBarMetricType"
+    static let menuBarPinnedQuotaAccountIds = "menuBarPinnedQuotaAccountIds"
+    static let menuBarPinnedCostSourceIds = "menuBarPinnedCostSourceIds"
     static let proxyActivatedConfigId = "proxyActivatedConfigId"
     static let proxyConfigurations = "proxyConfigurations"
     static let proxyLogRetentionDays = "proxyLogRetentionDays"
@@ -122,6 +143,17 @@ final class AppSettings: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: DefaultsKey.claudeCodeLastNotifiedDate) }
     }
 
+    @Published var menuBarDisplayMode: MenuBarDisplayMode = MenuBarDisplayMode(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.menuBarDisplayMode) ?? "") ?? .iconAndMetric
+    @Published var menuBarMetricType: MenuBarMetricType = MenuBarMetricType(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.menuBarMetricType) ?? "") ?? .quota
+    @Published var menuBarPinnedQuotaAccountIds: Set<String> = {
+        let stored = UserDefaults.standard.stringArray(forKey: DefaultsKey.menuBarPinnedQuotaAccountIds) ?? []
+        return Set(stored)
+    }()
+    @Published var menuBarPinnedCostSourceIds: Set<String> = {
+        let stored = UserDefaults.standard.stringArray(forKey: DefaultsKey.menuBarPinnedCostSourceIds) ?? []
+        return Set(stored)
+    }()
+
     @Published var backendMode: String = UserDefaults.standard.string(forKey: DefaultsKey.backendMode) ?? "local"
     @Published var remoteHost: String = UserDefaults.standard.string(forKey: DefaultsKey.remoteHost) ?? "127.0.0.1"
     @Published var remotePort: Int = UserDefaults.standard.integer(forKey: DefaultsKey.remotePort) == 0 ? 4318 : UserDefaults.standard.integer(forKey: DefaultsKey.remotePort)
@@ -143,6 +175,10 @@ final class AppSettings: ObservableObject {
         $quotaIndicatorStyle.dropFirst().sink { defaults.set($0.rawValue, forKey: DefaultsKey.quotaIndicatorStyle) }.store(in: &cancellables)
         $quotaIndicatorMetric.dropFirst().sink { defaults.set($0.rawValue, forKey: DefaultsKey.quotaIndicatorMetric) }.store(in: &cancellables)
         $claudeCodeDailyThreshold.dropFirst().sink { defaults.set($0, forKey: DefaultsKey.claudeCodeDailyThreshold) }.store(in: &cancellables)
+        $menuBarDisplayMode.dropFirst().sink { defaults.set($0.rawValue, forKey: DefaultsKey.menuBarDisplayMode) }.store(in: &cancellables)
+        $menuBarMetricType.dropFirst().sink { defaults.set($0.rawValue, forKey: DefaultsKey.menuBarMetricType) }.store(in: &cancellables)
+        $menuBarPinnedQuotaAccountIds.dropFirst().sink { defaults.set(Array($0), forKey: DefaultsKey.menuBarPinnedQuotaAccountIds) }.store(in: &cancellables)
+        $menuBarPinnedCostSourceIds.dropFirst().sink { defaults.set(Array($0), forKey: DefaultsKey.menuBarPinnedCostSourceIds) }.store(in: &cancellables)
         $backendMode.dropFirst().sink { defaults.set($0, forKey: DefaultsKey.backendMode) }.store(in: &cancellables)
         $autoRefreshInterval.dropFirst().sink { [weak self] val in
             let normalized = Self.normalizedAutoRefreshInterval(val)

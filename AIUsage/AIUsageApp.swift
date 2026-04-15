@@ -39,7 +39,7 @@ struct AIUsageApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState.shared
     @ObservedObject private var appSettings = AppSettings.shared
-    @StateObject private var proxyViewModel = ProxyViewModel()
+    @ObservedObject private var proxyViewModel = ProxyViewModel.shared
     @StateObject private var sparkle = SparkleController()
     
     var body: some Scene {
@@ -88,6 +88,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     private var popover: NSPopover?
     private var eventMonitor: Any?
+    private var statusBarHostingView: NSHostingView<StatusBarItemView>?
+    private var settingsCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
@@ -124,15 +126,43 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "chart.bar.fill", accessibilityDescription: "AIUsage")
+            let hostingView = NSHostingView(
+                rootView: StatusBarItemView(
+                    appState: AppState.shared,
+                    refreshCoordinator: ProviderRefreshCoordinator.shared,
+                    settings: AppSettings.shared
+                )
+            )
+            hostingView.translatesAutoresizingMaskIntoConstraints = false
+            button.addSubview(hostingView)
+            NSLayoutConstraint.activate([
+                hostingView.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 2),
+                hostingView.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -2),
+                hostingView.centerYAnchor.constraint(equalTo: button.centerYAnchor)
+            ])
+            statusBarHostingView = hostingView
+
             button.action = #selector(togglePopover)
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+
+            updateStatusBarSize()
+            settingsCancellable = AppSettings.shared.objectWillChange
+                .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
+                .sink { [weak self] _ in
+                    self?.updateStatusBarSize()
+                }
         }
 
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.popover?.performClose(nil)
         }
+    }
+
+    private func updateStatusBarSize() {
+        guard let hostingView = statusBarHostingView else { return }
+        let fittingSize = hostingView.fittingSize
+        statusItem?.length = max(fittingSize.width + 8, 28)
     }
 
     @objc func togglePopover(_ sender: NSStatusBarButton) {
@@ -152,9 +182,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func showPopover() {
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 400, height: 700)
+        popover.contentSize = NSSize(width: 420, height: 700)
         popover.behavior = .transient
         popover.animates = true
+
         popover.contentViewController = NSHostingController(
             rootView: MenuBarView()
                 .environmentObject(AppState.shared)

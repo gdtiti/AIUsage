@@ -32,7 +32,7 @@
 | **Claude Code stats** | Per-model cost & token breakdown, trend charts, time-period analysis |
 | **Claude Code proxy** | Use Claude Code with DeepSeek, GPT, Ollama or any OpenAI-compatible model; Anthropic passthrough for usage logging |
 | **Proxy stats** | Per-model cost/token trends, distribution charts, configurable log retention |
-| **Menu bar** | Multi-account status bar icons with quota/cost metrics, Quotio-style popover with summary stats, colored progress bars, and cost tracking |
+| **Menu bar** | Multi-account status bar icons with quota/cost metrics, quick-glance popover with summary stats, colored progress bars, and cost tracking |
 | **Credential vault** | macOS Keychain storage for managed credentials |
 
 ## Preview

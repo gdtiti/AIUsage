@@ -1,5 +1,31 @@
 import SwiftUI
 
+// MARK: - Bucket → Date Parsing
+
+private enum BucketDateParser {
+    private static let hourly: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd-HH"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    private static let daily: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    static func parse(_ bucket: String) -> Date {
+        hourly.date(from: bucket) ?? daily.date(from: bucket) ?? .distantPast
+    }
+}
+
+extension CostTimelinePoint {
+    var date: Date { BucketDateParser.parse(bucket) }
+}
+
 extension CostTrackingView {
 
     typealias ChartSeriesDescriptor = (model: String, points: [CostTimelinePoint], totalUsd: Double, totalTokens: Int)
@@ -74,8 +100,14 @@ extension CostTrackingView {
         return points.map { selectedMetric == .usd ? $0.usd : Double($0.tokens) }
     }
 
+    private static let modelPalette: [Color] = [.orange, .blue, .purple, .green, .pink, .cyan, .mint, .indigo, .teal, .red]
+
     func modelColor(for model: String) -> Color {
-        let palette: [Color] = [.orange, .blue, .purple, .green, .pink, .cyan, .mint, .indigo, .teal, .red]
+        let palette = Self.modelPalette
+        let ranked = sortedChartSeries().map(\.model)
+        if let idx = ranked.firstIndex(of: model) {
+            return palette[idx % palette.count]
+        }
         return palette[stablePaletteIndex(for: model, paletteCount: palette.count)]
     }
 
@@ -99,4 +131,5 @@ extension CostTrackingView {
         if value < 100 { return String(format: "$%.1f", value) }
         return String(format: "$%.0f", value)
     }
+
 }

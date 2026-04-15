@@ -141,8 +141,9 @@ extension ProxyViewModel {
         var cacheTokens: Int
     }
 
-    func modelAggregates(nodeFilter: String?, modelFilter: String?) -> [ModelAggregate] {
-        let logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
+    func modelAggregates(nodeFilter: String?, modelFilter: String?, since: Date? = nil) -> [ModelAggregate] {
+        var logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
+        if let since { logs = logs.filter { $0.timestamp >= since } }
         var map: [String: ModelAggregate] = [:]
 
         for log in logs {

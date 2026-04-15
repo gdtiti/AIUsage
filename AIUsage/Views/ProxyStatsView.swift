@@ -7,29 +7,27 @@ struct ProxyStatsView: View {
     @EnvironmentObject var viewModel: ProxyViewModel
 
     @AppStorage(DefaultsKey.proxyStatsNodeId) private var selectedNodeIdRaw: String = ""
-    @AppStorage(DefaultsKey.proxyStatsModel) private var selectedModelRaw: String = ""
     @AppStorage(DefaultsKey.proxyStatsGranularity) private var granularity: StatGranularity = .daily
     @AppStorage(DefaultsKey.proxyStatsMetric) private var metric: StatMetric = .cost
     @AppStorage(DefaultsKey.proxyStatsDistributionMetric) private var distributionMetric: StatMetric = .cost
     @State private var contentWidth: CGFloat = 0
     @State private var expandedModels: Set<String> = []
+    @State private var distributionPeriod: DistributionPeriod = .all
+    @State private var selectedModels: Set<String> = []
+
+    enum DistributionPeriod: String, CaseIterable { case today, week, month, all }
 
     private var nodeBinding: Binding<String> {
         Binding(get: { selectedNodeIdRaw }, set: { selectedNodeIdRaw = $0 })
     }
-    private var modelBinding: Binding<String> {
-        Binding(get: { selectedModelRaw }, set: { selectedModelRaw = $0 })
-    }
     private var selectedNodeId: String? { selectedNodeIdRaw.isEmpty ? nil : selectedNodeIdRaw }
-    private var selectedModel: String? { selectedModelRaw.isEmpty ? nil : selectedModelRaw }
     private func validateSelections() {
         if !selectedNodeIdRaw.isEmpty,
            !viewModel.configurations.contains(where: { $0.id == selectedNodeIdRaw }) {
             selectedNodeIdRaw = ""
         }
-        if !selectedModelRaw.isEmpty,
-           !viewModel.allUpstreamModels(nodeFilter: selectedNodeId).contains(selectedModelRaw) {
-            selectedModelRaw = ""
+        selectedModels = selectedModels.filter {
+            viewModel.allUpstreamModels(nodeFilter: selectedNodeId).contains($0)
         }
     }
 
@@ -103,35 +101,18 @@ struct ProxyStatsView: View {
         HStack(spacing: 12) {
             Text(L("Proxy Stats", "代理统计"))
                 .font(.title2.weight(.bold))
-
             Spacer()
-
-            Picker(L("Node", "节点"), selection: nodeBinding) {
-                Text(L("All Nodes", "全部节点")).tag("")
-                ForEach(viewModel.configurations, id: \.id) { config in
-                    Text(config.name).tag(config.id)
-                }
-            }
-            .frame(width: 160)
-
-            Picker(L("Model", "模型"), selection: modelBinding) {
-                Text(L("All Models", "全部模型")).tag("")
-                ForEach(viewModel.allUpstreamModels(nodeFilter: selectedNodeId), id: \.self) { model in
-                    Text(model).tag(model)
-                }
-            }
-            .frame(width: 160)
         }
     }
 
     // MARK: - Summary
 
     private var stats: (cost: Double, tokens: Int, requests: Int, successRate: Double) {
-        viewModel.overallStats(nodeFilter: selectedNodeId, modelFilter: selectedModel)
+        viewModel.overallStats(nodeFilter: selectedNodeId, modelFilter: nil)
     }
 
     private var dateRange: (earliest: Date?, latest: Date?, days: Int) {
-        viewModel.dataDateRange(nodeFilter: selectedNodeId, modelFilter: selectedModel)
+        viewModel.dataDateRange(nodeFilter: selectedNodeId, modelFilter: nil)
     }
 
     private static let bannerDateFormatter: DateFormatter = {
@@ -179,7 +160,7 @@ struct ProxyStatsView: View {
                 summaryCell(icon: "checkmark.seal.fill", title: L("Success Rate", "成功率"),
                             value: String(format: "%.1f%%", s.successRate), tint: .green)
                 summaryCell(icon: "cpu", title: L("Models", "模型数"),
-                            value: "\(viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: selectedModel).count)",
+                            value: "\(viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: nil).count)",
                             tint: .pink)
             }
             dataRangeBanner
@@ -240,8 +221,8 @@ struct ProxyStatsView: View {
     }
 
     private var displayedTrendSeries: [TrendSeriesDescriptor] {
-        if let selectedModel {
-            return rankedTrendSeries.filter { $0.model == selectedModel }
+        if !selectedModels.isEmpty {
+            return rankedTrendSeries.filter { selectedModels.contains($0.model) }
         }
         return Array(rankedTrendSeries.prefix(maxVisibleTrendModels))
     }
@@ -250,12 +231,85 @@ struct ProxyStatsView: View {
         max(0, rankedTrendSeries.count - displayedTrendSeries.count)
     }
 
+    private var chartSelectableModels: [String] {
+        rankedTrendSeries.map(\.model)
+    }
+
+    private var modelFilterLabel: String {
+        if selectedModels.isEmpty { return L("All Models", "全部模型") }
+        if selectedModels.count == 1, let only = selectedModels.first { return only }
+        return "\(selectedModels.count) " + L("models", "个模型")
+    }
+
+    private func toggleModelSelection(_ model: String) {
+        if selectedModels.contains(model) {
+            selectedModels.remove(model)
+        } else {
+            selectedModels.insert(model)
+        }
+    }
+
+    private var proxyModelFilterMenu: some View {
+        Menu {
+            Button(action: { selectedModels = [] }) {
+                HStack {
+                    Text(L("All Models (Combined)", "全部模型（合计）"))
+                    if selectedModels.isEmpty {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+            Divider()
+            ForEach(chartSelectableModels, id: \.self) { model in
+                Button(action: { toggleModelSelection(model) }) {
+                    HStack {
+                        Text(model)
+                        if selectedModels.contains(model) {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+            if !selectedModels.isEmpty {
+                Divider()
+                Button(action: { selectedModels = [] }) {
+                    Text(L("Clear Selection", "清除选择"))
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                Text(modelFilterLabel)
+                    .lineLimit(1)
+            }
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(selectedModels.isEmpty ? Color.primary.opacity(0.07) : Color.accentColor.opacity(0.15)))
+        }
+        .buttonStyle(.plain)
+    }
+
     private var trendChart: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(L("Spend Trend", "消费趋势"))
                     .font(.headline.weight(.bold))
+
                 Spacer()
+
+                if viewModel.configurations.count > 1 {
+                    Picker(L("Node", "节点"), selection: nodeBinding) {
+                        Text(L("All Nodes", "全部节点")).tag("")
+                        ForEach(viewModel.configurations, id: \.id) { config in
+                            Text(config.name).tag(config.id)
+                        }
+                    }
+                    .frame(width: 140)
+                }
+
+                proxyModelFilterMenu
+
                 Picker("", selection: $metric) {
                     Text(L("Cost", "费用")).tag(StatMetric.cost)
                     Text("Tokens").tag(StatMetric.tokens)
@@ -281,7 +335,7 @@ struct ProxyStatsView: View {
                     .frame(height: 260)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    if hiddenTrendSeriesCount > 0 && selectedModel == nil {
+                    if hiddenTrendSeriesCount > 0 && selectedModels.isEmpty {
                         Text(
                             L(
                                 "Showing Top \(series.count) models by current metric",
@@ -316,12 +370,27 @@ struct ProxyStatsView: View {
 
     // MARK: - Model Distribution
 
+    private var distributionSinceDate: Date? {
+        let cal = Calendar.current
+        let now = Date()
+        switch distributionPeriod {
+        case .today: return cal.startOfDay(for: now)
+        case .week: return cal.date(byAdding: .day, value: -7, to: cal.startOfDay(for: now))
+        case .month: return cal.date(byAdding: .month, value: -1, to: cal.startOfDay(for: now))
+        case .all: return nil
+        }
+    }
+
     private var rawModelData: [ProxyViewModel.ModelAggregate] {
-        viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: selectedModel)
+        viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: nil)
+    }
+
+    private var filteredModelData: [ProxyViewModel.ModelAggregate] {
+        viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: nil, since: distributionSinceDate)
     }
 
     private var modelData: [ProxyViewModel.ModelAggregate] {
-        rawModelData.sorted { lhs, rhs in
+        filteredModelData.sorted { lhs, rhs in
             let lhsValue = distributionMetric == .cost ? lhs.cost : Double(lhs.tokens)
             let rhsValue = distributionMetric == .cost ? rhs.cost : Double(rhs.tokens)
             if lhsValue == rhsValue {
@@ -379,7 +448,11 @@ struct ProxyStatsView: View {
     }
 
     private func colorForProxyModel(_ model: String) -> Color {
-        chartColors[stablePaletteIndex(for: model, paletteCount: chartColors.count)]
+        let ranked = rankedTrendSeries.map(\.model)
+        if let idx = ranked.firstIndex(of: model) {
+            return chartColors[idx % chartColors.count]
+        }
+        return chartColors[stablePaletteIndex(for: model, paletteCount: chartColors.count)]
     }
 
     private func distributionValue(_ item: ProxyViewModel.ModelAggregate) -> Double {
@@ -405,26 +478,36 @@ struct ProxyStatsView: View {
     }
 
     private func proxyTrendChart(for series: [TrendSeriesDescriptor]) -> some View {
-        Chart {
+        let isSingle = series.count == 1
+        return Chart {
             ForEach(series) { descriptor in
                 let color = colorForProxyModel(descriptor.model)
 
                 ForEach(descriptor.points, id: \.id) { point in
                     let value = metric == .cost ? point.cost : Double(point.tokens)
 
-                    AreaMark(
-                        x: .value("Time", point.date),
-                        y: .value(metric == .cost ? "Cost" : "Tokens", value)
-                    )
-                    .foregroundStyle(color.opacity(series.count == 1 ? 0.22 : 0.12))
-                    .interpolationMethod(.catmullRom)
+                    if isSingle {
+                        AreaMark(
+                            x: .value("Time", point.date),
+                            y: .value(metric == .cost ? "Cost" : "Tokens", value),
+                            series: .value("Model", descriptor.model)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [color.opacity(0.25), color.opacity(0.02)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        )
+                        .interpolationMethod(.catmullRom)
+                    }
 
                     LineMark(
                         x: .value("Time", point.date),
-                        y: .value(metric == .cost ? "Cost" : "Tokens", value)
+                        y: .value(metric == .cost ? "Cost" : "Tokens", value),
+                        series: .value("Model", descriptor.model)
                     )
                     .foregroundStyle(color)
-                    .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round))
+                    .lineStyle(StrokeStyle(lineWidth: isSingle ? 2.4 : 2.0, lineCap: .round))
                     .interpolationMethod(.catmullRom)
                 }
             }
@@ -468,8 +551,18 @@ struct ProxyStatsView: View {
             }
 
             ViewThatFits(in: .horizontal) {
-                HStack {
-                    Spacer()
+                HStack(spacing: 8) {
+                    Picker("", selection: $distributionPeriod) {
+                        Text(L("Today", "今日")).tag(DistributionPeriod.today)
+                        Text(L("Week", "本周")).tag(DistributionPeriod.week)
+                        Text(L("Month", "本月")).tag(DistributionPeriod.month)
+                        Text(L("All", "全部")).tag(DistributionPeriod.all)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 240)
+
+                    Spacer(minLength: 8)
+
                     Picker("", selection: $distributionMetric) {
                         Text(L("Cost", "费用")).tag(StatMetric.cost)
                         Text("Tokens").tag(StatMetric.tokens)
@@ -478,12 +571,24 @@ struct ProxyStatsView: View {
                     .frame(width: 140)
                 }
 
-                HStack {
-                    Picker("", selection: $distributionMetric) {
-                        Text(L("Cost", "费用")).tag(StatMetric.cost)
-                        Text("Tokens").tag(StatMetric.tokens)
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker("", selection: $distributionPeriod) {
+                        Text(L("Today", "今日")).tag(DistributionPeriod.today)
+                        Text(L("Week", "本周")).tag(DistributionPeriod.week)
+                        Text(L("Month", "本月")).tag(DistributionPeriod.month)
+                        Text(L("All", "全部")).tag(DistributionPeriod.all)
                     }
                     .pickerStyle(.segmented)
+
+                    HStack {
+                        Spacer()
+                        Picker("", selection: $distributionMetric) {
+                            Text(L("Cost", "费用")).tag(StatMetric.cost)
+                            Text("Tokens").tag(StatMetric.tokens)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 140)
+                    }
                 }
             }
 
@@ -550,7 +655,7 @@ struct ProxyStatsView: View {
         let trendWidth = tableColumnWidth(.trend, layout: layout)
 
         return VStack(alignment: .leading, spacing: 12) {
-            Text(L("Model Details", "模型明细"))
+            Text(L("Model Details", "模型详情"))
                 .font(.headline.weight(.bold))
 
             let data = modelData
@@ -660,7 +765,7 @@ struct ProxyStatsView: View {
             }
         }
         .background(
-            isExpanded
+            (isExpanded || selectedModels.contains(item.model))
                 ? RoundedRectangle(cornerRadius: 8).fill(color.opacity(0.08))
                 : nil
         )
@@ -674,15 +779,36 @@ struct ProxyStatsView: View {
             (L("Cache", "缓存"), formatCompactNumber(Double(item.cacheTokens)), .orange)
         ]
 
-        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 8)], alignment: .leading, spacing: 8) {
-            ForEach(detailItems, id: \.0) { item in
-                proxyMetricPill(label: item.0, value: item.1, color: item.2)
+        return VStack(alignment: .leading, spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 8)], alignment: .leading, spacing: 8) {
+                ForEach(detailItems, id: \.0) { detail in
+                    proxyMetricPill(label: detail.0, value: detail.1, color: detail.2)
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    toggleCompareModel(item.model)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: selectedModels.contains(item.model) ? "checkmark.circle.fill" : "circle")
+                        Text(L("Compare", "对比"))
+                    }
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(selectedModels.contains(item.model) ? color : .secondary)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 10)
         .background(color.opacity(0.04))
         .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private func toggleCompareModel(_ model: String) {
+        toggleModelSelection(model)
     }
 
     private func proxyMetricPill(label: String, value: String, color: Color) -> some View {

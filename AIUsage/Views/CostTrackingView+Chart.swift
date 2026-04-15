@@ -146,8 +146,9 @@ extension CostTrackingView {
             ForEach(allSeries, id: \.model) { series in
                 ForEach(series.points, id: \.bucket) { point in
                     LineMark(
-                        x: .value("Time", point.label),
-                        y: .value("Value", selectedMetric == .usd ? point.usd : Double(point.tokens))
+                        x: .value("Time", point.date),
+                        y: .value("Value", selectedMetric == .usd ? point.usd : Double(point.tokens)),
+                        series: .value("Model", series.model)
                     )
                     .foregroundStyle(modelColor(for: series.model))
                     .interpolationMethod(.catmullRom)
@@ -156,26 +157,8 @@ extension CostTrackingView {
             }
         }
         .chartLegend(.hidden)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: selectedGranularity == .hourly ? 6 : 7)) { _ in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
-                    .foregroundStyle(.secondary.opacity(0.15))
-                AxisValueLabel()
-                    .font(.caption2)
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
-                    .foregroundStyle(.secondary.opacity(0.15))
-                AxisValueLabel {
-                    if let v = value.as(Double.self) {
-                        Text(selectedMetric == .usd ? chartCurrencyLabel(v) : formatCompactNumber(v))
-                            .font(.caption2)
-                    }
-                }
-            }
-        }
+        .chartXAxis { costChartXAxis }
+        .chartYAxis { costChartYAxis }
     }
 
     @ViewBuilder
@@ -216,7 +199,7 @@ extension CostTrackingView {
             ForEach(points, id: \.bucket) { point in
                 let val = selectedMetric == .usd ? point.usd : Double(point.tokens)
                 AreaMark(
-                    x: .value("Time", point.label),
+                    x: .value("Time", point.date),
                     y: .value("Value", val)
                 )
                 .interpolationMethod(.catmullRom)
@@ -228,7 +211,7 @@ extension CostTrackingView {
                 )
 
                 LineMark(
-                    x: .value("Time", point.label),
+                    x: .value("Time", point.date),
                     y: .value("Value", val)
                 )
                 .interpolationMethod(.catmullRom)
@@ -236,23 +219,37 @@ extension CostTrackingView {
                 .lineStyle(StrokeStyle(lineWidth: 2.4, lineCap: .round))
             }
         }
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: selectedGranularity == .hourly ? 6 : 7)) { _ in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
-                    .foregroundStyle(.secondary.opacity(0.15))
-                AxisValueLabel()
-                    .font(.caption2)
+        .chartXAxis { costChartXAxis }
+        .chartYAxis { costChartYAxis }
+    }
+
+    // MARK: - Shared Axis Builders
+
+    @AxisContentBuilder
+    var costChartXAxis: some AxisContent {
+        AxisMarks(values: .automatic(desiredCount: selectedGranularity == .hourly ? 6 : 7)) { value in
+            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
+                .foregroundStyle(.secondary.opacity(0.15))
+            AxisValueLabel {
+                if let date = value.as(Date.self) {
+                    Text(date, format: selectedGranularity == .hourly
+                         ? .dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)
+                         : .dateTime.month(.twoDigits).day(.twoDigits))
+                        .font(.caption2)
+                }
             }
         }
-        .chartYAxis {
-            AxisMarks(position: .leading) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
-                    .foregroundStyle(.secondary.opacity(0.15))
-                AxisValueLabel {
-                    if let v = value.as(Double.self) {
-                        Text(selectedMetric == .usd ? chartCurrencyLabel(v) : formatCompactNumber(v))
-                            .font(.caption2)
-                    }
+    }
+
+    @AxisContentBuilder
+    var costChartYAxis: some AxisContent {
+        AxisMarks(position: .leading) { value in
+            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [3, 4]))
+                .foregroundStyle(.secondary.opacity(0.15))
+            AxisValueLabel {
+                if let v = value.as(Double.self) {
+                    Text(selectedMetric == .usd ? chartCurrencyLabel(v) : formatCompactNumber(v))
+                        .font(.caption2)
                 }
             }
         }

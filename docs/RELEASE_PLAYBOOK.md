@@ -225,6 +225,27 @@ GitHub 才能最终验证：
 
 所以本地验证和 GitHub 发布缺一不可。
 
+### 6. `codesign` 会被包内扩展属性绊倒
+
+如果本地打包阶段出现下面这种错误：
+
+```text
+resource fork, Finder information, or similar detritus not allowed
+```
+
+通常不是业务代码问题，而是 `.app` 或嵌套框架里残留了 Finder / File Provider 扩展属性。
+
+这次真实遇到的属性包括：
+
+- `com.apple.FinderInfo`
+- `com.apple.fileprovider.fpfs#P`
+
+经验结论：
+
+- 不能只依赖一次 `xattr -cr`
+- 打包脚本里要显式清理这些属性后再 `codesign`
+- 不要删掉 `scripts/package-release.sh` 里的 detritus 清理逻辑
+
 ## 推荐发布命令清单
 
 把下面这组命令当成默认手顺：

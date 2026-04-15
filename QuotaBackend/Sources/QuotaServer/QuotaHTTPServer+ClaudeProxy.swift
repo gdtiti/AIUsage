@@ -231,61 +231,54 @@ extension QuotaHTTPServer {
             let blockStart = "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}"
             await streamer.sendSSEEvent(event: "content_block_start", data: blockStart)
 
-            // Process upstream SSE chunks
-            var currentLine = ""
             var outputTokens = 0
             var stopReason = "end_turn"
 
-            for try await byte in bytes {
-                let char = Character(UnicodeScalar(byte))
-                if char == "\n" {
-                    if currentLine.hasPrefix("data: ") {
-                        let dataStr = String(currentLine.dropFirst(6))
-                        if dataStr.trimmingCharacters(in: .whitespaces) == "[DONE]" {
-                            break
-                        }
+            for try await line in bytes.lines {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.hasPrefix("data: ") else { continue }
 
-                        // Parse OpenAI chunk
-                        if let chunkData = dataStr.data(using: .utf8),
-                           let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: chunkData),
-                           let choice = chunk.choices.first {
+                let dataStr = String(trimmed.dropFirst(6))
+                if dataStr == "[DONE]" {
+                    break
+                }
 
-                            // Handle text content delta
-                            if let content = choice.delta.content, !content.isEmpty {
-                                outputTokens += content.count / 4
-                                let delta = "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\(escapeJSON(content))}}"
-                                await streamer.sendSSEEvent(event: "content_block_delta", data: delta)
+                // Parse OpenAI chunk
+                if let chunkData = dataStr.data(using: .utf8),
+                   let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: chunkData),
+                   let choice = chunk.choices.first {
+
+                    // Handle text content delta
+                    if let content = choice.delta.content, !content.isEmpty {
+                        outputTokens += content.count / 4
+                        let delta = "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\(escapeJSON(content))}}"
+                        await streamer.sendSSEEvent(event: "content_block_delta", data: delta)
+                    }
+
+                    // Handle tool calls
+                    if let toolCalls = choice.delta.toolCalls {
+                        for toolCall in toolCalls {
+                            if let id = toolCall.id, let name = toolCall.function?.name {
+                                stopReason = "tool_use"
+                                let toolStart = "{\"type\":\"content_block_start\",\"index\":\(toolCall.index),\"content_block\":{\"type\":\"tool_use\",\"id\":\(escapeJSON(id)),\"name\":\(escapeJSON(name)),\"input\":{}}}"
+                                await streamer.sendSSEEvent(event: "content_block_start", data: toolStart)
                             }
-
-                            // Handle tool calls
-                            if let toolCalls = choice.delta.toolCalls {
-                                for toolCall in toolCalls {
-                                    if let id = toolCall.id, let name = toolCall.function?.name {
-                                        stopReason = "tool_use"
-                                        let toolStart = "{\"type\":\"content_block_start\",\"index\":\(toolCall.index),\"content_block\":{\"type\":\"tool_use\",\"id\":\(escapeJSON(id)),\"name\":\(escapeJSON(name)),\"input\":{}}}"
-                                        await streamer.sendSSEEvent(event: "content_block_start", data: toolStart)
-                                    }
-                                    if let args = toolCall.function?.arguments, !args.isEmpty {
-                                        let toolDelta = "{\"type\":\"content_block_delta\",\"index\":\(toolCall.index),\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\(escapeJSON(args))}}"
-                                        await streamer.sendSSEEvent(event: "content_block_delta", data: toolDelta)
-                                    }
-                                }
-                            }
-
-                            // Handle finish reason
-                            if let finish = choice.finishReason {
-                                switch finish {
-                                case "tool_calls": stopReason = "tool_use"
-                                case "stop": stopReason = "end_turn"
-                                case "length": stopReason = "max_tokens"
-                                default: break
-                                }
+                            if let args = toolCall.function?.arguments, !args.isEmpty {
+                                let toolDelta = "{\"type\":\"content_block_delta\",\"index\":\(toolCall.index),\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\(escapeJSON(args))}}"
+                                await streamer.sendSSEEvent(event: "content_block_delta", data: toolDelta)
                             }
                         }
                     }
-                    currentLine = ""
-                } else {
-                    currentLine.append(char)
+
+                    // Handle finish reason
+                    if let finish = choice.finishReason {
+                        switch finish {
+                        case "tool_calls": stopReason = "tool_use"
+                        case "stop": stopReason = "end_turn"
+                        case "length": stopReason = "max_tokens"
+                        default: break
+                        }
+                    }
                 }
             }
 

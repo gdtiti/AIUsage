@@ -230,6 +230,63 @@ final class QuotaHTTPServerProxyIntegrationTests: XCTestCase {
         XCTAssertEqual(upstreamBody["model"] as? String, "gpt-4o-mini")
     }
 
+    func testOpenAIConvertProxyStreamingPreservesUTF8Content() async throws {
+        let upstreamPort = try findFreePort()
+        let upstream = MockHTTPServer(port: upstreamPort) { _ in
+            MockHTTPResponse(
+                status: 200,
+                headers: ["Content-Type": "text/event-stream"],
+                bodyChunks: [
+                    "data: {\"id\":\"chatcmpl-stream-zh\",\"object\":\"chat.completion.chunk\",\"created\":1710000001,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"你好\"},\"finish_reason\":null}]}\n\n",
+                    "data: {\"id\":\"chatcmpl-stream-zh\",\"object\":\"chat.completion.chunk\",\"created\":1710000001,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"，我可以帮你什么？\"},\"finish_reason\":\"stop\"}]}\n\n",
+                    "data: [DONE]\n\n",
+                ],
+                chunkDelayNanoseconds: 20_000_000
+            )
+        }
+        try await upstream.start()
+        defer { upstream.stop() }
+
+        let proxyPort = try findFreePort()
+        let server = QuotaHTTPServer(
+            host: "127.0.0.1",
+            port: proxyPort,
+            proxyConfig: makeOpenAIProxyConfiguration(upstreamPort: upstreamPort)
+        )
+        try await server.start()
+        defer { server.stop() }
+
+        var request = makeClaudeMessagesRequest(
+            proxyPort: proxyPort,
+            clientKey: "client-key"
+        )
+        request.httpBody = try makeClaudeMessagesBody(stream: true)
+
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+
+        var lines: [String] = []
+        for try await line in bytes.lines {
+            lines.append(line)
+        }
+
+        var textDeltas: [String] = []
+        for line in lines where line.hasPrefix("data: {\"type\":\"content_block_delta\"") {
+            guard
+                let jsonStart = line.firstIndex(of: Character("{")),
+                let json = try? JSONSerialization.jsonObject(with: Data(line[jsonStart...].utf8)) as? [String: Any],
+                let delta = json["delta"] as? [String: Any],
+                let text = delta["text"] as? String
+            else {
+                continue
+            }
+            textDeltas.append(text)
+        }
+
+        XCTAssertEqual(textDeltas.joined(), "你好，我可以帮你什么？")
+        XCTAssertFalse(textDeltas.joined().contains("ä½ å¥½"))
+    }
+
     func testAnthropicPassthroughNonStreamingForwarding() async throws {
         let upstreamPort = try findFreePort()
         let upstream = MockHTTPServer(port: upstreamPort) { _ in

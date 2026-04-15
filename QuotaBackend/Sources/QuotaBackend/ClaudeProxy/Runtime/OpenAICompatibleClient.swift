@@ -130,11 +130,7 @@ public actor OpenAICompatibleClient {
         let (bytes, response) = try await session.bytes(for: urlRequest)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            var errorBody = ""
-            for try await byte in bytes {
-                errorBody.append(Character(UnicodeScalar(byte)))
-                if errorBody.count > 2048 { break }
-            }
+            let errorBody = try await readUTF8TextPrefix(from: bytes, maxBytes: 2048)
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             throw UpstreamError.httpError(
                 statusCode: code,
@@ -148,38 +144,31 @@ public actor OpenAICompatibleClient {
         var model = ""
         var created = 0
         var pendingToolCalls: [Int: (id: String, name: String, args: String)] = [:]
-        var currentLine = ""
 
-        for try await byte in bytes {
-            let char = Character(UnicodeScalar(byte))
-            if char == "\n" {
-                let trimmed = currentLine.trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("data: ") {
-                    let payload = String(trimmed.dropFirst(6))
-                    if payload == "[DONE]" { break }
+        for try await line in bytes.lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.hasPrefix("data: ") else { continue }
 
-                    if let chunkData = payload.data(using: .utf8),
-                       let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: chunkData),
-                       let choice = chunk.choices.first {
-                        if responseId.isEmpty { responseId = chunk.id }
-                        if model.isEmpty { model = chunk.model }
-                        if created == 0 { created = chunk.created }
-                        if let content = choice.delta.content { assembledContent += content }
-                        if let deltaTools = choice.delta.toolCalls {
-                            for tc in deltaTools {
-                                var entry = pendingToolCalls[tc.index] ?? (id: "", name: "", args: "")
-                                if let id = tc.id { entry.id = id }
-                                if let name = tc.function?.name { entry.name = name }
-                                if let args = tc.function?.arguments { entry.args += args }
-                                pendingToolCalls[tc.index] = entry
-                            }
-                        }
-                        if let fr = choice.finishReason { finishReason = fr }
+            let payload = String(trimmed.dropFirst(6))
+            if payload == "[DONE]" { break }
+
+            if let chunkData = payload.data(using: .utf8),
+               let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: chunkData),
+               let choice = chunk.choices.first {
+                if responseId.isEmpty { responseId = chunk.id }
+                if model.isEmpty { model = chunk.model }
+                if created == 0 { created = chunk.created }
+                if let content = choice.delta.content { assembledContent += content }
+                if let deltaTools = choice.delta.toolCalls {
+                    for tc in deltaTools {
+                        var entry = pendingToolCalls[tc.index] ?? (id: "", name: "", args: "")
+                        if let id = tc.id { entry.id = id }
+                        if let name = tc.function?.name { entry.name = name }
+                        if let args = tc.function?.arguments { entry.args += args }
+                        pendingToolCalls[tc.index] = entry
                     }
                 }
-                currentLine = ""
-            } else {
-                currentLine.append(char)
+                if let fr = choice.finishReason { finishReason = fr }
             }
         }
 
@@ -309,11 +298,7 @@ public actor OpenAICompatibleClient {
             return (bytes, httpResponse)
         }
 
-        var errorBody = ""
-        for try await byte in bytes {
-            errorBody.append(Character(UnicodeScalar(byte)))
-            if errorBody.count > 4096 { break }
-        }
+        let errorBody = try await readUTF8TextPrefix(from: bytes, maxBytes: 4096)
         upstreamLog.warning("Upstream streaming \(httpResponse.statusCode): \(String(errorBody.prefix(500)), privacy: .private)")
 
         let isMaxTokensError = errorBody.contains("max_tokens") || errorBody.contains("model output limit")
@@ -360,6 +345,23 @@ public actor OpenAICompatibleClient {
             throw UpstreamError.invalidURL(baseURL + path)
         }
         return url
+    }
+
+    private func readUTF8TextPrefix(
+        from bytes: URLSession.AsyncBytes,
+        maxBytes: Int
+    ) async throws -> String {
+        var data = Data()
+        data.reserveCapacity(maxBytes)
+
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count >= maxBytes {
+                break
+            }
+        }
+
+        return String(decoding: data, as: UTF8.self)
     }
 }
 

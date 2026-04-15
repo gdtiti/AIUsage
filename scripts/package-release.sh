@@ -19,6 +19,16 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
+strip_bundle_detritus() {
+  local target="$1"
+
+  xattr -cr "$target" || true
+
+  for attr in com.apple.FinderInfo com.apple.ResourceFork com.apple.fileprovider.fpfs#P; do
+    find "$target" -exec xattr -d "$attr" {} + 2>/dev/null || true
+  done
+}
+
 echo "Building ${APP_NAME} ${VERSION}..."
 
 xcodebuild \
@@ -60,7 +70,7 @@ else
 fi
 
 echo "Ad-hoc signing ${APP_NAME}.app..."
-xattr -cr "$APP_PATH"
+strip_bundle_detritus "$APP_PATH"
 codesign --force --deep -s - "$APP_PATH"
 codesign --verify --verbose "$APP_PATH" || true
 

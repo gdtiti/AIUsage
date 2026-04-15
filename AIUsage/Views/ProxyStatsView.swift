@@ -10,6 +10,7 @@ struct ProxyStatsView: View {
     @AppStorage(DefaultsKey.proxyStatsModel) private var selectedModelRaw: String = ""
     @AppStorage(DefaultsKey.proxyStatsGranularity) private var granularity: StatGranularity = .daily
     @AppStorage(DefaultsKey.proxyStatsMetric) private var metric: StatMetric = .cost
+    @State private var contentWidth: CGFloat = 0
 
     private var nodeBinding: Binding<String> {
         Binding(get: { selectedNodeIdRaw }, set: { selectedNodeIdRaw = $0 })
@@ -32,6 +33,10 @@ struct ProxyStatsView: View {
 
     enum StatGranularity: String, CaseIterable { case hourly, daily }
     enum StatMetric: String, CaseIterable { case cost, tokens }
+    private enum InsightsLayout {
+        case split
+        case stacked
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,18 +48,24 @@ struct ProxyStatsView: View {
                         filterBar
                         summaryStrip
                         trendChart
-                        HStack(alignment: .top, spacing: 16) {
-                            modelDistribution
-                            modelTable
-                        }
+                        insightPanels
                     }
                     .padding(20)
+                    .background(
+                        GeometryReader { proxy in
+                            Color.clear
+                                .preference(key: ProxyStatsContentWidthPreferenceKey.self, value: proxy.size.width)
+                        }
+                    )
                 }
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear { validateSelections() }
         .onChange(of: selectedNodeIdRaw) { _, _ in validateSelections() }
+        .onPreferenceChange(ProxyStatsContentWidthPreferenceKey.self) { newWidth in
+            contentWidth = newWidth
+        }
     }
 
     // MARK: - Empty State
@@ -297,7 +308,54 @@ struct ProxyStatsView: View {
 
     private let chartColors: [Color] = [.blue, .orange, .green, .purple, .pink, .cyan, .red, .yellow]
 
-    private var modelDistribution: some View {
+    private var usesStackedInsightsLayout: Bool {
+        contentWidth > 0 && contentWidth < 980
+    }
+
+    private var splitDistributionWidth: CGFloat {
+        let availableWidth = max(contentWidth, 980)
+        return min(max(availableWidth * 0.34, 300), 360)
+    }
+
+    private var insightPanels: some View {
+        Group {
+            if usesStackedInsightsLayout {
+                VStack(alignment: .leading, spacing: 16) {
+                    modelDistribution(layout: .stacked)
+                    modelTable(layout: .stacked)
+                }
+            } else {
+                HStack(alignment: .top, spacing: 16) {
+                    modelDistribution(layout: .split)
+                        .frame(width: splitDistributionWidth, alignment: .topLeading)
+                    modelTable(layout: .split)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .layoutPriority(1)
+                }
+            }
+        }
+    }
+
+    private func distributionChartHeight(for layout: InsightsLayout) -> CGFloat {
+        layout == .split ? 170 : 190
+    }
+
+    private func tableColumnWidth(_ column: ProxyStatsTableColumn, layout: InsightsLayout) -> CGFloat {
+        switch (layout, column) {
+        case (.split, .requests): return 60
+        case (.split, .input): return 72
+        case (.split, .output): return 72
+        case (.split, .cache): return 72
+        case (.split, .cost): return 82
+        case (.stacked, .requests): return 64
+        case (.stacked, .input): return 78
+        case (.stacked, .output): return 78
+        case (.stacked, .cache): return 78
+        case (.stacked, .cost): return 88
+        }
+    }
+
+    private func modelDistribution(layout: InsightsLayout) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(L("Model Distribution", "模型分布"))
                 .font(.headline.weight(.bold))
@@ -317,7 +375,7 @@ struct ProxyStatsView: View {
                     .foregroundStyle(chartColors[idx % chartColors.count])
                     .cornerRadius(4)
                 }
-                .frame(height: 180)
+                .frame(height: distributionChartHeight(for: layout))
 
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(data.prefix(6).enumerated()), id: \.element.id) { idx, item in
@@ -328,6 +386,8 @@ struct ProxyStatsView: View {
                             Text(item.model)
                                 .font(.caption)
                                 .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(item.model)
                             Spacer()
                             Text(formatCurrency(item.cost))
                                 .font(.caption.weight(.medium).monospacedDigit())
@@ -344,8 +404,14 @@ struct ProxyStatsView: View {
 
     // MARK: - Model Table
 
-    private var modelTable: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private func modelTable(layout: InsightsLayout) -> some View {
+        let requestsWidth = tableColumnWidth(.requests, layout: layout)
+        let inputWidth = tableColumnWidth(.input, layout: layout)
+        let outputWidth = tableColumnWidth(.output, layout: layout)
+        let cacheWidth = tableColumnWidth(.cache, layout: layout)
+        let costWidth = tableColumnWidth(.cost, layout: layout)
+
+        return VStack(alignment: .leading, spacing: 12) {
             Text(L("Model Details", "模型明细"))
                 .font(.headline.weight(.bold))
 
@@ -359,11 +425,11 @@ struct ProxyStatsView: View {
                     // Header
                     HStack(spacing: 0) {
                         Text(L("Model", "模型")).frame(maxWidth: .infinity, alignment: .leading)
-                        Text(L("Requests", "请求")).frame(width: 60, alignment: .trailing)
-                        Text(L("Input", "输入")).frame(width: 70, alignment: .trailing)
-                        Text(L("Output", "输出")).frame(width: 70, alignment: .trailing)
-                        Text(L("Cache", "缓存")).frame(width: 70, alignment: .trailing)
-                        Text(L("Cost", "费用")).frame(width: 80, alignment: .trailing)
+                        Text(L("Requests", "请求")).frame(width: requestsWidth, alignment: .trailing)
+                        Text(L("Input", "输入")).frame(width: inputWidth, alignment: .trailing)
+                        Text(L("Output", "输出")).frame(width: outputWidth, alignment: .trailing)
+                        Text(L("Cache", "缓存")).frame(width: cacheWidth, alignment: .trailing)
+                        Text(L("Cost", "费用")).frame(width: costWidth, alignment: .trailing)
                     }
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -377,18 +443,20 @@ struct ProxyStatsView: View {
                             Text(item.model)
                                 .font(.caption.weight(.medium))
                                 .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(item.model)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Text("\(item.requests)")
-                                .frame(width: 60, alignment: .trailing)
+                                .frame(width: requestsWidth, alignment: .trailing)
                             Text(formatCompactNumber(Double(item.inputTokens)))
-                                .frame(width: 70, alignment: .trailing)
+                                .frame(width: inputWidth, alignment: .trailing)
                             Text(formatCompactNumber(Double(item.outputTokens)))
-                                .frame(width: 70, alignment: .trailing)
+                                .frame(width: outputWidth, alignment: .trailing)
                             Text(formatCompactNumber(Double(item.cacheTokens)))
-                                .frame(width: 70, alignment: .trailing)
+                                .frame(width: cacheWidth, alignment: .trailing)
                             Text(formatCurrency(item.cost))
                                 .font(.caption.weight(.semibold))
-                                .frame(width: 80, alignment: .trailing)
+                                .frame(width: costWidth, alignment: .trailing)
                         }
                         .font(.caption.monospacedDigit())
                         .padding(.horizontal, 8)
@@ -409,6 +477,22 @@ struct ProxyStatsView: View {
 
     private func formatAxisDate(_ date: Date) -> String {
         DateFormat.string(from: date, format: granularity == .hourly ? "HH:mm" : "MM/dd")
+    }
+}
+
+private enum ProxyStatsTableColumn {
+    case requests
+    case input
+    case output
+    case cache
+    case cost
+}
+
+private struct ProxyStatsContentWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

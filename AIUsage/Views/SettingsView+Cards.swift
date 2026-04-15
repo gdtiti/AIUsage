@@ -218,6 +218,10 @@ extension SettingsView {
 
             Divider()
 
+            menuBarSettingsSection
+
+            Divider()
+
             settingsBlock(title: L("Quota card style", "额度卡片样式")) {
                 Picker("", selection: $settings.quotaIndicatorStyle) {
                     ForEach(CardQuotaIndicatorStyle.allCases, id: \.self) { style in
@@ -253,6 +257,212 @@ extension SettingsView {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    // MARK: - Menu Bar Settings
+
+    private var menuBarShowsQuotaBinding: Binding<Bool> {
+        Binding(
+            get: { settings.menuBarMetricType.showsQuota },
+            set: { newVal in
+                let showsCost = settings.menuBarMetricType.showsCost
+                if newVal && showsCost { settings.menuBarMetricType = .both }
+                else if newVal { settings.menuBarMetricType = .quota }
+                else if showsCost { settings.menuBarMetricType = .cost }
+                else { settings.menuBarMetricType = .quota }
+            }
+        )
+    }
+
+    private var menuBarShowsCostBinding: Binding<Bool> {
+        Binding(
+            get: { settings.menuBarMetricType.showsCost },
+            set: { newVal in
+                let showsQuota = settings.menuBarMetricType.showsQuota
+                if newVal && showsQuota { settings.menuBarMetricType = .both }
+                else if newVal { settings.menuBarMetricType = .cost }
+                else if showsQuota { settings.menuBarMetricType = .quota }
+                else { settings.menuBarMetricType = .cost }
+            }
+        )
+    }
+
+    private var menuBarSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(L("Menu Bar Display", "菜单栏显示"))
+                .font(.subheadline.weight(.semibold))
+
+            Text(L("Configure what appears next to the menu bar icon.", "配置菜单栏图标旁显示的内容。"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            settingsBlock(title: L("Display mode", "显示模式")) {
+                Picker("", selection: $settings.menuBarDisplayMode) {
+                    Text(L("Icon only", "仅图标")).tag(MenuBarDisplayMode.iconOnly)
+                    Text(L("Icon + metric", "图标+指标")).tag(MenuBarDisplayMode.iconAndMetric)
+                    Text(L("Metric only", "仅指标")).tag(MenuBarDisplayMode.metricOnly)
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 340, alignment: .leading)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L("Metric type", "指标类型"))
+                    .font(.subheadline.weight(.semibold))
+
+                HStack(spacing: 16) {
+                    Toggle(L("Quota %", "配额%"), isOn: menuBarShowsQuotaBinding)
+                        .toggleStyle(.checkbox)
+                    Toggle(L("Cost", "费用"), isOn: menuBarShowsCostBinding)
+                        .toggleStyle(.checkbox)
+                }
+            }
+            .opacity(settings.menuBarDisplayMode == .iconOnly ? 0.45 : 1)
+            .disabled(settings.menuBarDisplayMode == .iconOnly)
+
+            if settings.menuBarMetricType.showsQuota {
+                menuBarQuotaAccountsPicker
+            }
+            if settings.menuBarMetricType.showsCost {
+                menuBarCostSourcesPicker
+            }
+
+            if totalPinnedCount > StatusBarItemView.recommendedMaxAccounts {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9))
+                    Text(L(
+                        "You have \(totalPinnedCount) items pinned. More than \(StatusBarItemView.recommendedMaxAccounts) may cause the menu bar to be too wide.",
+                        "已固定 \(totalPinnedCount) 项。超过 \(StatusBarItemView.recommendedMaxAccounts) 个可能导致菜单栏过长。"
+                    ))
+                    .font(.caption2)
+                }
+                .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private var menuBarQuotaAccountsPicker: some View {
+        settingsBlock(
+            title: L("Quota accounts", "配额账号"),
+            subtitle: L("Select quota-based accounts to show in the menu bar. Empty = show lowest quota.", "选择显示在菜单栏的配额账号。不选则显示配额最低的账号。")
+        ) {
+            let groups = appState.providerAccountGroups
+            let quotaEntries = groups.flatMap { group in
+                group.accounts
+                    .filter { $0.liveProvider?.category != "local-cost" }
+                    .map { (group: group, entry: $0) }
+            }
+
+            if quotaEntries.isEmpty {
+                Text(L("No quota accounts available", "暂无配额账号"))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            } else {
+                pinnedAccountList(
+                    entries: quotaEntries,
+                    selectedIds: $settings.menuBarPinnedQuotaAccountIds
+                )
+            }
+        }
+    }
+
+    private var menuBarCostSourcesPicker: some View {
+        settingsBlock(
+            title: L("Cost sources", "费用来源"),
+            subtitle: L("Select cost sources to show in the menu bar.", "选择显示在菜单栏的费用来源。")
+        ) {
+            let groups = appState.providerAccountGroups
+            let costEntries = groups.flatMap { group in
+                group.accounts
+                    .filter { $0.liveProvider?.category == "local-cost" }
+                    .map { (group: group, entry: $0) }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(costEntries, id: \.entry.id) { pair in
+                    let isSelected = settings.menuBarPinnedCostSourceIds.contains(pair.entry.id)
+                    Button {
+                        var ids = settings.menuBarPinnedCostSourceIds
+                        if isSelected { ids.remove(pair.entry.id) } else { ids.insert(pair.entry.id) }
+                        settings.menuBarPinnedCostSourceIds = ids
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(isSelected ? Color.orange : Color.secondary)
+                                .font(.system(size: 14))
+                            ProviderIconView(pair.group.providerId, size: 14)
+                            Text(pair.entry.accountEmail ?? pair.entry.accountDisplayName ?? pair.entry.providerTitle)
+                                .font(.caption).lineLimit(1)
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                let proxySelected = settings.menuBarPinnedCostSourceIds.contains("proxy-stats")
+                Button {
+                    var ids = settings.menuBarPinnedCostSourceIds
+                    if proxySelected { ids.remove("proxy-stats") } else { ids.insert("proxy-stats") }
+                    settings.menuBarPinnedCostSourceIds = ids
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: proxySelected ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(proxySelected ? Color.blue : Color.secondary)
+                            .font(.system(size: 14))
+                        Image(systemName: "network")
+                            .font(.system(size: 12))
+                            .frame(width: 14, height: 14)
+                        Text(L("Proxy Stats", "代理统计"))
+                            .font(.caption).lineLimit(1)
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if costEntries.isEmpty && !proxySelected {
+                    Text(L("No cost sources available", "暂无费用来源"))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var totalPinnedCount: Int {
+        settings.menuBarPinnedQuotaAccountIds.count + settings.menuBarPinnedCostSourceIds.count
+    }
+
+    private func pinnedAccountList(
+        entries: [(group: ProviderAccountGroup, entry: ProviderAccountEntry)],
+        selectedIds: Binding<Set<String>>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(entries, id: \.entry.id) { pair in
+                let isSelected = selectedIds.wrappedValue.contains(pair.entry.id)
+
+                Button {
+                    var ids = selectedIds.wrappedValue
+                    if isSelected { ids.remove(pair.entry.id) } else { ids.insert(pair.entry.id) }
+                    selectedIds.wrappedValue = ids
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(isSelected ? Color.blue : Color.secondary)
+                            .font(.system(size: 14))
+                        ProviderIconView(pair.group.providerId, size: 14)
+                        Text(pair.entry.accountEmail ?? pair.entry.accountDisplayName ?? pair.entry.providerTitle)
+                            .font(.caption).lineLimit(1)
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     var notificationsCard: some View {

@@ -91,7 +91,7 @@ public struct OpenAIToClaudeConverter {
             }
         }
 
-        if let finishReason = firstChoice.finishReason {
+        if firstChoice.finishReason != nil {
             // Message stop
             return .messageStop
         }
@@ -184,8 +184,31 @@ public struct ClaudeMessageStartEvent: Codable, Sendable {
     public let type: String = "message_start"
     public let message: ClaudeMessageStart
 
+    enum CodingKeys: String, CodingKey {
+        case type, message
+    }
+
     public init(message: ClaudeMessageStart) {
         self.message = message
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        guard type == "message_start" else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Expected message_start event, got \(type)"
+            )
+        }
+        self.message = try container.decode(ClaudeMessageStart.self, forKey: .message)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encode(message, forKey: .message)
     }
 }
 
@@ -236,9 +259,34 @@ public struct ClaudeContentBlockDeltaEvent: Codable, Sendable {
     public let index: Int
     public let delta: ClaudeDelta
 
+    enum CodingKeys: String, CodingKey {
+        case type, index, delta
+    }
+
     public init(index: Int, delta: ClaudeDelta) {
         self.index = index
         self.delta = delta
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        guard type == "content_block_delta" else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Expected content_block_delta event, got \(type)"
+            )
+        }
+        self.index = try container.decode(Int.self, forKey: .index)
+        self.delta = try container.decode(ClaudeDelta.self, forKey: .delta)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encode(index, forKey: .index)
+        try container.encode(delta, forKey: .delta)
     }
 }
 
@@ -286,9 +334,34 @@ public struct ClaudeMessageDeltaEvent: Codable, Sendable {
     public let delta: ClaudeMessageDeltaContent
     public let usage: ClaudeUsageDelta
 
+    enum CodingKeys: String, CodingKey {
+        case type, delta, usage
+    }
+
     public init(delta: ClaudeMessageDeltaContent, usage: ClaudeUsageDelta) {
         self.delta = delta
         self.usage = usage
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        guard type == "message_delta" else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Expected message_delta event, got \(type)"
+            )
+        }
+        self.delta = try container.decode(ClaudeMessageDeltaContent.self, forKey: .delta)
+        self.usage = try container.decode(ClaudeUsageDelta.self, forKey: .usage)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encode(delta, forKey: .delta)
+        try container.encode(usage, forKey: .usage)
     }
 }
 

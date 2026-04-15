@@ -26,6 +26,10 @@ public final class QuotaHTTPServer: @unchecked Sendable {
     let engine = ProviderEngine()
     var proxyService: ClaudeProxyService?
     var proxyConfig: ClaudeProxyConfiguration?
+    private let lifecycleQueue = DispatchQueue(label: "com.aiusage.quotaserver.lifecycle")
+    private var ipv4Listener: NWListener?
+    private var ipv6Listener: NWListener?
+    private var stopContinuation: CheckedContinuation<Void, Never>?
 
     var isPassthrough: Bool { proxyConfig?.mode == .anthropicPassthrough }
 
@@ -38,44 +42,147 @@ public final class QuotaHTTPServer: @unchecked Sendable {
         }
     }
 
-    public func run() async throws {
+    deinit {
+        stop()
+    }
+
+    public func start() async throws {
+        let isRunning = lifecycleQueue.sync { ipv4Listener != nil }
+        if isRunning {
+            return
+        }
+
         guard (1...65_535).contains(port),
               let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else {
             throw QuotaHTTPServerError.invalidPort(port)
         }
         let nwHost = NWEndpoint.Host(host)
 
-        // Create IPv4 listener with explicit local endpoint
-        let params4 = NWParameters.tcp
-        params4.requiredLocalEndpoint = NWEndpoint.hostPort(host: nwHost, port: nwPort)
-        let listener4 = try NWListener(using: params4)
-        listener4.newConnectionHandler = { [weak self] connection in
+        let listener4 = try await startIPv4Listener(host: nwHost, port: nwPort)
+        let (listener6, ipv6Active) = startIPv6Listener(port: nwPort)
+
+        lifecycleQueue.sync {
+            ipv4Listener = listener4
+            ipv6Listener = listener6
+        }
+
+        logStartup(ipv6Active: ipv6Active)
+    }
+
+    public func stop() {
+        let state = lifecycleQueue.sync { () -> (NWListener?, NWListener?, CheckedContinuation<Void, Never>?) in
+            let currentState = (ipv4Listener, ipv6Listener, stopContinuation)
+            ipv4Listener = nil
+            ipv6Listener = nil
+            stopContinuation = nil
+            return currentState
+        }
+
+        state.0?.cancel()
+        state.1?.cancel()
+        state.2?.resume()
+    }
+
+    public func run() async throws {
+        try await start()
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            let shouldResumeImmediately = lifecycleQueue.sync { () -> Bool in
+                if ipv4Listener == nil {
+                    return true
+                }
+                stopContinuation = cont
+                return false
+            }
+            if shouldResumeImmediately {
+                cont.resume()
+            }
+        }
+    }
+
+    private func startIPv4Listener(host: NWEndpoint.Host, port: NWEndpoint.Port) async throws -> NWListener {
+        final class ListenerStartState: @unchecked Sendable {
+            private let lock = NSLock()
+            private var hasResolved = false
+
+            func resolve(
+                continuation: CheckedContinuation<Void, Error>,
+                result: Result<Void, Error>
+            ) {
+                lock.lock()
+                defer { lock.unlock() }
+                guard !hasResolved else { return }
+                hasResolved = true
+                continuation.resume(with: result)
+            }
+        }
+
+        let params = NWParameters.tcp
+        params.requiredLocalEndpoint = NWEndpoint.hostPort(host: host, port: port)
+        let listener = try NWListener(using: params)
+        listener.newConnectionHandler = { [weak self] connection in
             guard let self else { return }
             Task { await self.handleConnection(connection) }
         }
-        listener4.start(queue: .global())
 
-        // Attempt IPv6 dual-stack (best-effort, may fail if IPv4 already covers it)
-        var ipv6Active = false
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let startState = ListenerStartState()
+            listener.stateUpdateHandler = { [weak self] state in
+                switch state {
+                case .ready:
+                    startState.resolve(continuation: continuation, result: .success(()))
+                case .failed(let error):
+                    startState.resolve(continuation: continuation, result: .failure(error))
+                    self?.handlePrimaryListenerExit(error: error)
+                case .cancelled:
+                    startState.resolve(continuation: continuation, result: .failure(CancellationError()))
+                    self?.handlePrimaryListenerExit(error: nil)
+                default:
+                    break
+                }
+            }
+            listener.start(queue: .global())
+        }
+
+        return listener
+    }
+
+    private func startIPv6Listener(port: NWEndpoint.Port) -> (NWListener?, Bool) {
         do {
-            let params6 = NWParameters.tcp
-            params6.requiredLocalEndpoint = NWEndpoint.hostPort(host: "::1", port: nwPort)
-            let listener6 = try NWListener(using: params6)
-            listener6.newConnectionHandler = { [weak self] connection in
+            let params = NWParameters.tcp
+            params.requiredLocalEndpoint = NWEndpoint.hostPort(host: "::1", port: port)
+            let listener = try NWListener(using: params)
+            listener.newConnectionHandler = { [weak self] connection in
                 guard let self else { return }
                 Task { await self.handleConnection(connection) }
             }
-            listener6.stateUpdateHandler = { state in
-                if case .failed(_) = state {
-                    // IPv6 bind failed — IPv4 on 0.0.0.0 typically already covers dual-stack
+            listener.stateUpdateHandler = { state in
+                if case .failed(let error) = state {
+                    httpLog.debug("IPv6 listener unavailable: \(error.localizedDescription, privacy: .public)")
                 }
             }
-            listener6.start(queue: .global())
-            ipv6Active = true
+            listener.start(queue: .global())
+            return (listener, true)
         } catch {
-            // Silently ignore — IPv4 on 0.0.0.0 handles most cases
+            return (nil, false)
+        }
+    }
+
+    private func handlePrimaryListenerExit(error: Error?) {
+        if let error {
+            httpLog.error("Listener failed: \(error.localizedDescription, privacy: .public)")
         }
 
+        let continuation = lifecycleQueue.sync { () -> CheckedContinuation<Void, Never>? in
+            ipv4Listener = nil
+            ipv6Listener = nil
+            let waiter = stopContinuation
+            stopContinuation = nil
+            return waiter
+        }
+        continuation?.resume()
+    }
+
+    private func logStartup(ipv6Active: Bool) {
         httpLog.info("QuotaServer listening on \(self.host):\(self.port)\(ipv6Active ? " (IPv4 + IPv6)" : " (IPv4)")")
         httpLog.info("Endpoints:")
         httpLog.info("  GET /api/dashboard")
@@ -89,16 +196,6 @@ public final class QuotaHTTPServer: @unchecked Sendable {
         }
         if self.isPassthrough {
             httpLog.info("  POST /v1/messages (Anthropic Passthrough)")
-        }
-
-        // Keep alive until IPv4 listener fails
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            listener4.stateUpdateHandler = { state in
-                if case .failed(let error) = state {
-                    httpLog.error("Listener failed: \(error.localizedDescription)")
-                    cont.resume()
-                }
-            }
         }
     }
 

@@ -8,6 +8,7 @@ struct ProxyManagementView: View {
     @State private var showingNewConfigEditor = false
     @State private var editingConfig: ProxyConfiguration?
     @State private var selectedConfigId: String?
+    @State private var pendingDeletionConfig: ProxyConfiguration?
     var body: some View {
         VStack(spacing: 0) {
             if viewModel.configurations.isEmpty {
@@ -64,6 +65,34 @@ struct ProxyManagementView: View {
             }
         } message: {
             Text(viewModel.operationErrorMessage ?? "")
+        }
+        .alert(
+            L("Delete Node?", "确认删除节点？"),
+            isPresented: Binding(
+                get: { pendingDeletionConfig != nil },
+                set: { newValue in
+                    if !newValue {
+                        pendingDeletionConfig = nil
+                    }
+                }
+            ),
+            presenting: pendingDeletionConfig
+        ) { config in
+            Button(L("Delete", "删除"), role: .destructive) {
+                let deletingConfig = config
+                pendingDeletionConfig = nil
+                Task { await deleteConfig(deletingConfig) }
+            }
+            Button(L("Cancel", "取消"), role: .cancel) {
+                pendingDeletionConfig = nil
+            }
+        } message: { config in
+            Text(
+                L(
+                    "This will permanently remove the node \"\(config.name)\" and its local proxy stats/logs.",
+                    "这会永久删除节点“\(config.name)”及其本地代理统计和日志。"
+                )
+            )
         }
     }
 
@@ -238,7 +267,7 @@ struct ProxyManagementView: View {
                     .disabled(isBusy)
                     .help(L("Edit", "编辑"))
 
-                    Button(action: { Task { await deleteConfig(config) } }) {
+                    Button(action: { pendingDeletionConfig = config }) {
                         Image(systemName: "trash.circle.fill")
                             .font(.system(size: 18))
                             .foregroundStyle(.red)
@@ -291,7 +320,7 @@ struct ProxyManagementView: View {
             }
             Divider()
             Button(role: .destructive) {
-                Task { await deleteConfig(config) }
+                pendingDeletionConfig = config
             } label: {
                 Label(L("Delete", "删除"), systemImage: "trash")
             }

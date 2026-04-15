@@ -1,6 +1,7 @@
 import Foundation
 import os.log
 import QuotaBackend
+import QuotaServerCore
 
 private let startupLog = Logger(subsystem: "com.aiusage.quotaserver", category: "Startup")
 
@@ -40,3 +41,25 @@ if let cfg = proxyConfig {
 
 let server = QuotaHTTPServer(host: host, port: port, proxyConfig: proxyConfig)
 try await server.run()
+
+private func parseArgs() -> [String: String] {
+    var result: [String: String] = [:]
+    let args = CommandLine.arguments.dropFirst()
+    var index = args.startIndex
+
+    while index < args.endIndex {
+        let arg = args[index]
+        if arg.hasPrefix("--") {
+            let key = String(arg.dropFirst(2))
+            let nextIndex = args.index(after: index)
+            if nextIndex < args.endIndex && !args[nextIndex].hasPrefix("--") {
+                result[key] = args[nextIndex]
+                index = args.index(after: nextIndex)
+                continue
+            }
+        }
+        index = args.index(after: index)
+    }
+
+    return result
+}

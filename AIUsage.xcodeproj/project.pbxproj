@@ -334,6 +334,7 @@
 			buildPhases = (
 				5EFAD72B2F87AC3300A15674 /* Sources */,
 				5EFAD72C2F87AC3300A15674 /* Frameworks */,
+				B1REFC002F97002000A15674 /* Build QuotaServer Helper */,
 				5EFAD72D2F87AC3300A15674 /* Resources */,
 			);
 			buildRules = (
@@ -388,6 +389,28 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B1REFC002F97002000A15674 /* Build QuotaServer Helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build QuotaServer Helper";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Helpers/QuotaServer",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nBUILD_CONFIG=debug\nif [ \"${CONFIGURATION}\" = \"Release\" ]; then\n  BUILD_CONFIG=release\nfi\nSWIFT_BIN=\"$(xcrun --find swift)\"\n\"$SWIFT_BIN\" build --package-path \"$SRCROOT/QuotaBackend\" --product QuotaServer -c \"$BUILD_CONFIG\"\nHELPER_DIR=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Helpers\"\nmkdir -p \"$HELPER_DIR\"\ncp \"$SRCROOT/QuotaBackend/.build/$BUILD_CONFIG/QuotaServer\" \"$HELPER_DIR/QuotaServer\"\nchmod +x \"$HELPER_DIR/QuotaServer\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
 			5EFAD72D2F87AC3300A15674 /* Resources */ = {
@@ -621,6 +644,7 @@
 				CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AIUsage/Info.plist;
@@ -629,7 +653,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.3.3;
+				MARKETING_VERSION = 0.3.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -652,6 +676,7 @@
 				CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AIUsage/Info.plist;
@@ -660,7 +685,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.3.3;
+				MARKETING_VERSION = 0.3.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

@@ -184,11 +184,10 @@ struct MenuBarView: View {
     }
 
     private func openMainWindow(section: AppSection) {
-        AppState.shared.selectedSection = section
-        NSApp.activate(ignoringOtherApps: true)
-        let window = NSApp.windows.max(by: { $0.frame.width < $1.frame.width }) ?? NSApp.windows.first
-        if let window {
-            window.makeKeyAndOrderFront(nil)
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.revealMainWindow(section: section)
+        } else {
+            appState.presentMainWindow(section: section)
         }
     }
 

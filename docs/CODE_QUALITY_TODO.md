@@ -307,7 +307,7 @@ cd QuotaBackend && swift test
 - 验证：`xcodebuild -project AIUsage.xcodeproj -scheme AIUsage -configuration Debug build` 通过；`cd QuotaBackend && swift test` 通过（23 tests, 0 failures）。
 - 备注：当前工具层仍存在“前端显示格式化”和“后端摘要文案格式化”并存的历史结构，但热路径上的 formatter 开销已经先收口。
 
-### [ ] Step 9: 为关键状态链路补最低限度测试
+### [x] Step 9: 为关键状态链路补最低限度测试
 
 目标：
 - 把当前最容易回归的逻辑从“人工记忆”转为“自动校验”。
@@ -331,6 +331,12 @@ cd QuotaBackend && swift test
 - 改动：已先在 `QuotaBackend/Tests/QuotaBackendTests/UsageNormalizerTests.swift` 补充 `overview/alerts` 关键回归测试，覆盖聚合统计、alert 唯一稳定 ID、以及 alert 截断到 6 条的行为。
 - 验证：`cd QuotaBackend && swift test` 通过（23 tests, 0 failures）；`xcodebuild -project AIUsage.xcodeproj -scheme AIUsage -configuration Debug build` 通过。
 - 备注：Step 9 仍保持未完成，因为“刷新失败不更新时间戳 / 代理激活失败不落盘 active / 外部登出清理 active”等 App 侧状态链路还缺少专用测试 target；后续若继续推进，应优先为 AIUsage 增加最小单元测试入口。
+
+完成记录：
+- 日期：2026-04-15
+- 改动：新增 `QuotaBackend/Tests/QuotaBackendTests/QuotaHTTPServerProxyIntegrationTests.swift` 和 `ProxyIntegrationTestSupport.swift`，为 Claude Code 代理补齐真实网络回归测试，覆盖监听健康检查、鉴权失败、`/v1/messages/count_tokens`、OpenAI 转换代理的非流式往返、OpenAI 转换代理的流式 SSE 往返、以及 Anthropic passthrough 转发；同时把 `QuotaHTTPServer` 抽到可测试的 `QuotaServerCore` 模块，并增加 `start()/stop()` 生命周期；新增 `scripts/run_claude_proxy_regression.sh` 作为一键回归入口。
+- 验证：`cd QuotaBackend && swift test` 通过（29 tests, 0 failures，其中新增 6 条代理集成测试）；`xcodebuild -project AIUsage.xcodeproj -scheme AIUsage -configuration Debug build CODE_SIGNING_ALLOWED=NO` 通过。
+- 备注：这一步已经把 Claude Code 代理的关键监听/发送/接收链路纳入自动化回归；若后续还想继续提高覆盖率，下一优先级是补 App 侧 `ProxyRuntimeService` 与 `ProxyViewModel` 的状态事务测试。
 
 ---
 

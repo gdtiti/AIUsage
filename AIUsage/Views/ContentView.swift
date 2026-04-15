@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
+    @Environment(\.openWindow) private var openWindow
     private var sectionBinding: Binding<AppSection> {
         Binding(
             get: { appState.selectedSection },
@@ -80,6 +81,16 @@ struct ContentView: View {
         }
         .task {
             await appState.performStartupFlowIfNeeded()
+        }
+        .onAppear {
+            appState.registerMainWindowPresenter { section in
+                appState.selectedSection = section
+                NSApp.activate(ignoringOtherApps: true)
+                openWindow(id: AppState.mainWindowID)
+                let candidateWindows = NSApp.windows.filter { !($0 is NSPanel) }
+                let window = candidateWindows.max(by: { $0.frame.width < $1.frame.width }) ?? candidateWindows.first
+                window?.makeKeyAndOrderFront(nil)
+            }
         }
         .sheet(item: $appState.providerPickerMode) { mode in
             ProviderPickerView(mode: mode)

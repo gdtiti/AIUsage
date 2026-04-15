@@ -23,7 +23,10 @@ enum ProxyRuntimeError: LocalizedError {
         case .configurationNotFound:
             return AppSettings.shared.t("The selected node could not be found.", "找不到所选节点。")
         case .quotaServerNotFound:
-            return AppSettings.shared.t("QuotaServer executable not found.", "找不到 QuotaServer 可执行文件。")
+            return AppSettings.shared.t(
+                "QuotaServer helper not found. Rebuild or reinstall AIUsage, then try again.",
+                "找不到 QuotaServer 辅助程序。请重新构建或重新安装 AIUsage 后再试。"
+            )
         case .proxyStartFailed(let reason):
             return AppSettings.shared.t("Failed to start proxy: \(reason)", "启动代理失败：\(reason)")
         case .activationStatePersistFailed:
@@ -266,7 +269,7 @@ class ProxyViewModel: ObservableObject {
             throw error
         }
 
-        print("✓ Node activated: \(config.name)")
+        proxyRuntimeLog.info("Node activated: \(config.name, privacy: .public)")
     }
 
     func performDeactivationTransaction(_ id: String) async throws {
@@ -288,7 +291,7 @@ class ProxyViewModel: ObservableObject {
             throw error
         }
 
-        print("✓ Node deactivated: \(config.name)")
+        proxyRuntimeLog.info("Node deactivated: \(config.name, privacy: .public)")
     }
 
     func persistActivationSelection(_ activeId: String?, touchLastUsedAt: Bool) throws {

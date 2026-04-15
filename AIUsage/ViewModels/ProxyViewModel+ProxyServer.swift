@@ -48,7 +48,9 @@ extension ProxyViewModel {
             return
         }
 
-        print("⟳ Restoring node: \(config.name) (type=\(config.nodeType.rawValue))")
+        proxyRuntimeLog.info(
+            "Restoring node \(config.name, privacy: .public) type=\(config.nodeType.rawValue, privacy: .public)"
+        )
 
         do {
             try await activateRuntime(for: config)
@@ -72,9 +74,9 @@ extension ProxyViewModel {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self = self else { return }
             if let description = self.runtimeService.processDebugDescription(for: id) {
-                print("  \(description)")
+                proxyRuntimeLog.info("Restored node process state: \(description, privacy: .public)")
             } else {
-                print("  ⚠ No process found for restored node \(config.name)")
+                proxyRuntimeLog.notice("No proxy process found for restored node \(config.name, privacy: .public)")
             }
         }
     }

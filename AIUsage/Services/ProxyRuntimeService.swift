@@ -6,6 +6,10 @@ private actor ProxyProcessInspector {
     static let shared = ProxyProcessInspector()
 
     func killStaleProcesses(port: Int, currentProcessIdentifier: Int32) throws {
+        let processLog = Logger(
+            subsystem: "com.aiusage.desktop",
+            category: "ProxyRuntime"
+        )
         let lsof = Process()
         lsof.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         lsof.arguments = ["-ti", "tcp:\(port)"]
@@ -18,10 +22,54 @@ private actor ProxyProcessInspector {
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         for pidStr in output.components(separatedBy: .whitespacesAndNewlines) where !pidStr.isEmpty {
             guard let pid = Int32(pidStr), pid != currentProcessIdentifier else { continue }
-            print("  Killing stale process on port \(port): pid=\(pid)")
+            processLog.info("Killing stale proxy process on port \(port, privacy: .public): pid=\(pid, privacy: .public)")
             kill(pid, SIGTERM)
             usleep(200_000)
         }
+    }
+}
+
+private actor QuotaServerBuilder {
+    static let shared = QuotaServerBuilder()
+
+    func buildQuotaServer(packageRoot: String, configuration: String) async throws -> String? {
+        let buildLog = Logger(
+            subsystem: "com.aiusage.desktop",
+            category: "QuotaServerBuild"
+        )
+        let executablePath = (packageRoot as NSString).appendingPathComponent(".build/\(configuration)/QuotaServer")
+        if FileManager.default.fileExists(atPath: executablePath) {
+            return executablePath
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = [
+            "swift",
+            "build",
+            "--package-path", packageRoot,
+            "--product", "QuotaServer",
+            "-c", configuration
+        ]
+
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = outputPipe
+
+        try process.run()
+        process.waitUntilExit()
+
+        let output = String(
+            data: outputPipe.fileHandleForReading.readDataToEndOfFile(),
+            encoding: .utf8
+        ) ?? ""
+
+        guard process.terminationStatus == 0 else {
+            buildLog.error("QuotaServer build failed with exit code \(process.terminationStatus, privacy: .public): \(output, privacy: .public)")
+            return nil
+        }
+
+        return FileManager.default.fileExists(atPath: executablePath) ? executablePath : nil
     }
 }
 
@@ -41,6 +89,7 @@ final class ProxyRuntimeService {
 
     private let settingsManager: ClaudeSettingsManager
     private var runningProcesses: [String: Process] = [:]
+    private let fileManager = FileManager.default
 
     init(settingsManager: ClaudeSettingsManager? = nil) {
         self.settingsManager = settingsManager ?? ClaudeSettingsManager.shared
@@ -116,9 +165,13 @@ final class ProxyRuntimeService {
     }
 
     private func startProxy(_ config: ProxyConfiguration) async throws {
+        let runtimeLog = Logger(
+            subsystem: "com.aiusage.desktop",
+            category: "ProxyRuntime"
+        )
         guard config.needsProxyProcess else { return }
         if runningProcesses[config.id]?.isRunning == true {
-            print("  Proxy already running for \(config.name)")
+            runtimeLog.info("Proxy already running for node \(config.name, privacy: .public)")
             return
         }
 
@@ -156,8 +209,8 @@ final class ProxyRuntimeService {
             }
         }
 
-        guard let executablePath = findQuotaServerExecutable() else {
-            print("✗ QuotaServer executable not found")
+        guard let executablePath = await findQuotaServerExecutable() else {
+            runtimeLog.error("QuotaServer executable not found while starting node \(config.name, privacy: .public)")
             throw ProxyRuntimeError.quotaServerNotFound
         }
 
@@ -179,7 +232,7 @@ final class ProxyRuntimeService {
             let data = handle.availableData
             guard let output = String(data: data, encoding: .utf8), !output.isEmpty else { return }
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            print("[Proxy \(configName)] \(trimmed)")
+            runtimeLog.debug("Proxy runtime output for \(configName, privacy: .public): \(trimmed, privacy: .private)")
 
             for line in trimmed.components(separatedBy: .newlines) {
                 guard line.hasPrefix("PROXY_LOG:"),
@@ -202,16 +255,20 @@ final class ProxyRuntimeService {
                 throw ProxyRuntimeError.proxyStartFailed("process exited with code \(process.terminationStatus)")
             }
             runningProcesses[config.id] = process
-            print("✓ Proxy started: \(config.name) on \(config.displayURL) (pid=\(process.processIdentifier))")
+            runtimeLog.info(
+                "Proxy started for node \(config.name, privacy: .public) on \(config.displayURL, privacy: .public) pid=\(process.processIdentifier, privacy: .public)"
+            )
 
             process.terminationHandler = { [weak self] proc in
-                print("⚠ Proxy process exited: \(config.name) code=\(proc.terminationStatus)")
+                runtimeLog.notice(
+                    "Proxy process exited for node \(config.name, privacy: .public) code=\(proc.terminationStatus, privacy: .public)"
+                )
                 Task { @MainActor [weak self] in
                     self?.runningProcesses.removeValue(forKey: config.id)
                 }
             }
         } catch {
-            print("✗ Failed to start proxy: \(error.localizedDescription)")
+            runtimeLog.error("Failed to start proxy for node \(config.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             throw error is ProxyRuntimeError
                 ? error
                 : ProxyRuntimeError.proxyStartFailed(error.localizedDescription)
@@ -222,7 +279,7 @@ final class ProxyRuntimeService {
         guard let process = runningProcesses[config.id] else { return }
         process.terminate()
         runningProcesses.removeValue(forKey: config.id)
-        print("✓ Proxy stopped: \(config.name)")
+        proxyRuntimeLog.info("Proxy stopped for node \(config.name, privacy: .public)")
     }
 
     private var pricingOverridePath: String {
@@ -271,48 +328,97 @@ final class ProxyRuntimeService {
         }
     }
 
-    private func findQuotaServerExecutable() -> String? {
-        let fileManager = FileManager.default
+    private func findQuotaServerExecutable() async -> String? {
+        if let bundledExecutable = bundledQuotaServerExecutable() {
+            proxyRuntimeLog.info("Found bundled QuotaServer at \(bundledExecutable, privacy: .public)")
+            return bundledExecutable
+        }
 
         let sourceProjectRoot = (Self.sourceFileDir as NSString).deletingLastPathComponent
         let projectRootFromSource = (sourceProjectRoot as NSString).deletingLastPathComponent
+
+        if let sourceTreeExecutable = sourceTreeQuotaServerExecutable(from: projectRootFromSource) {
+            proxyRuntimeLog.info("Found QuotaServer in source tree at \(sourceTreeExecutable, privacy: .public)")
+            return sourceTreeExecutable
+        }
+
+        let packageRoot = (projectRootFromSource as NSString).appendingPathComponent("QuotaBackend")
+        if fileManager.fileExists(atPath: packageRoot),
+           let builtExecutable = await buildQuotaServerIfNeeded(packageRoot: packageRoot) {
+            proxyRuntimeLog.info("Built QuotaServer on demand at \(builtExecutable, privacy: .public)")
+            return builtExecutable
+        }
+
         let bundlePath = Bundle.main.bundlePath
+        proxyRuntimeLog.error(
+            """
+            QuotaServer executable not found in bundle or expected build outputs.
+            sourceFileDir=\(Self.sourceFileDir, privacy: .public)
+            bundlePath=\(bundlePath, privacy: .public)
+            """
+        )
+        return nil
+    }
 
-        let candidateRoots = [
-            projectRootFromSource,
-            bundlePath,
-        ]
+    private func bundledQuotaServerExecutable() -> String? {
+        guard let resourceURL = Bundle.main.resourceURL else { return nil }
+        let bundledPath = resourceURL
+            .appendingPathComponent("Helpers", isDirectory: true)
+            .appendingPathComponent("QuotaServer")
+            .path
+        return fileManager.fileExists(atPath: bundledPath) ? bundledPath : nil
+    }
 
+    private func sourceTreeQuotaServerExecutable(from projectRoot: String) -> String? {
         let relativePaths = [
             "QuotaBackend/.build/debug/QuotaServer",
             "QuotaBackend/.build/release/QuotaServer",
+        ]
+
+        let candidateRoots = [
+            projectRoot,
+            Bundle.main.bundlePath,
         ]
 
         for root in candidateRoots {
             for relPath in relativePaths {
                 let fullPath = (root as NSString).appendingPathComponent(relPath)
                 if fileManager.fileExists(atPath: fullPath) {
-                    print("Found QuotaServer at: \(fullPath)")
                     return fullPath
                 }
             }
         }
 
-        var searchDir = projectRootFromSource
+        var searchDir = projectRoot
         for _ in 0..<5 {
             for relPath in relativePaths {
                 let fullPath = (searchDir as NSString).appendingPathComponent(relPath)
                 if fileManager.fileExists(atPath: fullPath) {
-                    print("Found QuotaServer at: \(fullPath)")
                     return fullPath
                 }
             }
             searchDir = (searchDir as NSString).deletingLastPathComponent
         }
 
-        print("✗ QuotaServer executable not found in expected build outputs")
-        print("  #filePath resolved to: \(Self.sourceFileDir)")
-        print("  Bundle.main.bundlePath: \(bundlePath)")
         return nil
+    }
+
+    private func buildQuotaServerIfNeeded(packageRoot: String) async -> String? {
+        let buildConfiguration: String
+#if DEBUG
+        buildConfiguration = "debug"
+#else
+        buildConfiguration = "release"
+#endif
+
+        do {
+            return try await QuotaServerBuilder.shared.buildQuotaServer(
+                packageRoot: packageRoot,
+                configuration: buildConfiguration
+            )
+        } catch {
+            proxyRuntimeLog.error("Failed to build QuotaServer on demand: \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
 }

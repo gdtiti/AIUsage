@@ -35,7 +35,7 @@ struct AIUsageApp: App {
     @StateObject private var sparkle = SparkleController()
     
     var body: some Scene {
-        WindowGroup {
+        Window("AIUsage", id: AppState.mainWindowID) {
             ContentView()
                 .environmentObject(appState)
                 .environmentObject(ProviderActivationManager.shared)
@@ -58,7 +58,7 @@ struct AIUsageApp: App {
                 .disabled(!sparkle.canCheckForUpdates)
                 Divider()
                 Button("Preferences...") {
-                    appState.showSettings = true
+                    appState.presentMainWindow(section: .settings)
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
@@ -175,21 +175,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openDashboard() {
-        openMainWindow(section: .dashboard)
+        revealMainWindow(section: .dashboard)
     }
 
     @objc func openCostTracking() {
-        openMainWindow(section: .costTracking)
+        revealMainWindow(section: .costTracking)
     }
 
-    func openMainWindow(section: AppSection) {
+    func revealMainWindow(section: AppSection) {
         popover?.performClose(nil)
-        AppState.shared.selectedSection = section
-        NSApp.activate(ignoringOtherApps: true)
-        let window = NSApp.windows.max(by: { $0.frame.width < $1.frame.width }) ?? NSApp.windows.first
-        if let window {
-            window.makeKeyAndOrderFront(nil)
-        }
+        AppState.shared.presentMainWindow(section: section)
     }
 
     @objc func refreshAll() {
@@ -201,8 +196,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openSettings() {
-        popover?.performClose(nil)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        revealMainWindow(section: .settings)
     }
 
     @objc func quit() {

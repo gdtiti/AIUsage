@@ -5,6 +5,7 @@ import QuotaBackend
 // 全局应用状态
 class AppState: ObservableObject {
     static let shared = AppState()
+    static let mainWindowID = "main-window"
     let settings = AppSettings.shared
     let refreshCoordinator = ProviderRefreshCoordinator.shared
 
@@ -77,6 +78,7 @@ class AppState: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var didRunStartupFlow = false
+    private var mainWindowPresenter: ((AppSection) -> Void)?
 
     private init() {
         settings.onRemoteSettingsChanged = { url in
@@ -128,6 +130,24 @@ class AppState: ObservableObject {
                 self?.objectWillChange.send()
             }
             .store(in: &cancellables)
+    }
+
+    func registerMainWindowPresenter(_ presenter: @escaping (AppSection) -> Void) {
+        mainWindowPresenter = presenter
+    }
+
+    func presentMainWindow(section: AppSection) {
+        selectedSection = section
+
+        if let mainWindowPresenter {
+            mainWindowPresenter(section)
+            return
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        let candidateWindows = NSApp.windows.filter { !($0 is NSPanel) }
+        let window = candidateWindows.max(by: { $0.frame.width < $1.frame.width }) ?? candidateWindows.first
+        window?.makeKeyAndOrderFront(nil)
     }
 
     @MainActor

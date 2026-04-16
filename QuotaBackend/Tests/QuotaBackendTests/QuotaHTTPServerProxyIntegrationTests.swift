@@ -835,7 +835,7 @@ final class QuotaHTTPServerProxyIntegrationTests: XCTestCase {
         XCTAssertEqual(input[1]["phase"] as? String, "commentary")
         let assistantContent = try XCTUnwrap(input[1]["content"] as? [[String: Any]])
         XCTAssertEqual(assistantContent.count, 1)
-        XCTAssertEqual(assistantContent[0]["type"] as? String, "input_text")
+        XCTAssertEqual(assistantContent[0]["type"] as? String, "output_text")
         XCTAssertEqual(assistantContent[0]["text"] as? String, "I'll inspect the tree first.")
 
         XCTAssertEqual(input[2]["type"] as? String, "function_call")

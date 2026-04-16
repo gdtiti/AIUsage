@@ -634,7 +634,7 @@ final class CanonicalMiddleLayerTests: XCTestCase {
             upstreamAPIKey: "upstream-key"
         ))
 
-        try await client.streamCompletion(request: directChatRequest) { _ in }
+        try await client.streamResponses(request: built.payload) { _ in }
 
         let requests = await upstream.recordedRequests()
         XCTAssertEqual(requests.count, 1)

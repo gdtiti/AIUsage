@@ -91,6 +91,31 @@ extension ProviderAuthManager {
             }
         }
 
+        let tokens = json["tokens"] as? [String: Any]
+
+        // Also check preferred keys inside nested "tokens" dict (e.g. Codex auth.json
+        // stores account_id under tokens, not at root level).
+        if let tokens {
+            for key in preferredKeys {
+                if let value = stringValue(tokens[key]) {
+                    return normalizedHandle(value)
+                }
+            }
+        }
+
+        // Try JWT chatgpt_account_id from id_token (workspace-scoped for OpenAI).
+        // Combine with email/userId so that different users in the same team
+        // workspace produce distinct fingerprints.
+        let idTokenForJWT = stringValue(json["id_token"]) ?? stringValue(tokens?["id_token"])
+        if let accountId = jwtAuthClaim("chatgpt_account_id", from: idTokenForJWT) {
+            let userIdentity = jwtEmail(from: idTokenForJWT)
+                ?? jwtAuthClaim("chatgpt_user_id", from: idTokenForJWT)
+            if let userIdentity {
+                return normalizedHandle("\(accountId):\(userIdentity)")
+            }
+            return normalizedHandle(accountId)
+        }
+
         if let email = jwtEmail(from: stringValue(json["id_token"])) {
             return normalizedHandle(email)
         }
@@ -99,7 +124,7 @@ extension ProviderAuthManager {
             return normalizedHandle(subject)
         }
 
-        if let tokens = json["tokens"] as? [String: Any] {
+        if let tokens {
             if let email = jwtEmail(from: stringValue(tokens["id_token"])) {
                 return normalizedHandle(email)
             }
@@ -121,6 +146,29 @@ extension ProviderAuthManager {
             }
         }
 
+        return nil
+    }
+
+    /// Extract a claim from the JWT's `https://api.openai.com/auth` namespace.
+    static func jwtAuthClaim(_ claim: String, from token: String?) -> String? {
+        guard let token, token.contains(".") else { return nil }
+        let segments = token.split(separator: ".")
+        guard segments.count >= 2 else { return nil }
+        var payload = String(segments[1])
+        let remainder = payload.count % 4
+        if remainder > 0 {
+            payload += String(repeating: "=", count: 4 - remainder)
+        }
+        payload = payload
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        if let auth = json["https://api.openai.com/auth"] as? [String: Any] {
+            return stringValue(auth[claim])
+        }
         return nil
     }
 

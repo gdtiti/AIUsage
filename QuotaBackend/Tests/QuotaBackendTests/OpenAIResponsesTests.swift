@@ -867,262 +867,47 @@ final class OpenAIResponsesTests: XCTestCase {
         XCTAssertEqual(applyPatchChoice["type"] as? String, "apply_patch")
     }
 
-    func testResponsesClientShapesAssistantPhaseAndStructuredToolOutput() async throws {
-        let upstreamPort = try findFreePort()
-        let upstream = MockHTTPServer(port: upstreamPort) { _ in
-            try MockHTTPResponse.json(
-                object: [
-                    "id": "resp_client_shape",
-                    "object": "response",
-                    "created_at": 1_710_000_100,
-                    "model": "gpt-4o-mini",
-                    "status": "completed",
-                    "output": [
-                        [
-                            "id": "msg_out_1",
-                            "type": "message",
-                            "role": "assistant",
-                            "status": "completed",
-                            "phase": "final_answer",
-                            "content": [
-                                [
-                                    "type": "output_text",
-                                    "text": "ok"
-                                ]
-                            ]
-                        ]
-                    ],
-                    "usage": [
-                        "input_tokens": 10,
-                        "output_tokens": 2,
-                        "total_tokens": 12
-                    ]
-                ]
-            )
-        }
-        try await upstream.start()
-        defer { upstream.stop() }
-
+    /// Verify that sendChatCompletion rejects .responses upstream config
+    func testResponsesClientRejectsChatCompletionWithResponsesUpstream() async throws {
         let client = OpenAICompatibleClient(configuration: ClaudeProxyConfiguration(
             enabled: true,
-            upstreamBaseURL: "http://127.0.0.1:\(upstreamPort)",
+            upstreamBaseURL: "http://127.0.0.1:9999",
             openAIUpstreamAPI: .responses,
             upstreamAPIKey: "upstream-key"
         ))
 
-        _ = try await client.sendChatCompletion(request: OpenAIChatCompletionRequest(
-            model: "gpt-4o-mini",
-            messages: [
-                OpenAIChatMessage(role: "user", content: .text("Use the tool")),
-                OpenAIChatMessage(role: "assistant", content: .text("Earlier final answer")),
-                OpenAIChatMessage(
-                    role: "assistant",
-                    content: .text("Let me inspect that"),
-                    toolCalls: [
-                        OpenAIToolCall(
-                            id: "call_123",
-                            function: OpenAIFunctionCall(
-                                name: "get_weather",
-                                arguments: #"{"location":"Shanghai"}"#
-                            )
-                        )
-                    ]
-                ),
-                OpenAIChatMessage(
-                    role: "tool",
-                    content: .parts([
-                        .text(OpenAITextPart(text: "Chart generated")),
-                        .imageUrl(OpenAIImageUrlPart(imageUrl: OpenAIImageUrl(
-                            url: "data:image/png;base64,AAAA",
-                            detail: "high"
-                        )))
-                    ]),
-                    toolCallId: "call_123"
-                )
-            ]
-        ))
-
-        let requests = await upstream.recordedRequests()
-        XCTAssertEqual(requests.count, 1)
-
-        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(requests.first).body) as? [String: Any])
-        let input = try XCTUnwrap(body["input"] as? [[String: Any]])
-        XCTAssertEqual(input.count, 5)
-
-        XCTAssertEqual(input[1]["role"] as? String, "assistant")
-        XCTAssertEqual(input[1]["phase"] as? String, "final_answer")
-
-        XCTAssertEqual(input[2]["role"] as? String, "assistant")
-        XCTAssertEqual(input[2]["phase"] as? String, "commentary")
-
-        XCTAssertEqual(input[3]["type"] as? String, "function_call")
-        XCTAssertEqual(input[3]["call_id"] as? String, "call_123")
-
-        XCTAssertEqual(input[4]["type"] as? String, "function_call_output")
-        let output = try XCTUnwrap(input[4]["output"] as? [[String: Any]])
-        XCTAssertEqual(output.count, 2)
-        XCTAssertEqual(output[0]["type"] as? String, "input_text")
-        XCTAssertEqual(output[1]["type"] as? String, "input_image")
-        XCTAssertEqual(output[1]["detail"] as? String, "high")
+        do {
+            _ = try await client.sendChatCompletion(request: OpenAIChatCompletionRequest(
+                model: "gpt-4o-mini",
+                messages: [OpenAIChatMessage(role: "user", content: .text("hello"))]
+            ))
+            XCTFail("Expected invalidResponse error")
+        } catch {
+            XCTAssertTrue("\(error)".contains("sendChatCompletion requires .chatCompletions"))
+        }
     }
 
-    func testResponsesClientMapsInputFilePartsToInputFileContent() async throws {
-        let upstreamPort = try findFreePort()
-        let upstream = MockHTTPServer(port: upstreamPort) { request in
-            let json = try JSONSerialization.jsonObject(with: request.body) as? [String: Any]
-            let input = try XCTUnwrap(json?["input"] as? [[String: Any]])
-            let content = try XCTUnwrap(input.first?["content"] as? [[String: Any]])
-            XCTAssertEqual(content.count, 2)
-            XCTAssertEqual(content[0]["type"] as? String, "input_text")
-            XCTAssertEqual(content[1]["type"] as? String, "input_file")
-            XCTAssertEqual(content[1]["file_id"] as? String, "file_123")
-            XCTAssertEqual(content[1]["filename"] as? String, "report.pdf")
-
-            return try MockHTTPResponse.json(
-                object: [
-                    "id": "resp_input_file",
-                    "object": "response",
-                    "created_at": 1_710_000_100,
-                    "model": "gpt-4o-mini",
-                    "status": "completed",
-                    "output": [
-                        [
-                            "id": "msg_1",
-                            "type": "message",
-                            "role": "assistant",
-                            "status": "completed",
-                            "content": [
-                                [
-                                    "type": "output_text",
-                                    "text": "done"
-                                ]
-                            ]
-                        ]
-                    ],
-                    "usage": [
-                        "input_tokens": 12,
-                        "output_tokens": 3,
-                        "total_tokens": 15
-                    ]
-                ]
-            )
-        }
-        try await upstream.start()
-        defer { upstream.stop() }
-
+    /// Verify that streamCompletion rejects .responses upstream config
+    func testResponsesClientRejectsStreamCompletionWithResponsesUpstream() async throws {
         let client = OpenAICompatibleClient(configuration: ClaudeProxyConfiguration(
             enabled: true,
-            upstreamBaseURL: "http://127.0.0.1:\(upstreamPort)",
+            upstreamBaseURL: "http://127.0.0.1:9999",
             openAIUpstreamAPI: .responses,
             upstreamAPIKey: "upstream-key"
         ))
 
-        _ = try await client.sendChatCompletion(request: OpenAIChatCompletionRequest(
-            model: "gpt-4o-mini",
-            messages: [
-                OpenAIChatMessage(
-                    role: "user",
-                    content: .parts([
-                        .text(OpenAITextPart(text: "Summarize this file")),
-                        .inputFile(OpenAIFilePart(fileId: "file_123", filename: "report.pdf"))
-                    ])
+        do {
+            try await client.streamCompletion(
+                request: OpenAIChatCompletionRequest(
+                    model: "gpt-4o-mini",
+                    messages: [OpenAIChatMessage(role: "user", content: .text("hello"))],
+                    stream: true
                 )
-            ]
-        ))
-    }
-
-    func testResponsesIncompleteHostedToolMapsToPauseTurnFinishReason() async throws {
-        let upstreamPort = try findFreePort()
-        let upstream = MockHTTPServer(port: upstreamPort) { _ in
-            try MockHTTPResponse.json(
-                object: [
-                    "id": "resp_pause_turn",
-                    "object": "response",
-                    "created_at": 1_710_000_120,
-                    "model": "gpt-4o-mini",
-                    "status": "incomplete",
-                    "output": [
-                        [
-                            "id": "ws_1",
-                            "type": "web_search_call",
-                            "status": "in_progress",
-                            "action": [
-                                "type": "search",
-                                "query": "latest weather shanghai"
-                            ]
-                        ]
-                    ]
-                ]
-            )
+            ) { _ in }
+            XCTFail("Expected invalidResponse error")
+        } catch {
+            XCTAssertTrue("\(error)".contains("streamCompletion requires .chatCompletions"))
         }
-        try await upstream.start()
-        defer { upstream.stop() }
-
-        let client = OpenAICompatibleClient(configuration: ClaudeProxyConfiguration(
-            enabled: true,
-            upstreamBaseURL: "http://127.0.0.1:\(upstreamPort)",
-            openAIUpstreamAPI: .responses,
-            upstreamAPIKey: "upstream-key"
-        ))
-
-        let response = try await client.sendChatCompletion(request: OpenAIChatCompletionRequest(
-            model: "gpt-4o-mini",
-            messages: [
-                OpenAIChatMessage(
-                    role: "user",
-                    content: .text("Search for the latest weather in Shanghai")
-                )
-            ]
-        ))
-
-        XCTAssertEqual(response.choices.first?.finishReason, "pause_turn")
-    }
-
-    func testResponsesIncompleteFunctionCallMapsToLengthInsteadOfToolCalls() async throws {
-        let upstreamPort = try findFreePort()
-        let upstream = MockHTTPServer(port: upstreamPort) { _ in
-            try MockHTTPResponse.json(
-                object: [
-                    "id": "resp_incomplete_tool",
-                    "object": "response",
-                    "created_at": 1_710_000_140,
-                    "model": "gpt-4o-mini",
-                    "status": "incomplete",
-                    "output": [
-                        [
-                            "type": "function_call",
-                            "call_id": "call_partial",
-                            "name": "make_file",
-                            "arguments": "{\"filename\":\"poem.txt\"",
-                            "status": "in_progress",
-                        ],
-                    ],
-                ]
-            )
-        }
-        try await upstream.start()
-        defer { upstream.stop() }
-
-        let client = OpenAICompatibleClient(configuration: ClaudeProxyConfiguration(
-            enabled: true,
-            upstreamBaseURL: "http://127.0.0.1:\(upstreamPort)",
-            openAIUpstreamAPI: .responses,
-            upstreamAPIKey: "upstream-key"
-        ))
-
-        let response = try await client.sendChatCompletion(request: OpenAIChatCompletionRequest(
-            model: "gpt-4o-mini",
-            messages: [
-                OpenAIChatMessage(
-                    role: "user",
-                    content: .text("Write a long poem and save it")
-                )
-            ]
-        ))
-
-        XCTAssertEqual(response.choices.first?.finishReason, "length")
-        XCTAssertEqual(response.choices.first?.message.toolCalls?.first?.id, "call_partial")
-        XCTAssertEqual(response.choices.first?.message.toolCalls?.first?.function.name, "make_file")
     }
 
     func testResponsesStreamingUsesOutputItemDoneForToolCalls() async throws {
@@ -1153,11 +938,10 @@ final class OpenAIResponsesTests: XCTestCase {
         var reasoningDeltas: [String] = []
         var finishReason: String?
 
-        try await client.streamCompletion(
-            request: OpenAIChatCompletionRequest(
+        try await client.streamResponses(
+            request: OpenAIResponsesRequest(
                 model: "gpt-4o-mini",
-                messages: [OpenAIChatMessage(role: "user", content: .text("What's the weather?"))],
-                stream: true
+                input: [.message(OpenAIResponsesInputMessage(role: "user", content: [.inputText(OpenAIResponsesInputText(text: "What's the weather?"))]))]
             )
         ) { event in
             switch event {
@@ -1213,11 +997,10 @@ final class OpenAIResponsesTests: XCTestCase {
         var argumentDeltas: [(Int, String)] = []
         var finishReason: String?
 
-        try await client.streamCompletion(
-            request: OpenAIChatCompletionRequest(
+        try await client.streamResponses(
+            request: OpenAIResponsesRequest(
                 model: "gpt-4o-mini",
-                messages: [OpenAIChatMessage(role: "user", content: .text("What's the weather?"))],
-                stream: true
+                input: [.message(OpenAIResponsesInputMessage(role: "user", content: [.inputText(OpenAIResponsesInputText(text: "What's the weather?"))]))]
             )
         ) { event in
             switch event {
@@ -1275,11 +1058,10 @@ final class OpenAIResponsesTests: XCTestCase {
         var argumentDeltas: [(Int, String)] = []
         var finishReason: String?
 
-        try await client.streamCompletion(
-            request: OpenAIChatCompletionRequest(
+        try await client.streamResponses(
+            request: OpenAIResponsesRequest(
                 model: "gpt-4o-mini",
-                messages: [OpenAIChatMessage(role: "user", content: .text("What's the weather?"))],
-                stream: true
+                input: [.message(OpenAIResponsesInputMessage(role: "user", content: [.inputText(OpenAIResponsesInputText(text: "What's the weather?"))]))]
             )
         ) { event in
             switch event {

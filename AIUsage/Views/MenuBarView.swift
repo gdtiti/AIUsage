@@ -507,7 +507,13 @@ struct MenuBarAccountRow: View {
     }
 
     private var secondaryLabel: String? {
-        entry.accountNote?.nilIfBlank
+        if let ws = entry.workspaceLabel, ws != "Personal" {
+            if let note = entry.accountNote?.nilIfBlank {
+                return "\(ws) · \(note)"
+            }
+            return ws
+        }
+        return entry.accountNote?.nilIfBlank
     }
 
     var body: some View {

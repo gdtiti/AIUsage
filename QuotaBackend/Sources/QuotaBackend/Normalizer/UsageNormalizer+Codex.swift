@@ -14,8 +14,13 @@ extension UsageNormalizer {
         let (status, statusLabel) = resolveStatus(remainingPercent)
         let plan = usage.accountPlan.map { titleCase($0) } ?? "Unknown"
 
+        let wsType = (usage.extra["workspaceType"]?.value as? String) ?? CodexProvider.workspaceType(fromPlan: usage.accountPlan)
+        let email = usage.accountEmail ?? "OpenAI account"
+        let supportingText = wsType == "Personal" ? email : "\(wsType) · \(email)"
+
         base.accountLabel = preferredAccountEmail(usage)
         base.membershipLabel = membershipBadge(from: plan)
+        base.workspaceLabel = wsType
         base.category = "quota"
         base.status = status
         base.statusLabel = statusLabel
@@ -26,13 +31,19 @@ extension UsageNormalizer {
             eyebrow: "Plan · \(plan)",
             primary: remainingPercent.map { formatPercent($0) } ?? "Connected",
             secondary: remainingPercent == nil ? "Usage snapshot ready" : "lowest remaining window",
-            supporting: usage.accountEmail ?? "OpenAI account"
+            supporting: supportingText
         )
-        base.metrics = [
+
+        var metrics = [
             MetricInfo(label: "Account", value: usage.accountEmail ?? "Unknown"),
             MetricInfo(label: "Plan",    value: plan),
-            MetricInfo(label: "Source",  value: formatSourceLabel(usage.source))
         ]
+        if wsType != "Personal" {
+            metrics.append(MetricInfo(label: "Workspace", value: wsType))
+        }
+        metrics.append(MetricInfo(label: "Source", value: formatSourceLabel(usage.source)))
+        base.metrics = metrics
+
         base.windows = windows
         base.spotlight = "Codex has multiple overlapping guardrails, so the UI surfaces all windows together and uses the tightest one to drive alerting."
         return base

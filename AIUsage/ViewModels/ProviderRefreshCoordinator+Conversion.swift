@@ -24,6 +24,7 @@ extension ProviderRefreshCoordinator {
             fetchedAt: s.fetchedAt,
             accountLabel: s.accountLabel,
             membershipLabel: s.membershipLabel,
+            workspaceLabel: s.workspaceLabel,
             headline: Headline(eyebrow: s.headline.eyebrow, primary: s.headline.primary, secondary: s.headline.secondary, supporting: s.headline.supporting),
             metrics: s.metrics.map { Metric(label: $0.label, value: $0.value, note: $0.note) },
             windows: s.windows.map { QuotaWindow(label: $0.label, remainingPercent: $0.remainingPercent, usedPercent: $0.usedPercent, value: $0.value, note: $0.note, resetAt: $0.resetAt) },
@@ -110,6 +111,7 @@ extension ProviderRefreshCoordinator {
             fetchedAt: provider.fetchedAt,
             accountLabel: provider.accountLabel,
             membershipLabel: provider.membershipLabel,
+            workspaceLabel: provider.workspaceLabel,
             headline: Headline(
                 eyebrow: localizedDynamicText(provider.headline.eyebrow),
                 primary: localizedDynamicText(provider.headline.primary),
@@ -280,6 +282,7 @@ extension ProviderRefreshCoordinator {
             "Account": "账号",
             "Email": "邮箱",
             "Plan": "计划",
+            "Workspace": "工作空间",
             "Reset": "重置",
             "Source": "来源",
             "Project": "项目",
@@ -331,7 +334,12 @@ extension ProviderRefreshCoordinator {
             "Cursor mixes percent-based allowances with dollar-based plan spend, so the card pairs remaining percentages with included and on-demand spend signals.": "Cursor 同时存在百分比额度和按美元计的套餐消耗，所以卡片会同时展示剩余百分比、套餐内额度和按量消耗信号。",
             "Amp is best viewed as a replenishing credit pool, so the card highlights remaining balance and refill cadence instead of a hard billing period.": "Amp 更适合看成会持续回补的额度池，所以卡片会重点展示剩余额度和回补节奏，而不是固定账期。",
             "Droid usage is token-heavy, so the panel keeps raw token counts visible next to the percentage-based pools.": "Droid 的用量以 token 为主，所以面板会在百分比池旁边保留原始 token 数量。",
-            "GitHub Education access": "GitHub 教育权益"
+            "GitHub Education access": "GitHub 教育权益",
+            "Personal": "个人",
+            "Team": "团队",
+            "Business": "商业",
+            "Enterprise": "企业",
+            "Edu": "教育"
         ]
         if let mapped = exact[text] {
             return mapped

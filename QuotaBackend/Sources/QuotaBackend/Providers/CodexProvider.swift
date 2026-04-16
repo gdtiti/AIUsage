@@ -54,6 +54,8 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 idToken: nil,
                 accountId: label,
                 accountEmail: label,
+                jwtPlanType: nil,
+                jwtUserId: nil,
                 needsRefresh: false,
                 isApiKeyMode: true
             )
@@ -77,7 +79,9 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 response,
                 accountId: effectiveCreds.accountId ?? normalizedLabel(credential.accountLabel),
                 source: source,
-                fallbackEmail: effectiveCreds.accountEmail ?? normalizedLabel(credential.accountLabel)
+                fallbackEmail: effectiveCreds.accountEmail ?? normalizedLabel(credential.accountLabel),
+                jwtPlanType: effectiveCreds.jwtPlanType,
+                jwtUserId: effectiveCreds.jwtUserId
             )
         } catch let error as ProviderError where error.code == "unauthorized" {
             guard !effectiveCreds.isApiKeyMode,
@@ -89,7 +93,9 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 response,
                 accountId: refreshed.accountId ?? normalizedLabel(credential.accountLabel),
                 source: source,
-                fallbackEmail: refreshed.accountEmail ?? normalizedLabel(credential.accountLabel)
+                fallbackEmail: refreshed.accountEmail ?? normalizedLabel(credential.accountLabel),
+                jwtPlanType: refreshed.jwtPlanType,
+                jwtUserId: refreshed.jwtUserId
             )
         }
     }
@@ -150,6 +156,8 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         let idToken: String?
         let accountId: String?
         let accountEmail: String?
+        let jwtPlanType: String?
+        let jwtUserId: String?
         let needsRefresh: Bool
         let isApiKeyMode: Bool
     }
@@ -226,6 +234,8 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 idToken: nil,
                 accountId: nil,
                 accountEmail: stringValue(json["email"]),
+                jwtPlanType: nil,
+                jwtUserId: nil,
                 needsRefresh: false,
                 isApiKeyMode: true
             )
@@ -257,6 +267,8 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         let accountEmail = stringValue(json["email"])
             ?? decodeEmail(fromJWT: idToken)
             ?? decodeEmail(fromJWT: accessToken)
+        let jwtPlanType = decodePlanType(fromJWT: idToken) ?? decodePlanType(fromJWT: accessToken)
+        let jwtUserId = decodeUserId(fromJWT: idToken) ?? decodeUserId(fromJWT: accessToken)
 
         let lastRefresh = stringValue(json["last_refresh"]).flatMap(parseDate)
         let expiryDate = stringValue(json["expired"]).flatMap(parseDate)
@@ -281,6 +293,8 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
             idToken: idToken,
             accountId: accountId,
             accountEmail: accountEmail,
+            jwtPlanType: jwtPlanType,
+            jwtUserId: jwtUserId,
             needsRefresh: needsRefresh,
             isApiKeyMode: false
         )
@@ -307,13 +321,16 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         }
 
         let newRefresh = stringValue(json["refresh_token"]) ?? refreshToken
+        let newIdToken = stringValue(json["id_token"]) ?? creds.idToken
         return Credentials(
             authFile: creds.authFile,
             accessToken: newAccess,
             refreshToken: newRefresh,
-            idToken: stringValue(json["id_token"]) ?? creds.idToken,
+            idToken: newIdToken,
             accountId: creds.accountId,
             accountEmail: creds.accountEmail,
+            jwtPlanType: decodePlanType(fromJWT: newIdToken) ?? creds.jwtPlanType,
+            jwtUserId: decodeUserId(fromJWT: newIdToken) ?? creds.jwtUserId,
             needsRefresh: false,
             isApiKeyMode: false
         )
@@ -410,7 +427,9 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 response,
                 accountId: creds.accountId,
                 source: sourceInfo(for: authContext.url, mode: "oauth"),
-                fallbackEmail: creds.accountEmail
+                fallbackEmail: creds.accountEmail,
+                jwtPlanType: creds.jwtPlanType,
+                jwtUserId: creds.jwtUserId
             )
         } catch let error as ProviderError where error.code == "unauthorized" {
             guard !creds.isApiKeyMode,
@@ -422,7 +441,9 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 response,
                 accountId: refreshed.accountId,
                 source: sourceInfo(for: authContext.url, mode: "oauth"),
-                fallbackEmail: refreshed.accountEmail
+                fallbackEmail: refreshed.accountEmail,
+                jwtPlanType: refreshed.jwtPlanType,
+                jwtUserId: refreshed.jwtUserId
             )
         }
     }
@@ -431,7 +452,9 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         _ json: [String: Any],
         accountId: String?,
         source: SourceInfo,
-        fallbackEmail: String?
+        fallbackEmail: String?,
+        jwtPlanType: String? = nil,
+        jwtUserId: String? = nil
     ) -> ProviderUsage {
         let rateLimit = json["rate_limit"] as? [String: Any] ?? [:]
         let codeReviewLimit = json["code_review_rate_limit"] as? [String: Any] ?? [:]
@@ -439,7 +462,15 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         var usage = ProviderUsage(provider: "codex", label: "Codex")
         usage.accountEmail = stringValue(json["email"]) ?? fallbackEmail
         usage.usageAccountId = stringValue(json["account_id"]) ?? accountId
-        usage.accountPlan = stringValue(json["plan_type"])
+
+        let apiPlan = stringValue(json["plan_type"])
+        usage.accountPlan = apiPlan ?? jwtPlanType
+
+        let effectivePlan = apiPlan ?? jwtPlanType
+        let wsType = Self.workspaceType(fromPlan: effectivePlan)
+        usage.extra["workspaceType"] = AnyCodable(wsType)
+        if let accountId { usage.extra["workspaceId"] = AnyCodable(accountId) }
+        if let jwtUserId { usage.extra["userId"] = AnyCodable(jwtUserId) }
 
         usage.primary = parseWindow(rateLimit["primary_window"] as? [String: Any])
         usage.secondary = parseWindow(rateLimit["secondary_window"] as? [String: Any])
@@ -546,6 +577,38 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
             return stringValue(auth["chatgpt_account_id"])
         }
         return nil
+    }
+
+    private func decodePlanType(fromJWT token: String?) -> String? {
+        guard let payload = decodeJWTPayload(token: token) else { return nil }
+        if let auth = payload["https://api.openai.com/auth"] as? [String: Any] {
+            return stringValue(auth["chatgpt_plan_type"])
+        }
+        return nil
+    }
+
+    private func decodeUserId(fromJWT token: String?) -> String? {
+        guard let payload = decodeJWTPayload(token: token) else { return nil }
+        if let auth = payload["https://api.openai.com/auth"] as? [String: Any] {
+            return stringValue(auth["chatgpt_user_id"])
+        }
+        return nil
+    }
+
+    /// Derive a workspace type label from the plan string.
+    /// "plus"/"pro" → "Personal", "team" → "Team", "business" → "Business", etc.
+    static func workspaceType(fromPlan plan: String?) -> String {
+        guard let plan = plan?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines),
+              !plan.isEmpty else {
+            return "Personal"
+        }
+        switch plan {
+        case "team": return "Team"
+        case "business": return "Business"
+        case "enterprise": return "Enterprise"
+        case "edu": return "Edu"
+        default: return "Personal"
+        }
     }
 }
 

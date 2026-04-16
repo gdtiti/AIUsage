@@ -344,7 +344,7 @@ extension SettingsView {
     private var menuBarQuotaAccountsPicker: some View {
         settingsBlock(
             title: L("Quota accounts", "配额账号"),
-            subtitle: L("Select quota-based accounts to show in the menu bar. Empty = show lowest quota.", "选择显示在菜单栏的配额账号。不选则显示配额最低的账号。")
+            subtitle: L("Select quota-based accounts to show in the menu bar. Empty = icon only. You can also right-click accounts in the popover to pin.", "选择显示在菜单栏的配额账号。不选则仅显示图标。也可在弹窗中右键账号进行固定。")
         ) {
             let groups = appState.providerAccountGroups
             let quotaEntries = groups.flatMap { group in

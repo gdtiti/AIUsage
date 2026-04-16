@@ -15,14 +15,12 @@ extension UsageNormalizer {
         let plan = usage.accountPlan.map { titleCase($0) } ?? "Unknown"
 
         let wsType = (usage.extra["workspaceType"]?.value as? String) ?? CodexProvider.workspaceType(fromPlan: usage.accountPlan)
-        let wsName = usage.extra["workspaceName"]?.value as? String
-        let displayWsLabel = wsName ?? wsType
         let email = usage.accountEmail ?? "OpenAI account"
-        let supportingText = wsType == "Personal" ? email : "\(displayWsLabel) · \(email)"
+        let supportingText = wsType == "Personal" ? email : "\(wsType) · \(email)"
 
         base.accountLabel = preferredAccountEmail(usage)
         base.membershipLabel = membershipBadge(from: plan)
-        base.workspaceLabel = displayWsLabel
+        base.workspaceLabel = wsType
         base.category = "quota"
         base.status = status
         base.statusLabel = statusLabel
@@ -41,7 +39,7 @@ extension UsageNormalizer {
             MetricInfo(label: "Plan",    value: plan),
         ]
         if wsType != "Personal" {
-            metrics.append(MetricInfo(label: "Workspace", value: displayWsLabel))
+            metrics.append(MetricInfo(label: "Workspace", value: wsType))
         }
         metrics.append(MetricInfo(label: "Source", value: formatSourceLabel(usage.source)))
         base.metrics = metrics

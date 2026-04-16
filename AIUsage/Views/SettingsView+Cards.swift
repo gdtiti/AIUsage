@@ -344,7 +344,7 @@ extension SettingsView {
     private var menuBarQuotaAccountsPicker: some View {
         settingsBlock(
             title: L("Quota accounts", "配额账号"),
-            subtitle: L("Select quota-based accounts to show in the menu bar. Empty = show lowest quota.", "选择显示在菜单栏的配额账号。不选则显示配额最低的账号。")
+            subtitle: L("Select quota-based accounts to show in the menu bar. Empty = icon only. You can also right-click accounts in the popover to pin.", "选择显示在菜单栏的配额账号。不选则仅显示图标。也可在弹窗中右键账号进行固定。")
         ) {
             let groups = appState.providerAccountGroups
             let quotaEntries = groups.flatMap { group in
@@ -439,27 +439,57 @@ extension SettingsView {
         entries: [(group: ProviderAccountGroup, entry: ProviderAccountEntry)],
         selectedIds: Binding<Set<String>>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(entries, id: \.entry.id) { pair in
-                let isSelected = selectedIds.wrappedValue.contains(pair.entry.id)
+        let grouped = Dictionary(grouping: entries, by: { $0.group.providerId })
+        let orderedProviderIds: [String] = {
+            var seen = Set<String>()
+            return entries.compactMap { pair in
+                seen.insert(pair.group.providerId).inserted ? pair.group.providerId : nil
+            }
+        }()
 
-                Button {
-                    var ids = selectedIds.wrappedValue
-                    if isSelected { ids.remove(pair.entry.id) } else { ids.insert(pair.entry.id) }
-                    selectedIds.wrappedValue = ids
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(isSelected ? Color.blue : Color.secondary)
-                            .font(.system(size: 14))
-                        ProviderIconView(pair.group.providerId, size: 14)
-                        Text(pair.entry.accountEmail ?? pair.entry.accountDisplayName ?? pair.entry.providerTitle)
-                            .font(.caption).lineLimit(1)
-                        Spacer()
+        return VStack(alignment: .leading, spacing: 8) {
+            ForEach(orderedProviderIds, id: \.self) { providerId in
+                let items = grouped[providerId] ?? []
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 4) {
+                        ProviderIconView(providerId, size: 12)
+                        Text(items.first?.group.title ?? providerId)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
-                    .contentShape(Rectangle())
+                    .padding(.bottom, 1)
+
+                    let columns = [GridItem(.adaptive(minimum: 180), spacing: 6)]
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 3) {
+                        ForEach(items, id: \.entry.id) { pair in
+                            let isSelected = selectedIds.wrappedValue.contains(pair.entry.id)
+                            Button {
+                                var ids = selectedIds.wrappedValue
+                                if isSelected { ids.remove(pair.entry.id) } else { ids.insert(pair.entry.id) }
+                                selectedIds.wrappedValue = ids
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(isSelected ? Color.blue : Color.secondary)
+                                        .font(.system(size: 13))
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        Text(pair.entry.accountEmail ?? pair.entry.accountDisplayName ?? pair.entry.providerTitle)
+                                            .font(.caption).lineLimit(1)
+                                        if let ws = pair.entry.workspaceLabel, ws != "Personal" {
+                                            Text(ws)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.vertical, 4)

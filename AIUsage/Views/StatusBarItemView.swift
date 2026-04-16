@@ -9,7 +9,7 @@ struct StatusBarItemView: View {
     @ObservedObject var refreshCoordinator: ProviderRefreshCoordinator
     @ObservedObject var settings: AppSettings
 
-    static let recommendedMaxAccounts = 3
+    static let recommendedMaxAccounts = 4
 
     private var displayMode: MenuBarDisplayMode { settings.menuBarDisplayMode }
     private var metricType: MenuBarMetricType { settings.menuBarMetricType }
@@ -24,19 +24,6 @@ struct StatusBarItemView: View {
         }
         if metricType.showsCost {
             result.append(contentsOf: costItems)
-        }
-
-        if result.isEmpty && displayMode != .metricOnly {
-            if let first = appState.providerAccountGroups.first?.accounts.first(where: \.isConnected),
-               let group = appState.providerAccountGroups.first {
-                result.append(StatusBarMetricItem(
-                    id: first.id,
-                    providerId: group.providerId,
-                    quota: first.liveProvider?.remainingPercent,
-                    cost: nil,
-                    icon: nil
-                ))
-            }
         }
 
         return result
@@ -61,11 +48,8 @@ struct StatusBarItemView: View {
             }
         }
 
-        if !pinnedQuotaIds.isEmpty {
-            return all.filter { pinnedQuotaIds.contains($0.id) }
-        }
-
-        return all.min(by: { ($0.quota ?? 999) < ($1.quota ?? 999) }).map { [$0] } ?? []
+        if pinnedQuotaIds.isEmpty { return [] }
+        return all.filter { pinnedQuotaIds.contains($0.id) }
     }
 
     private var costItems: [StatusBarMetricItem] {
@@ -77,7 +61,7 @@ struct StatusBarItemView: View {
                 guard entry.liveProvider?.category == "local-cost" else { continue }
                 guard let cost = entry.liveProvider?.costSummary?.month?.usd else { continue }
 
-                if pinnedCostIds.isEmpty || pinnedCostIds.contains(entry.id) {
+                if pinnedCostIds.contains(entry.id) {
                     all.append(StatusBarMetricItem(
                         id: entry.id,
                         providerId: group.providerId,
@@ -109,7 +93,7 @@ struct StatusBarItemView: View {
         if items.isEmpty {
             fallbackIcon
         } else {
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { statusBarDivider }
                     statusBarEntry(item)
@@ -123,36 +107,36 @@ struct StatusBarItemView: View {
 
     private var fallbackIcon: some View {
         Image(systemName: "chart.bar.fill")
-            .font(.system(size: 14))
+            .font(.system(size: 15))
     }
 
     private var statusBarDivider: some View {
         Rectangle()
             .fill(Color.primary.opacity(0.2))
-            .frame(width: 1, height: 12)
-            .padding(.horizontal, 1)
+            .frame(width: 1, height: 14)
+            .padding(.horizontal, 2)
     }
 
     @ViewBuilder
     private func statusBarEntry(_ item: StatusBarMetricItem) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 4) {
             if displayMode != .metricOnly {
                 if let icon = item.icon {
                     Image(systemName: icon)
-                        .font(.system(size: 11))
+                        .font(.system(size: 13))
                 } else {
-                    StatusBarProviderIcon(providerId: item.providerId, size: 14)
+                    StatusBarProviderIcon(providerId: item.providerId, size: 16)
                 }
             }
 
             if displayMode != .iconOnly {
                 if let quota = item.quota {
                     Text("\(Int(quota))%")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 12.5, weight: .medium, design: .rounded))
                         .foregroundStyle(quotaColor(quota))
                 } else if let cost = item.cost {
                     Text(formatCostCompact(cost))
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 12.5, weight: .medium, design: .rounded))
                         .foregroundStyle(.orange)
                 }
             }

@@ -489,6 +489,7 @@ struct MenuBarAccountRow: View {
     @Binding var activationSuccess: Bool
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var activationManager: ProviderActivationManager
+    @ObservedObject private var settings = AppSettings.shared
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
@@ -499,6 +500,13 @@ struct MenuBarAccountRow: View {
     private var costMonthUsd: Double? { entry.liveProvider?.costSummary?.month?.usd }
     private var windows: [QuotaWindow] { entry.liveProvider?.windows ?? [] }
     @State private var isWindowsExpanded = false
+
+    private var isPinnedToStatusBar: Bool {
+        if isCostProvider {
+            return settings.menuBarPinnedCostSourceIds.contains(entry.id)
+        }
+        return settings.menuBarPinnedQuotaAccountIds.contains(entry.id)
+    }
 
     private var primaryLabel: String {
         if let email = entry.accountEmail, !email.isEmpty { return email }
@@ -528,10 +536,49 @@ struct MenuBarAccountRow: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 7)
-                .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+                .fill(rowBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .strokeBorder(isPinnedToStatusBar ? accentColor.opacity(0.25) : Color.clear, lineWidth: 1)
         )
         .onHover { isHovered = $0 }
         .onTapGesture { if canActivate { performActivation() } }
+        .contextMenu { pinContextMenu }
+    }
+
+    private var rowBackground: Color {
+        if isPinnedToStatusBar {
+            return isHovered
+                ? accentColor.opacity(colorScheme == .dark ? 0.14 : 0.10)
+                : accentColor.opacity(colorScheme == .dark ? 0.08 : 0.05)
+        }
+        return isHovered ? Color.primary.opacity(0.06) : Color.clear
+    }
+
+    @ViewBuilder
+    private var pinContextMenu: some View {
+        Button {
+            togglePin()
+        } label: {
+            if isPinnedToStatusBar {
+                Label(L("Unpin from Menu Bar", "从菜单栏取消固定"), systemImage: "pin.slash")
+            } else {
+                Label(L("Pin to Menu Bar", "固定到菜单栏"), systemImage: "pin")
+            }
+        }
+    }
+
+    private func togglePin() {
+        if isCostProvider {
+            var ids = settings.menuBarPinnedCostSourceIds
+            if ids.contains(entry.id) { ids.remove(entry.id) } else { ids.insert(entry.id) }
+            settings.menuBarPinnedCostSourceIds = ids
+        } else {
+            var ids = settings.menuBarPinnedQuotaAccountIds
+            if ids.contains(entry.id) { ids.remove(entry.id) } else { ids.insert(entry.id) }
+            settings.menuBarPinnedQuotaAccountIds = ids
+        }
     }
 
     // MARK: - Account Header
@@ -540,12 +587,12 @@ struct MenuBarAccountRow: View {
         HStack(spacing: 8) {
             if isCostProvider {
                 statusDot(color: entry.isConnected ? .orange : .gray)
-            } else if let percent = remainingPercent {
-                MiniQuotaRing(remainingPercent: percent, accentColor: accentColor)
-            } else if entry.isConnected {
-                statusDot(color: entry.liveProvider?.status == .error ? .orange : .green)
-            } else {
-                statusDot(color: .gray)
+            } else if remainingPercent == nil {
+                if entry.isConnected {
+                    statusDot(color: entry.liveProvider?.status == .error ? .orange : .green)
+                } else {
+                    statusDot(color: .gray)
+                }
             }
 
             VStack(alignment: .leading, spacing: 1) {
@@ -562,6 +609,13 @@ struct MenuBarAccountRow: View {
             }
 
             Spacer(minLength: 4)
+
+            if isPinnedToStatusBar {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 8))
+                    .foregroundStyle(accentColor.opacity(0.6))
+                    .rotationEffect(.degrees(45))
+            }
 
             if isCostProvider, let usd = costMonthUsd {
                 Text(MenuBarHelpers.formatCostCompact(usd))
@@ -624,7 +678,7 @@ struct MenuBarAccountRow: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.leading, 36)
+        .padding(.leading, 4)
     }
 
     // MARK: - Subviews
@@ -724,46 +778,6 @@ struct MenuBarQuotaBar: View {
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 2))
         }
-    }
-}
-
-// MARK: - Mini Quota Ring
-
-struct MiniQuotaRing: View {
-    let remainingPercent: Double
-    let accentColor: Color
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var clamped: Double { min(max(remainingPercent, 0), 100) }
-
-    private var gradientColors: [Color] {
-        switch clamped {
-        case 70...: return [Color(red: 0.37, green: 0.94, blue: 0.62), Color(red: 0.11, green: 0.74, blue: 0.39)]
-        case 35...: return [Color(red: 1.00, green: 0.84, blue: 0.34), Color(red: 0.96, green: 0.56, blue: 0.17)]
-        default: return [Color(red: 1.00, green: 0.54, blue: 0.28), Color(red: 0.90, green: 0.20, blue: 0.29)]
-        }
-    }
-
-    private var trackColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
-    }
-
-    var body: some View {
-        ZStack {
-            Circle().stroke(trackColor, lineWidth: 3.5)
-            Circle()
-                .trim(from: 0, to: clamped / 100)
-                .stroke(
-                    AngularGradient(
-                        colors: [gradientColors[0].opacity(0.6), gradientColors[0], gradientColors[1], gradientColors[1].opacity(0.6)],
-                        center: .center
-                    ),
-                    style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-        }
-        .frame(width: 28, height: 28)
     }
 }
 

@@ -20,6 +20,7 @@ public struct ProviderSummary: Codable, Sendable {
     public var fetchedAt: String?
     public var accountLabel: String?
     public var membershipLabel: String?
+    public var workspaceLabel: String?
     public var remainingPercent: Double?
     public var nextResetAt: String?
     public var nextResetLabel: String?

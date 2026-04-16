@@ -146,6 +146,10 @@ struct ProviderAccountEntry: Identifiable {
         accountEmail?.nilIfBlank ?? providerTitle
     }
 
+    var workspaceLabel: String? {
+        liveProvider?.workspaceLabel
+    }
+
     var footerAccountLabel: String? {
         let email = accountEmail?.nilIfBlank
             ?? storedAccount?.email.nilIfBlank
@@ -153,6 +157,15 @@ struct ProviderAccountEntry: Identifiable {
         let title = cardTitle
         if let email, email != title { return email }
         return nil
+    }
+
+    /// Composite label for disambiguation: "Team · user@email.com" or just the email.
+    var compositeFooterLabel: String? {
+        guard let email = footerAccountLabel else { return nil }
+        if let ws = workspaceLabel, ws != "Personal" {
+            return "\(ws) · \(email)"
+        }
+        return email
     }
 }
 
@@ -215,6 +228,7 @@ struct ProviderData: Identifiable, Codable, Sendable {
     let fetchedAt: String?
     let accountLabel: String?
     let membershipLabel: String?
+    let workspaceLabel: String?
     let headline: Headline
     let metrics: [Metric]
     let windows: [QuotaWindow]
@@ -243,6 +257,7 @@ struct ProviderData: Identifiable, Codable, Sendable {
         fetchedAt = try container.decodeIfPresent(String.self, forKey: .fetchedAt)
         accountLabel = try container.decodeIfPresent(String.self, forKey: .accountLabel)
         membershipLabel = try container.decodeIfPresent(String.self, forKey: .membershipLabel)
+        workspaceLabel = try container.decodeIfPresent(String.self, forKey: .workspaceLabel)
         headline = try container.decode(Headline.self, forKey: .headline)
         metrics = try container.decode([Metric].self, forKey: .metrics)
         windows = try container.decode([QuotaWindow].self, forKey: .windows)
@@ -254,7 +269,7 @@ struct ProviderData: Identifiable, Codable, Sendable {
         costSummary = try container.decodeIfPresent(CostSummary.self, forKey: .costSummary)
     }
 
-    init(id: String, providerId: String, accountId: String?, name: String, label: String, description: String, category: String, channel: String?, status: ProviderStatus, statusLabel: String, theme: ProviderTheme, sourceLabel: String, sourceType: String, fetchedAt: String?, accountLabel: String?, membershipLabel: String?, headline: Headline, metrics: [Metric], windows: [QuotaWindow], remainingPercent: Double?, nextResetAt: String?, nextResetLabel: String?, spotlight: String?, models: [ModelInfo]?, costSummary: CostSummary?) {
+    init(id: String, providerId: String, accountId: String?, name: String, label: String, description: String, category: String, channel: String?, status: ProviderStatus, statusLabel: String, theme: ProviderTheme, sourceLabel: String, sourceType: String, fetchedAt: String?, accountLabel: String?, membershipLabel: String?, workspaceLabel: String? = nil, headline: Headline, metrics: [Metric], windows: [QuotaWindow], remainingPercent: Double?, nextResetAt: String?, nextResetLabel: String?, spotlight: String?, models: [ModelInfo]?, costSummary: CostSummary?) {
         self.id = id
         self.providerId = providerId
         self.accountId = accountId
@@ -271,6 +286,7 @@ struct ProviderData: Identifiable, Codable, Sendable {
         self.fetchedAt = fetchedAt
         self.accountLabel = accountLabel
         self.membershipLabel = membershipLabel
+        self.workspaceLabel = workspaceLabel
         self.headline = headline
         self.metrics = metrics
         self.windows = windows

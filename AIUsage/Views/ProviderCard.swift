@@ -260,7 +260,14 @@ struct ProviderCard: View {
     }
 
     private var footerAccountLabel: String? {
-        preferredAccountIdentityLabel(
+        if let wsLabel = provider.workspaceLabel, wsLabel != "Personal",
+           let email = preferredAccountIdentityLabel(
+               [footerAccountLabelOverride, provider.accountLabel, provider.accountId],
+               excluding: headerTitle
+           ) {
+            return "\(wsLabel) · \(email)"
+        }
+        return preferredAccountIdentityLabel(
             [
                 footerAccountLabelOverride,
                 provider.accountLabel,

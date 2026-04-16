@@ -19,7 +19,11 @@ extension AccountStore {
 
         if !account.normalizedEmail.isEmpty,
            let emailMatch = candidates.first(where: {
-               normalizedAccountLookupValue(
+               let credAccountId = normalizedAccountLookupValue($0.metadata["accountId"])
+               if let normalizedAccountId, let credAccountId, credAccountId != normalizedAccountId {
+                   return false
+               }
+               return normalizedAccountLookupValue(
                    $0.metadata["accountEmail"]
                        ?? $0.metadata["accountHandle"]
                        ?? $0.accountLabel
@@ -84,6 +88,12 @@ extension AccountStore {
            let liveAccountId = normalizedLiveAccountID(for: provider),
            storedAccountId == liveAccountId {
             return true
+        }
+
+        if let storedAccountId = stored.normalizedAccountId,
+           let liveAccountId = normalizedLiveAccountID(for: provider),
+           storedAccountId != liveAccountId {
+            return false
         }
 
         if let liveEmail = normalizedAccountIdentifier(for: provider),

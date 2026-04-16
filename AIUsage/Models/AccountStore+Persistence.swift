@@ -163,10 +163,15 @@ private struct AccountRegistryRefreshSnapshot {
                 let normalizedNewEmail = label.lowercased()
                 let normalizedNewAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
                 if let dupeIndex = accountRegistry.firstIndex(where: {
-                    $0.providerId == provider.baseProviderId && !$0.isHidden && (
-                        $0.normalizedEmail == normalizedNewEmail ||
-                        (normalizedNewAccountId != nil && $0.normalizedAccountId == normalizedNewAccountId)
-                    )
+                    guard $0.providerId == provider.baseProviderId, !$0.isHidden else { return false }
+                    if normalizedNewAccountId != nil, $0.normalizedAccountId == normalizedNewAccountId {
+                        return true
+                    }
+                    if let normalizedNewAccountId, let storedAccountId = $0.normalizedAccountId,
+                       storedAccountId != normalizedNewAccountId {
+                        return false
+                    }
+                    return $0.normalizedEmail == normalizedNewEmail
                 }) {
                     var existing = accountRegistry[dupeIndex]
                     if existing.providerResultId != provider.id {
@@ -240,7 +245,11 @@ private struct AccountRegistryRefreshSnapshot {
 
         if !account.normalizedEmail.isEmpty,
            let emailMatch = candidates.first(where: {
-               normalizedAccountLookupValue(
+               let credAccountId = normalizedAccountLookupValue($0.metadata["accountId"])
+               if let normalizedAccountId, let credAccountId, credAccountId != normalizedAccountId {
+                   return false
+               }
+               return normalizedAccountLookupValue(
                    $0.metadata["accountEmail"]
                        ?? $0.metadata["accountHandle"]
                        ?? $0.accountLabel
@@ -305,6 +314,12 @@ private struct AccountRegistryRefreshSnapshot {
            let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
            storedAccountId == liveAccountId {
             return true
+        }
+
+        if let storedAccountId = stored.normalizedAccountId,
+           let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
+           storedAccountId != liveAccountId {
+            return false
         }
 
         if let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
@@ -531,6 +546,12 @@ extension AccountStore {
             if let normalizedAccountId,
                normalizedAccountLookupValue(credential.metadata["accountId"]) == normalizedAccountId {
                 return true
+            }
+
+            if let normalizedAccountId,
+               let credentialAccountId = normalizedAccountLookupValue(credential.metadata["accountId"]),
+               credentialAccountId != normalizedAccountId {
+                return false
             }
 
             return normalizedAccountLookupValue(

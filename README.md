@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/dashboard-overview.png" alt="AIUsage dashboard" width="100%">
+  <img src="docs/images/dashboard-overview_en.png" alt="AIUsage dashboard" width="100%">
 </p>
 
 ## Features
@@ -39,32 +39,32 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/dashboard-overview.png" alt="Dashboard"></td>
-    <td width="50%"><img src="docs/images/provider-monitoring.png" alt="Provider monitoring"></td>
+    <td width="50%"><img src="docs/images/dashboard-overview_en.png" alt="Dashboard"></td>
+    <td width="50%"><img src="docs/images/provider-monitoring_en.png" alt="Provider monitoring"></td>
   </tr>
   <tr>
     <td align="center"><strong>Dashboard</strong></td>
     <td align="center"><strong>Provider & multi-account monitoring</strong></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/claude-code-stats.png" alt="Claude Code stats"></td>
-    <td width="50%"><img src="docs/images/codex-account-detail.png" alt="Account detail"></td>
+    <td width="50%"><img src="docs/images/claude-code-stats_en.png" alt="Claude Code stats"></td>
+    <td width="50%"><img src="docs/images/codex-account-detail_en.png" alt="Account detail"></td>
   </tr>
   <tr>
     <td align="center"><strong>Claude Code stats</strong></td>
     <td align="center"><strong>Account detail</strong></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/Claude-Code-Proxy-1.png" alt="Proxy management"></td>
-    <td width="50%"><img src="docs/images/Claude-Code-Proxy-2.png" alt="Proxy configuration"></td>
+    <td width="50%"><img src="docs/images/Claude-Code-Proxy-1_en.png" alt="Proxy management"></td>
+    <td width="50%"><img src="docs/images/Claude-Code-Proxy-2_en.png" alt="Proxy configuration"></td>
   </tr>
   <tr>
     <td align="center"><strong>Proxy node management</strong></td>
     <td align="center"><strong>Proxy configuration</strong></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/proxy-stats.png" alt="Proxy stats"></td>
-    <td width="50%"><img src="docs/images/menu_bar.png" alt="Menu bar"></td>
+    <td width="50%"><img src="docs/images/proxy-stats_en.png" alt="Proxy stats"></td>
+    <td width="50%"><img src="docs/images/menu_bar_en.png" alt="Menu bar"></td>
   </tr>
   <tr>
     <td align="center"><strong>Proxy statistics</strong></td>

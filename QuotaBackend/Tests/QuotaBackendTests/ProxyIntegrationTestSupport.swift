@@ -16,7 +16,7 @@ struct CapturedHTTPRequest: Sendable {
 struct MockHTTPResponse: Sendable {
     let status: Int
     let headers: [String: String]
-    let bodyChunks: [String]
+    let bodyChunks: [Data]
     let chunkDelayNanoseconds: UInt64
 
     init(
@@ -27,7 +27,7 @@ struct MockHTTPResponse: Sendable {
     ) {
         self.status = status
         self.headers = headers
-        self.bodyChunks = [body]
+        self.bodyChunks = [Data(body.utf8)]
         self.chunkDelayNanoseconds = chunkDelayNanoseconds
     }
 
@@ -39,12 +39,42 @@ struct MockHTTPResponse: Sendable {
     ) {
         self.status = status
         self.headers = headers
-        self.bodyChunks = bodyChunks
+        self.bodyChunks = bodyChunks.map { Data($0.utf8) }
+        self.chunkDelayNanoseconds = chunkDelayNanoseconds
+    }
+
+    init(
+        status: Int = 200,
+        headers: [String: String] = [:],
+        bodyData: Data,
+        chunkDelayNanoseconds: UInt64 = 0
+    ) {
+        self.status = status
+        self.headers = headers
+        self.bodyChunks = [bodyData]
+        self.chunkDelayNanoseconds = chunkDelayNanoseconds
+    }
+
+    init(
+        status: Int = 200,
+        headers: [String: String] = [:],
+        bodyDataChunks: [Data],
+        chunkDelayNanoseconds: UInt64 = 0
+    ) {
+        self.status = status
+        self.headers = headers
+        self.bodyChunks = bodyDataChunks
         self.chunkDelayNanoseconds = chunkDelayNanoseconds
     }
 
     var body: String {
-        bodyChunks.joined()
+        String(data: bodyData, encoding: .utf8) ?? ""
+    }
+
+    var bodyData: Data {
+        bodyChunks.reduce(into: Data()) { partialResult, chunk in
+            partialResult.append(chunk)
+        }
     }
 
     static func json(
@@ -201,25 +231,24 @@ final class MockHTTPServer {
     private func sendResponse(_ connection: NWConnection, response: MockHTTPResponse) async {
         var headers = response.headers
         if headers["Content-Length"] == nil {
-            headers["Content-Length"] = "\(response.body.utf8.count)"
+            headers["Content-Length"] = "\(response.bodyData.count)"
         }
         if headers["Connection"] == nil {
             headers["Connection"] = "close"
         }
 
         let headerText = buildHeaderText(status: response.status, headers: headers)
-        await send(connection: connection, text: headerText)
+        await send(connection: connection, data: Data(headerText.utf8))
 
         for chunk in response.bodyChunks {
-            await send(connection: connection, text: chunk)
+            await send(connection: connection, data: chunk)
             if response.chunkDelayNanoseconds > 0 {
                 try? await Task.sleep(nanoseconds: response.chunkDelayNanoseconds)
             }
         }
     }
 
-    private func send(connection: NWConnection, text: String) async {
-        guard let data = text.data(using: .utf8) else { return }
+    private func send(connection: NWConnection, data: Data) async {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             connection.send(content: data, completion: .contentProcessed { _ in
                 continuation.resume()

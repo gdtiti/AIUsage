@@ -1,5 +1,6 @@
 import XCTest
 @testable import QuotaBackend
+@testable import QuotaServerCore
 
 final class HTTPServerTests: XCTestCase {
 
@@ -61,6 +62,19 @@ final class HTTPServerTests: XCTestCase {
         }
 
         XCTAssertGreaterThan(data.count, 100_000)
+    }
+
+    func testParseHTTPRequestPreservesBinaryBodyBytes() {
+        let body = Data([0x00, 0xFF, 0x41, 0x0A])
+        var requestData = Data("POST /v1/files HTTP/1.1\r\nHost: localhost\r\nContent-Length: \(body.count)\r\n\r\n".utf8)
+        requestData.append(body)
+
+        let server = QuotaHTTPServer(host: "127.0.0.1", port: 0)
+        let parsed = server.parseHTTPRequest(requestData)
+
+        XCTAssertEqual(parsed.method, "POST")
+        XCTAssertEqual(parsed.path, "/v1/files")
+        XCTAssertEqual(parsed.body, body)
     }
 
     // MARK: - SSE Event Formatting Tests

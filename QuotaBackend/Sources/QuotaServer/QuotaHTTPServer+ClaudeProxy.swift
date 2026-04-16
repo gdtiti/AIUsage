@@ -4,6 +4,31 @@ import os.log
 import QuotaBackend
 
 extension QuotaHTTPServer {
+    private static let filesAPIBeta = "files-api-2025-04-14"
+
+    struct ParsedMultipartFileUpload {
+        let filename: String
+        let mimeType: String?
+        let data: Data
+    }
+
+    func proxyErrorHTTPResponse(
+        proxy: ClaudeProxyService,
+        error: Error,
+        headers: [String: String]
+    ) async -> HTTPResponse {
+        let errorResult = await proxy.buildErrorResult(error: error)
+        var responseHeaders = headers
+        if let requestID = errorResult.response.requestID, !requestID.isEmpty {
+            responseHeaders["request-id"] = requestID
+        }
+        return jsonResponse(
+            encodable: errorResult.response,
+            status: errorResult.statusCode,
+            headers: responseHeaders
+        )
+    }
+
     // MARK: - Claude Proxy Handlers
 
     func handleEventLoggingEndpoint(request: HTTPRequest, headers: [String: String]) async -> HTTPResponse {
@@ -98,8 +123,7 @@ extension QuotaHTTPServer {
                 errorMessage: error.localizedDescription
             )
             httpLog.error("  ✗ Proxy error: \(error.localizedDescription)")
-            let errorResponse = await proxy.buildErrorResponse(error: error)
-            return jsonResponse(encodable: errorResponse, status: 500, headers: headers)
+            return await proxyErrorHTTPResponse(proxy: proxy, error: error, headers: headers)
         }
     }
 
@@ -140,9 +164,305 @@ extension QuotaHTTPServer {
             let response = try await proxy.handleCountTokens(request: tokenRequest)
             return jsonResponse(encodable: response, headers: headers)
         } catch {
-            let errorResponse = await proxy.buildErrorResponse(error: error)
-            return jsonResponse(encodable: errorResponse, status: 500, headers: headers)
+            return await proxyErrorHTTPResponse(proxy: proxy, error: error, headers: headers)
         }
+    }
+
+    func handleListFilesEndpoint(
+        request: HTTPRequest,
+        queryItems: [String: String],
+        headers: [String: String]
+    ) async -> HTTPResponse {
+        guard let proxy = proxyService else {
+            return claudeErrorResponse(
+                type: "api_error",
+                message: "Claude proxy is not enabled",
+                status: 503,
+                headers: headers
+            )
+        }
+
+        guard await proxy.authenticate(headers: request.headers) else {
+            return claudeErrorResponse(
+                type: "authentication_error",
+                message: "Invalid API key",
+                status: 401,
+                headers: headers
+            )
+        }
+
+        if let validationError = validateFilesAPIHeaders(requestHeaders: request.headers, responseHeaders: headers) {
+            return validationError
+        }
+
+        if queryItems["before_id"] != nil {
+            return claudeErrorResponse(
+                type: "invalid_request_error",
+                message: "`before_id` is not supported by this OpenAI bridge. Use `after_id` for forward pagination.",
+                status: 400,
+                headers: headers
+            )
+        }
+
+        let limit: Int?
+        if let rawLimit = queryItems["limit"], !rawLimit.isEmpty {
+            guard let parsedLimit = Int(rawLimit) else {
+                return claudeErrorResponse(
+                    type: "invalid_request_error",
+                    message: "`limit` must be an integer.",
+                    status: 400,
+                    headers: headers
+                )
+            }
+            limit = parsedLimit
+        } else {
+            limit = nil
+        }
+
+        do {
+            let response = try await proxy.listFiles(limit: limit, afterID: queryItems["after_id"])
+            return jsonResponse(encodable: response, headers: headers)
+        } catch {
+            return await proxyErrorHTTPResponse(proxy: proxy, error: error, headers: headers)
+        }
+    }
+
+    func handleCreateFileEndpoint(request: HTTPRequest, headers: [String: String]) async -> HTTPResponse {
+        guard let proxy = proxyService else {
+            return claudeErrorResponse(
+                type: "api_error",
+                message: "Claude proxy is not enabled",
+                status: 503,
+                headers: headers
+            )
+        }
+
+        guard await proxy.authenticate(headers: request.headers) else {
+            return claudeErrorResponse(
+                type: "authentication_error",
+                message: "Invalid API key",
+                status: 401,
+                headers: headers
+            )
+        }
+
+        if let validationError = validateFilesAPIHeaders(requestHeaders: request.headers, responseHeaders: headers) {
+            return validationError
+        }
+
+        guard let upload = parseClaudeFilesMultipartUpload(
+            body: request.body,
+            contentTypeHeader: request.headers["content-type"]
+        ) else {
+            return claudeErrorResponse(
+                type: "invalid_request_error",
+                message: "Claude Files upload expects multipart/form-data with a single `file` part.",
+                status: 400,
+                headers: headers
+            )
+        }
+
+        do {
+            let response = try await proxy.createFile(
+                filename: upload.filename,
+                mimeType: upload.mimeType,
+                data: upload.data
+            )
+            return jsonResponse(encodable: response, headers: headers)
+        } catch {
+            return await proxyErrorHTTPResponse(proxy: proxy, error: error, headers: headers)
+        }
+    }
+
+    func handleFileSubresourceEndpoint(
+        request: HTTPRequest,
+        path: String,
+        headers: [String: String]
+    ) async -> HTTPResponse {
+        guard let proxy = proxyService else {
+            return claudeErrorResponse(
+                type: "api_error",
+                message: "Claude proxy is not enabled",
+                status: 503,
+                headers: headers
+            )
+        }
+
+        guard await proxy.authenticate(headers: request.headers) else {
+            return claudeErrorResponse(
+                type: "authentication_error",
+                message: "Invalid API key",
+                status: 401,
+                headers: headers
+            )
+        }
+
+        if let validationError = validateFilesAPIHeaders(requestHeaders: request.headers, responseHeaders: headers) {
+            return validationError
+        }
+
+        let filePath = String(path.dropFirst("/v1/files/".count))
+        if filePath.hasSuffix("/content") {
+            let fileID = String(filePath.dropLast("/content".count))
+            do {
+                let response = try await proxy.retrieveFileContent(fileID: fileID)
+                var responseHeaders = headers
+                responseHeaders["Content-Type"] = response.contentType ?? "application/octet-stream"
+                responseHeaders["Content-Length"] = "\(response.data.count)"
+                if let contentDisposition = response.contentDisposition {
+                    responseHeaders["Content-Disposition"] = contentDisposition
+                }
+                return HTTPResponse(status: 200, headers: responseHeaders, bodyData: response.data)
+            } catch {
+                return await proxyErrorHTTPResponse(proxy: proxy, error: error, headers: headers)
+            }
+        }
+
+        do {
+            let response = try await proxy.retrieveFile(fileID: filePath)
+            return jsonResponse(encodable: response, headers: headers)
+        } catch {
+            return await proxyErrorHTTPResponse(proxy: proxy, error: error, headers: headers)
+        }
+    }
+
+    func handleDeleteFileEndpoint(
+        request: HTTPRequest,
+        path: String,
+        headers: [String: String]
+    ) async -> HTTPResponse {
+        guard let proxy = proxyService else {
+            return claudeErrorResponse(
+                type: "api_error",
+                message: "Claude proxy is not enabled",
+                status: 503,
+                headers: headers
+            )
+        }
+
+        guard await proxy.authenticate(headers: request.headers) else {
+            return claudeErrorResponse(
+                type: "authentication_error",
+                message: "Invalid API key",
+                status: 401,
+                headers: headers
+            )
+        }
+
+        if let validationError = validateFilesAPIHeaders(requestHeaders: request.headers, responseHeaders: headers) {
+            return validationError
+        }
+
+        let fileID = String(path.dropFirst("/v1/files/".count))
+
+        do {
+            let response = try await proxy.deleteFile(fileID: fileID)
+            return jsonResponse(encodable: response, headers: headers)
+        } catch {
+            return await proxyErrorHTTPResponse(proxy: proxy, error: error, headers: headers)
+        }
+    }
+
+    func validateFilesAPIHeaders(
+        requestHeaders: [String: String],
+        responseHeaders: [String: String]
+    ) -> HTTPResponse? {
+        let betas = parseAnthropicBetas(from: requestHeaders["anthropic-beta"])
+        guard betas.contains(Self.filesAPIBeta) else {
+            return claudeErrorResponse(
+                type: "invalid_request_error",
+                message: "Files API requires anthropic-beta: \(Self.filesAPIBeta)",
+                status: 400,
+                headers: responseHeaders
+            )
+        }
+        return nil
+    }
+
+    func parseAnthropicBetas(from rawValue: String?) -> Set<String> {
+        guard let rawValue, !rawValue.isEmpty else { return [] }
+        return Set(
+            rawValue
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+    }
+
+    func parseClaudeFilesMultipartUpload(
+        body: Data,
+        contentTypeHeader: String?
+    ) -> ParsedMultipartFileUpload? {
+        guard let boundary = extractMultipartBoundary(from: contentTypeHeader) else {
+            return nil
+        }
+
+        let openingBoundary = Data("--\(boundary)\r\n".utf8)
+        guard body.starts(with: openingBoundary) else {
+            return nil
+        }
+
+        let headerStart = openingBoundary.count
+        let headerSeparator = Data([13, 10, 13, 10])
+        guard let headerRange = body.range(of: headerSeparator, in: headerStart..<body.count) else {
+            return nil
+        }
+
+        let headerData = Data(body[headerStart..<headerRange.lowerBound])
+        guard let headerText = String(data: headerData, encoding: .utf8) else {
+            return nil
+        }
+
+        var partHeaders: [String: String] = [:]
+        for line in headerText.components(separatedBy: "\r\n") {
+            guard let separator = line.firstIndex(of: ":") else { continue }
+            let key = String(line[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let value = String(line[line.index(after: separator)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            partHeaders[key] = value
+        }
+
+        guard let disposition = partHeaders["content-disposition"] else {
+            return nil
+        }
+        let parameters = parseContentDispositionParameters(disposition)
+        guard parameters["name"] == "file" else {
+            return nil
+        }
+
+        let filename = parameters["filename"] ?? "upload.bin"
+        let contentStart = headerRange.upperBound
+        let closingBoundary = Data("\r\n--\(boundary)".utf8)
+        guard let closingRange = body.range(of: closingBoundary, in: contentStart..<body.count) else {
+            return nil
+        }
+
+        return ParsedMultipartFileUpload(
+            filename: filename,
+            mimeType: partHeaders["content-type"],
+            data: Data(body[contentStart..<closingRange.lowerBound])
+        )
+    }
+
+    func extractMultipartBoundary(from contentTypeHeader: String?) -> String? {
+        guard let contentTypeHeader else { return nil }
+        for segment in contentTypeHeader.split(separator: ";") {
+            let trimmed = segment.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.lowercased().hasPrefix("boundary=") else { continue }
+            let rawBoundary = trimmed.dropFirst("boundary=".count)
+            return rawBoundary.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        }
+        return nil
+    }
+
+    func parseContentDispositionParameters(_ headerValue: String) -> [String: String] {
+        var parameters: [String: String] = [:]
+        for component in headerValue.split(separator: ";").dropFirst() {
+            let trimmed = component.trimmingCharacters(in: .whitespacesAndNewlines)
+            let parts = trimmed.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { continue }
+            parameters[parts[0].lowercased()] = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        }
+        return parameters
     }
 
     func handleStreamingProxy(_ connection: NWConnection, request: HTTPRequest) async {
@@ -198,113 +518,121 @@ extension QuotaHTTPServer {
         ])
 
         do {
-            // Map model
             let upstreamModel = await proxy.mapModel(claudeRequest.model)
 
-            // Convert request
-            let converter = ClaudeToOpenAIConverter()
-            let openAIRequest = try converter.convert(
-                request: claudeRequest,
-                upstreamModel: upstreamModel
-            )
-
-            // Get upstream client and send streaming request
-            let (bytes, _) = try await proxy.sendStreamingRequest(openAIRequest: openAIRequest)
-
             let encoder = JSONEncoder()
-
-            // Send message_start event
-            let messageStart = ClaudeMessageStartEvent(
-                message: ClaudeMessageStart(
-                    id: "msg_\(UUID().uuidString.prefix(24))",
-                    type: "message",
-                    role: "assistant",
-                    model: claudeRequest.model
-                )
-            )
-            if let data = try? encoder.encode(messageStart),
-               let json = String(data: data, encoding: .utf8) {
-                await streamer.sendSSEEvent(event: "message_start", data: json)
-            }
-
-            // Send content_block_start for text
-            let blockStart = "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}"
-            await streamer.sendSSEEvent(event: "content_block_start", data: blockStart)
-
+            let messageID = "msg_\(UUID().uuidString.prefix(24))"
             var outputTokens = 0
-            var stopReason = "end_turn"
+            var reportedOutputTokens: Int?
+            var hasAnyContentBlock = false
+            var canonicalMapper = CanonicalOpenAIUpstreamStreamMapper()
+            let canonicalBuilder = CanonicalClaudeStreamBuilder()
 
-            for try await line in bytes.lines {
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard trimmed.hasPrefix("data: ") else { continue }
+            func sendClaudeEvent(_ event: ClaudeStreamEvent) async throws {
+                let eventName: String
+                let json: String
 
-                let dataStr = String(trimmed.dropFirst(6))
-                if dataStr == "[DONE]" {
-                    break
+                func encodeEventJSON<T: Encodable>(_ payload: T) throws -> String {
+                    let data = try encoder.encode(payload)
+                    guard let json = String(data: data, encoding: .utf8) else {
+                        throw NSError(
+                            domain: "QuotaHTTPServer",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Failed to encode Claude SSE payload"]
+                        )
+                    }
+                    return json
                 }
 
-                // Parse OpenAI chunk
-                if let chunkData = dataStr.data(using: .utf8),
-                   let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: chunkData),
-                   let choice = chunk.choices.first {
+                switch event {
+                case .messageStart(let payload):
+                    eventName = "message_start"
+                    json = try encodeEventJSON(payload)
 
-                    // Handle text content delta
-                    if let content = choice.delta.content, !content.isEmpty {
-                        outputTokens += content.count / 4
-                        let delta = "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\(escapeJSON(content))}}"
-                        await streamer.sendSSEEvent(event: "content_block_delta", data: delta)
+                case .contentBlockStart(let payload):
+                    hasAnyContentBlock = true
+                    eventName = "content_block_start"
+                    json = try encodeEventJSON(payload)
+
+                case .contentBlockDelta(let payload):
+                    hasAnyContentBlock = true
+                    eventName = "content_block_delta"
+                    json = try encodeEventJSON(payload)
+
+                case .contentBlockStop(let payload):
+                    hasAnyContentBlock = true
+                    eventName = "content_block_stop"
+                    json = try encodeEventJSON(payload)
+
+                case .messageDelta(let payload):
+                    eventName = "message_delta"
+                    json = try encodeEventJSON(payload)
+
+                case .messageStop:
+                    eventName = "message_stop"
+                    json = "{\"type\":\"message_stop\"}"
+
+                case .ping:
+                    eventName = "ping"
+                    json = "{\"type\":\"ping\"}"
+                }
+                await streamer.sendSSEEvent(event: eventName, data: json)
+            }
+
+            func sendEmptyTextLifecycleIfNeeded() async throws {
+                guard !hasAnyContentBlock else { return }
+                try await sendClaudeEvent(.contentBlockStart(ClaudeContentBlockStartEvent(
+                    index: 0,
+                    contentBlock: .text(ClaudeTextBlock(text: ""))
+                )))
+                try await sendClaudeEvent(.contentBlockStop(ClaudeContentBlockStopEvent(index: 0)))
+            }
+
+            try await proxy.sendStreamingClaudeRequest(claudeRequest) { upstreamEvent in
+                let canonicalEvents = canonicalMapper.map(upstreamEvent).map { event -> CanonicalStreamEvent in
+                    guard case .messageStarted(let start) = event else { return event }
+                    return .messageStarted(CanonicalStreamMessageStarted(
+                        role: start.role,
+                        messageID: messageID,
+                        model: claudeRequest.model,
+                        rawExtensions: start.rawExtensions
+                    ))
+                }
+
+                for canonicalEvent in canonicalEvents {
+                    if case .contentPartDelta(let delta) = canonicalEvent,
+                       let textDelta = delta.textDelta,
+                       !textDelta.isEmpty {
+                        outputTokens += max(1, textDelta.count / 4)
                     }
 
-                    // Handle tool calls
-                    if let toolCalls = choice.delta.toolCalls {
-                        for toolCall in toolCalls {
-                            if let id = toolCall.id, let name = toolCall.function?.name {
-                                stopReason = "tool_use"
-                                let toolStart = "{\"type\":\"content_block_start\",\"index\":\(toolCall.index),\"content_block\":{\"type\":\"tool_use\",\"id\":\(escapeJSON(id)),\"name\":\(escapeJSON(name)),\"input\":{}}}"
-                                await streamer.sendSSEEvent(event: "content_block_start", data: toolStart)
-                            }
-                            if let args = toolCall.function?.arguments, !args.isEmpty {
-                                let toolDelta = "{\"type\":\"content_block_delta\",\"index\":\(toolCall.index),\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\(escapeJSON(args))}}"
-                                await streamer.sendSSEEvent(event: "content_block_delta", data: toolDelta)
-                            }
+                    let claudeEvents = canonicalBuilder.build(event: canonicalEvent)
+                    for claudeEvent in claudeEvents {
+                        if case .messageDelta(let payload) = claudeEvent {
+                            try await sendEmptyTextLifecycleIfNeeded()
+                            reportedOutputTokens = payload.usage.outputTokens
                         }
-                    }
-
-                    // Handle finish reason
-                    if let finish = choice.finishReason {
-                        switch finish {
-                        case "tool_calls": stopReason = "tool_use"
-                        case "stop": stopReason = "end_turn"
-                        case "length": stopReason = "max_tokens"
-                        default: break
-                        }
+                        try await sendClaudeEvent(claudeEvent)
                     }
                 }
             }
-
-            // Send content_block_stop
-            let blockStop = "{\"type\":\"content_block_stop\",\"index\":0}"
-            await streamer.sendSSEEvent(event: "content_block_stop", data: blockStop)
-
-            // Send message_delta
-            let messageDelta = "{\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"\(stopReason)\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":\(max(1, outputTokens))}}"
-            await streamer.sendSSEEvent(event: "message_delta", data: messageDelta)
-
-            // Send message_stop
-            await streamer.sendSSEEvent(event: "message_stop", data: "{\"type\":\"message_stop\"}")
 
             let elapsed = Date().timeIntervalSince(streamStartTime) * 1000
+            let finalOutputTokens = max(1, reportedOutputTokens ?? outputTokens)
             emitRequestLog(
                 claudeModel: claudeRequest.model,
                 upstreamModel: upstreamModel,
                 success: true,
                 responseTimeMs: elapsed,
-                outputTokens: max(1, outputTokens)
+                outputTokens: finalOutputTokens
             )
 
         } catch {
             httpLog.error("  ✗ Streaming proxy error: \(error.localizedDescription)")
-            let errMsg = "{\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\(escapeJSON(error.localizedDescription))}}"
+            let errorResult = await proxy.buildErrorResult(error: error)
+            let errMsg = """
+            {"type":"error","error":{"type":\(escapeJSON(errorResult.response.error.type)),"message":\(escapeJSON(errorResult.response.error.message))}\(errorResult.response.requestID.map { ",\"request_id\":\(escapeJSON($0))" } ?? "")}
+            """
             await streamer.sendSSEEvent(event: "error", data: errMsg)
 
             let elapsed = Date().timeIntervalSince(streamStartTime) * 1000
@@ -318,7 +646,7 @@ extension QuotaHTTPServer {
             )
         }
 
-        streamer.close()
+        await streamer.finish()
     }
 
     func emitRequestLog(
@@ -344,6 +672,7 @@ extension QuotaHTTPServer {
         if let err = errorMessage {
             parts.append("\"error\":\(escapeJSON(err))")
         }
+        // stdout is parsed by the macOS host app for structured log ingestion
         print("PROXY_LOG:{\(parts.joined(separator: ","))}")
     }
 }

@@ -195,7 +195,8 @@ final class ProxyRuntimeService {
             }
         } else {
             environment["OPENAI_API_KEY"] = config.upstreamAPIKey
-            environment["OPENAI_BASE_URL"] = config.upstreamBaseURL
+            environment["OPENAI_BASE_URL"] = config.normalizedUpstreamBaseURL
+            environment["OPENAI_API_MODE"] = config.openAIUpstreamAPI.rawValue
             environment["BIG_MODEL"] = config.modelMapping.bigModel.name
             environment["MIDDLE_MODEL"] = config.modelMapping.middleModel.name
             environment["SMALL_MODEL"] = config.modelMapping.smallModel.name

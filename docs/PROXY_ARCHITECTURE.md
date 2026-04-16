@@ -1,0 +1,554 @@
+# Claude Code Proxy 架构文档
+
+## 概述
+
+Claude Code Proxy 是 AIUsage 的核心子系统，让 Claude Code 可以通过第三方 OpenAI 兼容的 API 服务来运行，同时保留原生的 Anthropic API 接口。
+
+核心思路：Claude Code 发出的所有请求仍然是标准的 Anthropic Messages API 格式，代理在中间做协议转换和透传，客户端感知不到上游实际使用的是哪家模型。
+
+```
+Claude Code ──(Anthropic API)──▶ QuotaServer Proxy ──(OpenAI API / Anthropic API)──▶ 上游服务
+```
+
+---
+
+## 两种代理模式
+
+### OpenAI Convert 模式
+
+将 Claude API 请求转换为 OpenAI 格式，发往任何 OpenAI 兼容的上游。
+
+```
+Claude Code
+  │ POST /v1/messages (Anthropic format)
+  ▼
+QuotaHTTPServer
+  │ 路由 → handleMessagesEndpoint / handleStreamingProxy
+  ▼
+ClaudeProxyService
+  │ Claude request → Canonical → OpenAI request
+  ▼
+OpenAICompatibleClient
+  │ POST /v1/chat/completions 或 POST /v1/responses
+  ▼
+上游 OpenAI 兼容服务
+  │ OpenAI response
+  ▼
+(逆向) Canonical → Claude response → SSE / JSON 返回 Claude Code
+```
+
+支持两种上游 API 格式：
+- **chat/completions**：经典 OpenAI Chat API
+- **responses**：OpenAI Responses API（支持 reasoning、hosted tools、phase 等）
+
+### Anthropic Passthrough 模式
+
+原样转发请求到 Anthropic 官方 API，仅记录 token 用量，不做格式转换。
+
+```
+Claude Code
+  │ 任意 Anthropic API 路径
+  ▼
+QuotaHTTPServer
+  │ 路由 → handlePassthroughProxy
+  ▼
+直接转发到 Anthropic API
+  │ 原样返回
+  ▼
+Claude Code
+```
+
+---
+
+## 目录结构
+
+```
+QuotaBackend/Sources/
+├── QuotaServer/                              # HTTP 服务入口
+│   ├── main.swift                            # CLI 启动，环境变量解析
+│   ├── QuotaHTTPServer.swift                 # NWListener HTTP 服务器 + StreamingResponse actor
+│   ├── QuotaHTTPServer+ClaudeProxy.swift     # Claude API 路由和流式桥接
+│   └── QuotaHTTPServer+Passthrough.swift     # Anthropic 透传代理
+│
+└── QuotaBackend/ClaudeProxy/
+    ├── Canonical/                             # 统一中间层（生产主链路）
+    │   ├── CanonicalModels.swift              # 中间层数据模型
+    │   ├── CanonicalMappers.swift             # 协议 → Canonical 映射
+    │   ├── CanonicalRequestBuilders.swift     # Canonical → OpenAI 请求构建
+    │   ├── CanonicalClaudeBuilders.swift      # Canonical → Claude 响应构建
+    │   ├── CanonicalStreamModels.swift        # 流式事件中间层模型
+    │   ├── CanonicalStreamMappers.swift       # 上游流事件 → Canonical 流事件
+    │   └── CanonicalLossyModels.swift         # 显式降级标记
+    │
+    ├── Models/                                # API 协议模型
+    │   ├── ClaudeAPIModels.swift              # Anthropic Messages API
+    │   ├── OpenAIAPIModels.swift              # OpenAI Chat Completions API
+    │   ├── OpenAIResponsesModels.swift        # OpenAI Responses API
+    │   └── EventLoggingModels.swift           # 遥测事件模型
+    │
+    ├── Runtime/                               # 运行时服务
+    │   ├── ClaudeProxyConfiguration.swift     # 代理配置 + 环境变量加载
+    │   ├── ClaudeProxyService.swift           # 核心服务（请求编排、鉴权、错误处理）
+    │   └── OpenAICompatibleClient.swift       # 上游 HTTP 客户端（actor）
+    │
+    ├── Conversion/                            # 旧直连转换器（参考实现 + 测试基线）
+    │   ├── ClaudeToOpenAIConverter.swift       # Claude → OpenAI 直接转换
+    │   └── OpenAIToClaudeConverter.swift       # OpenAI → Claude 直接转换
+    │
+    └── Utilities/
+        ├── SSEEncoder.swift                   # Claude SSE 事件序列化
+        └── SharedTypes.swift                  # 共享类型说明
+```
+
+App 侧集成：
+
+```
+AIUsage/
+├── ViewModels/
+│   ├── ProxyViewModel.swift                   # UI 状态、激活事务、持久化
+│   ├── ProxyViewModel+ProxyServer.swift       # QuotaServer 进程管理桥接
+│   ├── ProxyViewModel+Aggregation.swift       # 代理统计聚合
+│   ├── ProxyViewModel+LogManagement.swift     # 日志管理
+│   └── ClaudeSettingsManager.swift            # ~/.claude/settings.json 读写
+└── Services/
+    └── ProxyRuntimeService.swift              # 进程启停、端口清理、可执行文件发现
+```
+
+---
+
+## 核心模块详解
+
+### 1. QuotaHTTPServer — HTTP 服务器
+
+**文件**: `QuotaServer/QuotaHTTPServer.swift`（624 行）
+
+基于 `Network.framework` 的轻量 HTTP/1.1 服务器，零外部依赖。
+
+**关键类型**:
+
+- `QuotaHTTPServer` — 服务器主类，管理 `NWListener` 生命周期
+- `StreamingResponse` — actor，管理单个流式连接的生命周期
+- `HTTPRequest` / `HTTPResponse` — 请求/响应值类型
+
+**StreamingResponse actor**:
+
+负责 HTTP/1.1 Chunked Transfer Encoding 的正确实现：
+
+| 方法 | 职责 |
+|------|------|
+| `sendHeaders(status:headers:)` | 发送状态行 + `Transfer-Encoding: chunked` |
+| `sendSSEEvent(_:)` | 发送 SSE 格式的 chunked frame |
+| `sendChunk(_:)` | 发送原始文本的 chunked frame |
+| `sendDataChunk(_:)` | 发送原始 Data 的 chunked frame |
+| `finish()` | 发送 `0\r\n\r\n` 终止帧，优雅关闭连接 |
+
+**路由逻辑**:
+
+```
+/health               → 200 OK
+/v1/messages          → handleMessagesEndpoint (非流式) 或 handleStreamingProxy (流式)
+/v1/messages/count_tokens → handleCountTokensEndpoint
+/v1/files             → handleFilesEndpoint (Files API)
+/api/event_logging/*  → handleEventLoggingEndpoint
+其他 (passthrough)    → handlePassthroughProxy
+```
+
+### 2. QuotaHTTPServer+ClaudeProxy — 代理路由与流式桥接
+
+**文件**: `QuotaServer/QuotaHTTPServer+ClaudeProxy.swift`（678 行）
+
+**关键函数**:
+
+| 函数 | 职责 |
+|------|------|
+| `handleMessagesEndpoint(request:headers:)` | 非流式 `/v1/messages` 处理，调用 `ClaudeProxyService.handleMessages()` |
+| `handleStreamingProxy(_:request:)` | 流式 `/v1/messages`，建立 SSE 通道并逐事件桥接 |
+| `handleCountTokensEndpoint(request:headers:)` | Token 计数估算 |
+| `handleFilesEndpoint(request:headers:)` | Files API CRUD 路由 |
+| `handleEventLoggingEndpoint(request:headers:)` | 遥测事件接收（始终返回成功） |
+| `proxyErrorHTTPResponse(proxy:error:headers:)` | 统一错误响应构建，附带 `request-id` 透传 |
+
+**流式桥接流程** (`handleStreamingProxy`):
+
+```
+1. 解析 Claude 请求，鉴权
+2. 创建 StreamingResponse actor
+3. 发送 SSE headers（Transfer-Encoding: chunked）
+4. 发送 message_start + ping
+5. 初始化 CanonicalOpenAIUpstreamStreamMapper
+6. 调用 ClaudeProxyService.sendStreamingClaudeRequest
+   每收到一个上游事件:
+   ├─ mapper 归一化为 CanonicalStreamEvent
+   ├─ CanonicalClaudeStreamBuilder 生成 Claude SSE 事件
+   └─ StreamingResponse.sendSSEEvent 推送给客户端
+7. 发送 message_delta + message_stop
+8. 记录 PROXY_LOG
+9. streamer.finish() 优雅关闭
+```
+
+### 3. QuotaHTTPServer+Passthrough — Anthropic 透传代理
+
+**文件**: `QuotaServer/QuotaHTTPServer+Passthrough.swift`（257 行）
+
+**关键函数**:
+
+| 函数 | 职责 |
+|------|------|
+| `handlePassthroughProxy(_:request:)` | 主入口，判断流式/非流式分发 |
+| `handlePassthroughStreaming(...)` | 逐行转发 upstream SSE，chunked 编码 |
+| `handlePassthroughNonStreaming(...)` | 同步转发，提取 usage 记录日志 |
+| `forwardPassthrough(...)` | 最终转发函数 |
+
+Passthrough 模式下，请求头原样传递（替换 `x-api-key` 为上游密钥），支持 `anthropic-beta` 等特殊头。
+
+### 4. Canonical 中间层 — 统一协议桥接
+
+这是当前生产主链路的核心，所有协议转换都经过 Canonical 层。
+
+#### CanonicalModels.swift（557 行）
+
+定义统一的中间层数据结构：
+
+| 类型 | 职责 |
+|------|------|
+| `CanonicalRequest` | 统一请求：model、system、items、tools、config |
+| `CanonicalResponse` | 统一响应：id、model、items、stop、usage |
+| `CanonicalConversationItem` | 统一对话项：message / toolCall / toolResult / reasoning / hostedToolEvent |
+| `CanonicalContentPart` | 统一内容块：text / image / document / fileRef / reasoningText / refusal |
+| `CanonicalToolDefinition` | 统一工具定义：function / hosted / custom |
+| `CanonicalToolConfig` | 工具选择策略：auto / required / none / specific |
+| `CanonicalStop` | 停止原因：end_turn / tool_use / max_tokens / pause_turn / refusal / error |
+| `CanonicalUsage` | Token 统计：input / output / cache / reasoning |
+
+#### CanonicalMappers.swift（1044 行）
+
+协议 → Canonical 的入站映射：
+
+| Mapper 方法 | 方向 |
+|------------|------|
+| `CanonicalRequestMapper().mapClaude(_:)` | Claude MessageRequest → CanonicalRequest |
+| `CanonicalResponseMapper().mapOpenAIChatCompletions(_:)` | Chat Completions Response → CanonicalResponse |
+| `CanonicalResponseMapper().mapOpenAIResponses(_:)` | Responses Response → CanonicalResponse |
+
+处理所有内容类型映射、工具定义转换、stop reason 归一化。
+
+#### CanonicalRequestBuilders.swift（1206 行）
+
+Canonical → OpenAI 的出站请求构建：
+
+| Builder 方法 | 产出 |
+|-------------|------|
+| `buildChatCompletionRequest(from:modelOverride:)` | `OpenAIChatCompletionRequest` |
+| `buildResponsesRequest(from:modelOverride:)` | `OpenAIResponsesRequest` |
+
+关键映射逻辑：
+- Claude `system` → OpenAI `messages[0].role=system` / `instructions`
+- Claude `thinking` → OpenAI `reasoning` (responses) / 忽略 (chat)
+- Claude `document.file_id` → OpenAI `input_file` (responses) / `type: "file"` (chat)
+- Claude `tool_result` → OpenAI `role: tool` (chat) / `function_call_output` (responses)
+- 角色区分 `input_text` vs `output_text`（assistant 消息使用 `output_text`）
+
+#### CanonicalClaudeBuilders.swift（403 行）
+
+Canonical → Claude 的出站响应构建：
+
+| Builder 方法 | 产出 |
+|-------------|------|
+| `buildMessageResponse(from:originalModel:)` | `ClaudeMessageResponse` |
+
+将 canonical response 里的 text、tool_call、reasoning 等映射回 Claude 的 content block 格式。
+
+#### CanonicalStreamModels.swift（124 行）+ CanonicalStreamMappers.swift（373 行）
+
+流式事件归一化层：
+
+```
+OpenAIUpstreamStreamEvent
+  │ CanonicalOpenAIUpstreamStreamMapper
+  ▼
+CanonicalStreamEvent
+  │ CanonicalClaudeStreamBuilder (in QuotaHTTPServer+ClaudeProxy.swift)
+  ▼
+Claude SSE 事件文本
+```
+
+`CanonicalStreamEvent` 枚举：
+
+| 事件 | 语义 |
+|------|------|
+| `.textDelta(text)` | 文本增量 |
+| `.reasoningDelta(text)` | thinking/reasoning 增量 |
+| `.toolCallStart(index, id, name)` | 工具调用开始 |
+| `.toolCallDelta(index, json)` | 工具参数增量 |
+| `.toolCallEnd(index)` | 工具调用结束 |
+| `.completion(stop, usage)` | 消息完成 |
+| `.error(message)` | 上游错误 |
+
+Mapper 内部维护状态机：当前活跃 block 类型（text / reasoning / tool）、tool 缓冲区（等待 metadata 到达后再发送）、text block index 追踪。
+
+### 5. ClaudeProxyService — 核心编排服务
+
+**文件**: `ClaudeProxy/Runtime/ClaudeProxyService.swift`（444 行）
+
+`public actor ClaudeProxyService`，提供以下能力：
+
+| 方法 | 职责 |
+|------|------|
+| `authenticate(headers:)` | 验证 `x-api-key` 或 `Authorization: Bearer` |
+| `handleMessages(request:)` | 非流式主链路：Claude → Canonical → OpenAI → Canonical → Claude |
+| `sendStreamingClaudeRequest(_:onEvent:)` | 流式主链路：构建请求并调用上游流式 API |
+| `handleCountTokens(request:)` | 启发式 token 计数 |
+| `listFiles / retrieveFile / createFile / deleteFile / retrieveFileContent` | Files API 桥接 |
+| `buildErrorResult(error:)` | 统一错误包装：error type 映射 + request-id 透传 |
+| `mapModel(_:)` | Claude 模型名 → 上游模型名 |
+
+**请求数据流（非流式）**:
+
+```swift
+let canonicalRequest = CanonicalRequestMapper().mapClaude(request)      // Claude → Canonical
+let openAIRequest = CanonicalOpenAIRequestBuilder().buildXxxRequest(...) // Canonical → OpenAI
+let openAIResponse = upstreamClient.sendXxx(request: openAIRequest)     // 发送上游
+let canonicalResponse = CanonicalResponseMapper().mapOpenAIXxx(...)      // OpenAI → Canonical
+let claudeResponse = CanonicalClaudeResponseBuilder().build(...)         // Canonical → Claude
+```
+
+### 6. OpenAICompatibleClient — 上游 HTTP 客户端
+
+**文件**: `ClaudeProxy/Runtime/OpenAICompatibleClient.swift`（1015 行）
+
+`public actor OpenAICompatibleClient`，封装所有上游通信：
+
+| 方法 | 职责 |
+|------|------|
+| `sendChatCompletion(request:)` | 非流式 Chat Completions |
+| `sendResponses(request:)` | 非流式 Responses API |
+| `streamCompletion(request:onEvent:)` | 流式 Chat Completions |
+| `streamResponses(request:onEvent:)` | 流式 Responses API |
+| `listFiles / retrieveFile / uploadFile / deleteFile / retrieveFileContent` | Files API |
+
+关键行为：
+- 自动重试：当上游因 `max_tokens` 参数不兼容返回 400 时，自动移除该参数重试
+- Reasoning 去重：流式 reasoning 增量可能包含重复前缀，client 会自动去重
+- 错误提取：从上游 HTTP 响应中提取 `request-id` / `x-request-id` 并附加到错误对象
+- API 边界强制：`sendChatCompletion` / `streamCompletion` 在配置为 `.responses` 模式时会抛错，反之亦然
+
+### 7. API 模型层
+
+#### ClaudeAPIModels.swift（807 行）
+
+完整的 Anthropic Messages API 类型定义：
+
+- `ClaudeMessageRequest` / `ClaudeMessageResponse` — 核心请求/响应
+- `ClaudeContentBlock` — text / image / document / tool_use / tool_result / thinking / redacted_thinking / unknown
+- `ClaudeStreamEvent` — message_start / content_block_start / content_block_delta / content_block_stop / message_delta / message_stop
+- `ClaudeDelta` — text_delta / input_json_delta / thinking_delta / signature_delta / citations / unknown
+- `ClaudeToolDefinition` — 含 `eager_input_streaming` 支持
+- `ClaudeTokenCountRequest` / `ClaudeTokenCountResponse`
+- `ClaudeFilesListResponse` / `ClaudeFileObject` — Files API
+
+#### OpenAIAPIModels.swift（616 行）
+
+OpenAI Chat Completions API 类型定义：
+
+- `OpenAIChatCompletionRequest` / `OpenAIChatCompletionResponse`
+- `OpenAIChatMessage` — 支持 string / array content
+- `OpenAIContentPart` — text / image_url / input_audio / file / unknown
+- `OpenAIToolCall` / `OpenAIFunctionCall`
+- `OpenAIStreamChunk` / `OpenAIStreamDelta`
+
+#### OpenAIResponsesModels.swift（1945 行）
+
+OpenAI Responses API 类型定义，是最大的模型文件：
+
+- `OpenAIResponsesRequest` / `OpenAIResponsesResponse`
+- `OpenAIResponsesInputItem` — message / function_call / function_call_output / item_reference / reasoning / compaction
+- `OpenAIResponsesInputContent` — input_text / input_image / input_file / output_text
+- `OpenAIResponsesOutputItem` — message / function_call / reasoning / hosted tool items (file_search / web_search / computer_use / code_interpreter / mcp)
+- `OpenAIResponsesStreamEvent` — 完整的流式事件体系
+- `OpenAIResponsesTool` — function / file_search / web_search / code_interpreter / computer_use / mcp
+
+### 8. 旧转换层（参考实现）
+
+#### ClaudeToOpenAIConverter.swift（375 行）
+
+Claude 请求 → OpenAI Chat Completions 请求的直接转换。当前已不在生产主链路中使用，保留为测试基线和参考实现。
+
+#### OpenAIToClaudeConverter.swift（571 行）
+
+OpenAI Chat Completions 响应 → Claude 响应的直接转换。同样保留为参考实现。
+
+这两个文件不再承担生产职责，但在 shadow tests 中用于验证 canonical 路径的输出与直连路径一致。
+
+---
+
+## 配置与启动
+
+### 环境变量
+
+QuotaServer 通过环境变量配置代理行为：
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `PROXY_MODE` | `openai` 或 `passthrough` | `openai` |
+| `OPENAI_API_KEY` | 上游 API 密钥（OpenAI 模式必填） | — |
+| `OPENAI_BASE_URL` | 上游 API 地址 | `https://api.openai.com` |
+| `OPENAI_API_MODE` | `chat_completions` 或 `responses` | `chat_completions` |
+| `BIG_MODEL` | opus 映射目标 | `gpt-4o` |
+| `MIDDLE_MODEL` | sonnet 映射目标 | `gpt-4o-mini` |
+| `SMALL_MODEL` | haiku 映射目标 | `gpt-3.5-turbo` |
+| `MAX_OUTPUT_TOKENS` | 输出 token 上限 | 无限制 |
+| `ANTHROPIC_API_KEY` | 客户端鉴权密钥（可选） | — |
+| `ANTHROPIC_UPSTREAM_URL` | Passthrough 上游地址 | `https://api.anthropic.com` |
+| `ANTHROPIC_UPSTREAM_KEY` | Passthrough 上游密钥 | — |
+
+### 启动命令
+
+```bash
+swift run QuotaServer --port 4318 --host 127.0.0.1
+```
+
+### ClaudeProxyConfiguration
+
+`ClaudeProxyConfiguration` 是代理的核心配置结构，支持从环境变量和 App 侧 UI 两种方式加载。
+
+关键方法：
+- `loadFromEnvironment()` → 从 `ProcessInfo.processInfo.environment` 读取
+- `mapToUpstreamModel(_:)` → 将 Claude 模型族（opus/sonnet/haiku）映射到上游模型名
+- `normalizeOpenAIBaseURL(_:)` → 自动清理 URL 末尾的 `/v1/chat/completions` 等路径
+- `validate()` → 校验必填字段
+
+---
+
+## App 侧集成
+
+### ProxyViewModel
+
+UI 状态管理和激活事务：
+
+1. 用户在 UI 选择一个代理节点并点击激活
+2. `ProxyViewModel` 执行事务式激活：
+   - 写入 `~/.claude/settings.json`（通过 `ClaudeSettingsManager`）
+   - 启动 `QuotaServer` 进程（通过 `ProxyRuntimeService`）
+   - 写入 pricing override
+   - 全部成功后才持久化 `activatedConfigId`
+3. 如果中途失败，回滚所有已完成的副作用
+
+### ProxyRuntimeService
+
+独立 service 层，管理 QuotaServer 进程的物理生命周期：
+
+- 进程启动/停止
+- 端口占用检测与陈旧进程清理
+- QuotaServer 可执行文件发现
+- Pricing override 文件写入/清理
+
+### ClaudeSettingsManager
+
+管理 `~/.claude/settings.json` 的读写：
+
+- 写入代理端点 URL
+- 写入模型环境变量映射
+- 停用时清理相关配置项
+
+---
+
+## Files API 桥接
+
+代理支持 Claude Files API 到 OpenAI Files API 的桥接：
+
+| Claude 端点 | 桥接方式 |
+|-------------|---------|
+| `GET /v1/files` | → OpenAI `GET /v1/files`，映射元数据格式 |
+| `GET /v1/files/:id` | → OpenAI `GET /v1/files/:id`，映射元数据格式 |
+| `POST /v1/files` | 解析 multipart，→ OpenAI `POST /v1/files`（自动补 `purpose=user_data`） |
+| `DELETE /v1/files/:id` | → OpenAI `DELETE /v1/files/:id` |
+| `GET /v1/files/:id/content` | → OpenAI `GET /v1/files/:id/content`，透传原始二进制 |
+
+要求 `anthropic-beta: files-api-2025-04-14` 请求头。
+
+---
+
+## 错误处理
+
+### 错误类型体系
+
+```
+UpstreamError
+├── .httpError(statusCode, message, requestID?)   → 上游 HTTP 错误
+├── .invalidURL(url)                               → URL 构造失败
+├── .invalidResponse(message)                      → API 边界违反
+├── .decodingFailed(message)                       → JSON 解码失败
+└── .streamingFailed(message)                      → 流式传输中断
+
+ConfigurationError
+├── .missingAPIKey / .invalidURL / .invalidModel / .invalidPort
+
+ConversionError
+└── 协议转换中遇到的不可恢复问题
+```
+
+### 错误映射
+
+上游 HTTP 状态码映射为 Claude 错误类型：
+
+| HTTP Status | Claude Error Type |
+|-------------|------------------|
+| 400 | `invalid_request_error` |
+| 401 | `authentication_error` |
+| 402 | `billing_error` |
+| 429 | `rate_limit_error` |
+| 504 | `timeout_error` |
+| 529 | `overloaded_error` |
+| 5xx | `api_error` |
+
+上游 `request-id` / `x-request-id` 会透传到 Claude 错误响应的 `request_id` 字段和 HTTP 响应头，方便排障。
+
+---
+
+## 测试矩阵
+
+### 测试文件
+
+| 文件 | 覆盖范围 | 测试数 |
+|------|---------|--------|
+| `QuotaHTTPServerProxyIntegrationTests.swift` | 端到端集成：路由、鉴权、非流式/流式、工具调用、图片、文件、reasoning、错误、usage | 28 |
+| `CanonicalMiddleLayerTests.swift` | Canonical 层映射正确性、shadow tests（与直连转换器对比） | 12 |
+| `ClaudeProxyConverterTests.swift` | 直连转换器单测 | 33 |
+| `OpenAIResponsesTests.swift` | Responses API 模型、流式事件、reasoning、tool streaming | 14 |
+| `HTTPServerTests.swift` | HTTP 请求解析、二进制安全 | 9 |
+| `ProxyIntegrationTestSupport.swift` | Mock 上游服务器、测试辅助工具 | — |
+
+### 回归脚本
+
+```bash
+scripts/run_claude_proxy_regression.sh
+```
+
+执行：
+1. `swift test --filter QuotaHTTPServerProxyIntegrationTests`
+2. `xcodebuild -scheme AIUsage -configuration Debug build`
+
+### 覆盖的高频链路
+
+- 非流式/流式文本生成（chat_completions 和 responses 两条路径）
+- 多工具调用与 tool loop 历史保真
+- 图片输入 + document/file_id 输入
+- Reasoning / thinking 桥接
+- Fine-grained tool streaming（参数缓冲 + metadata 延迟到达）
+- `pause_turn` / `max_tokens` 等 stop reason 对齐
+- 上游 400/429 错误到 Claude 错误格式的映射
+- Request-ID 透传
+- Files API CRUD
+- Anthropic Passthrough 转发
+
+---
+
+## 已知限制
+
+1. **Hosted tool 挂起状态**：OpenAI hosted tools（file_search / web_search 等）的"仍在执行中"状态在 Claude 消息 schema 中没有完全等价的回填项，跨回合只能保守降级成 `pause_turn`。
+
+2. **Token 计数为估算**：`/v1/messages/count_tokens` 使用启发式规则（字符数 ÷ 4），不是真实 tokenizer。
+
+3. **旧转换器保留**：`ClaudeToOpenAIConverter` / `OpenAIToClaudeConverter` 不再处于生产主链路，但保留为测试参考基线，需注意不要让两套实现漂移。
+
+4. **Canonical 层 v1 范围**：当前 canonical 层覆盖核心共享语义，vendor-specific 能力（如 Claude `cache_control`、`citations`、OpenAI `encrypted_content`）通过 `rawExtensions` 透传而非强类型建模。

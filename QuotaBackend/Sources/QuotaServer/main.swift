@@ -14,7 +14,8 @@ setbuf(stderr, nil)
 // Claude Code Proxy (optional):
 //   Set environment variables to enable proxy:
 //     OPENAI_API_KEY=sk-xxx       (required)
-//     OPENAI_BASE_URL=https://... (optional, defaults to OpenAI)
+//     OPENAI_BASE_URL=https://... (optional, defaults to https://api.openai.com)
+//     OPENAI_API_MODE=chat_completions|responses (optional, defaults to chat_completions)
 //     BIG_MODEL=gpt-4o            (optional, maps to opus)
 //     MIDDLE_MODEL=gpt-4o         (optional, maps to sonnet)
 //     SMALL_MODEL=gpt-4o-mini     (optional, maps to haiku)
@@ -34,7 +35,8 @@ let proxyConfig = ClaudeProxyConfiguration.loadFromEnvironment()
 
 if let cfg = proxyConfig {
     let modeStr = cfg.mode == .anthropicPassthrough ? "passthrough" : "openai-convert"
-    startupLog.info("Claude Code Proxy: enabled (mode=\(modeStr), upstream=\(cfg.upstreamBaseURL, privacy: .private))")
+    let apiStr = cfg.mode == .openaiConvert ? cfg.openAIUpstreamAPI.rawValue : "n/a"
+    startupLog.info("Claude Code Proxy: enabled (mode=\(modeStr), upstream_api=\(apiStr), upstream=\(cfg.upstreamBaseURL, privacy: .private))")
 } else {
     startupLog.info("Claude Code Proxy: disabled")
 }

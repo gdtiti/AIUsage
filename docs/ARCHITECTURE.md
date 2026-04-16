@@ -64,15 +64,18 @@ QuotaBackend/Sources/
 │   │   ├── UsageNormalizer.swift   # Raw → ProviderSummary + DashboardOverview
 │   │   └── ProviderSummary.swift   # Normalized summary structs
 │   ├── ClaudeProxy/
-│   │   ├── Runtime/                # Proxy service, upstream client
-│   │   ├── Conversion/            # Claude <-> OpenAI format converters
+│   │   ├── Canonical/             # Unified middle layer (production pipeline)
+│   │   ├── Runtime/               # Proxy service, upstream client
+│   │   ├── Conversion/            # Legacy converters (reference impl)
 │   │   ├── Models/                # API model definitions
 │   │   └── Utilities/             # SSE encoder
 │   └── Utilities/
 │       └── DateFormatting.swift   # Shared formatters (SharedFormatters, DateFormat)
 └── QuotaServer/
-    ├── main.swift                 # CLI entry point
-    └── QuotaHTTPServer.swift      # NWListener HTTP server
+    ├── main.swift                          # CLI entry point
+    ├── QuotaHTTPServer.swift               # NWListener HTTP server + StreamingResponse
+    ├── QuotaHTTPServer+ClaudeProxy.swift   # Claude API routing & streaming bridge
+    └── QuotaHTTPServer+Passthrough.swift   # Anthropic passthrough proxy
 ```
 
 ## Singleton Architecture
@@ -128,17 +131,24 @@ sequenceDiagram
 
 ## Proxy Subsystem
 
-**Process lifecycle** (managed by `ProxyViewModel`):
+详细架构文档见 [PROXY_ARCHITECTURE.md](PROXY_ARCHITECTURE.md)。
+
+**Process lifecycle** (managed by `ProxyViewModel` + `ProxyRuntimeService`):
 
 1. User activates a proxy node in the UI
-2. `ProxyViewModel` writes `~/.claude/settings.json` with proxy endpoint + model env vars
-3. Spawns `QuotaServer` process with appropriate environment variables
-4. Pipes stdout/stderr, parses `PROXY_LOG:` JSON lines for stats
-5. On deactivation: kills process, restores settings.json
+2. `ProxyViewModel` executes transactional activation:
+   - Writes `~/.claude/settings.json` (via `ClaudeSettingsManager`)
+   - Spawns `QuotaServer` process (via `ProxyRuntimeService`)
+   - Writes pricing override
+   - Persists `activatedConfigId` only after all steps succeed
+3. Pipes stdout/stderr, parses `PROXY_LOG:` JSON lines for stats
+4. On deactivation: kills process, restores settings.json, rolls back state
 
 **Proxy modes**:
-- **OpenAI Proxy**: Claude API requests → converted to OpenAI format → upstream provider
-- **Anthropic Passthrough**: Transparent proxy logging input/output/cache tokens without format changes
+- **OpenAI Convert**: Claude API → Canonical Middle Layer → OpenAI `chat/completions` or `responses` → upstream
+- **Anthropic Passthrough**: Transparent forwarding with token usage logging
+
+**Conversion pipeline**: All protocol conversion goes through a Canonical Middle Layer (see [CANONICAL_MIDDLE_LAYER_DESIGN.md](CANONICAL_MIDDLE_LAYER_DESIGN.md)).
 
 ## Storage Locations
 

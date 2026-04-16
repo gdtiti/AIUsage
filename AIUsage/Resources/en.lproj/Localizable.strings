@@ -656,16 +656,13 @@
 "AIUsage/Views/ProxyConfigEditorView.swift::Model Configuration" = "Model Configuration";
 
 /* Views/ProxyConfigEditorView.swift */
-"AIUsage/Views/ProxyConfigEditorView.swift::Model Pricing" = "Model Pricing";
 
 /* Views/ProxyConfigEditorView.swift */
 "AIUsage/Views/ProxyConfigEditorView.swift::Model Slots" = "Model Slots";
 
 /* Views/ProxyConfigEditorView.swift */
-"AIUsage/Views/ProxyConfigEditorView.swift::Model name, e.g. sonnet" = "Model name, e.g. sonnet";
 
 /* Views/ProxyConfigEditorView.swift */
-"AIUsage/Views/ProxyConfigEditorView.swift::Model names are matched by substring (e.g. \"sonnet\" matches \"claude-sonnet-4-20250514\")." = "Model names are matched by substring (e.g. \"sonnet\" matches \"claude-sonnet-4-20250514\").";
 
 /* Views/ProxyConfigEditorView.swift */
 "AIUsage/Views/ProxyConfigEditorView.swift::Name" = "Name";

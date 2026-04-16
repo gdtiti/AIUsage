@@ -7,12 +7,27 @@ public enum ProxyMode: String, Sendable {
     case anthropicPassthrough
 }
 
+public enum OpenAIUpstreamAPI: String, Sendable, Codable, CaseIterable {
+    case chatCompletions = "chat_completions"
+    case responses
+
+    public static func fromEnvironment(_ value: String?) -> OpenAIUpstreamAPI {
+        switch value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "responses", "response":
+            return .responses
+        default:
+            return .chatCompletions
+        }
+    }
+}
+
 public struct ClaudeProxyConfiguration: Sendable {
     public let enabled: Bool
     /// TCP port this proxy configuration is intended to bind on (1–65535).
     public let bindPort: Int
     public let mode: ProxyMode
     public let upstreamBaseURL: String
+    public let openAIUpstreamAPI: OpenAIUpstreamAPI
     public let upstreamAPIKey: String
     public let expectedClientKey: String?
     public let bigModel: String
@@ -27,6 +42,7 @@ public struct ClaudeProxyConfiguration: Sendable {
         bindPort: Int = 4318,
         mode: ProxyMode = .openaiConvert,
         upstreamBaseURL: String,
+        openAIUpstreamAPI: OpenAIUpstreamAPI = .chatCompletions,
         upstreamAPIKey: String,
         expectedClientKey: String? = nil,
         bigModel: String = "gpt-4o",
@@ -39,7 +55,10 @@ public struct ClaudeProxyConfiguration: Sendable {
         self.enabled = enabled
         self.bindPort = bindPort
         self.mode = mode
-        self.upstreamBaseURL = upstreamBaseURL
+        self.upstreamBaseURL = mode == .openaiConvert
+            ? Self.normalizeOpenAIBaseURL(upstreamBaseURL)
+            : upstreamBaseURL
+        self.openAIUpstreamAPI = openAIUpstreamAPI
         self.upstreamAPIKey = upstreamAPIKey
         self.expectedClientKey = expectedClientKey
         self.bigModel = bigModel
@@ -75,6 +94,43 @@ public struct ClaudeProxyConfiguration: Sendable {
             return middleModel
         }
         return requestModel
+    }
+
+    public static func normalizeOpenAIBaseURL(_ url: String) -> String {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        if var components = URLComponents(string: trimmed) {
+            var segments = components.path.split(separator: "/").map(String.init)
+            let normalizedSegments = segments.map { $0.lowercased() }
+
+            if normalizedSegments.suffix(3) == ["v1", "chat", "completions"] {
+                segments.removeLast(3)
+            } else if normalizedSegments.suffix(2) == ["v1", "responses"] {
+                segments.removeLast(2)
+            } else if normalizedSegments.suffix(2) == ["v1", "models"] {
+                segments.removeLast(2)
+            } else if normalizedSegments.last == "v1" {
+                segments.removeLast()
+            }
+
+            components.path = segments.isEmpty ? "" : "/" + segments.joined(separator: "/")
+            return components.string ?? trimmed
+        }
+
+        let legacySuffixes = [
+            "/v1/chat/completions",
+            "/v1/responses",
+            "/v1/models",
+            "/v1/",
+            "/v1"
+        ]
+
+        for suffix in legacySuffixes where trimmed.lowercased().hasSuffix(suffix.lowercased()) {
+            return String(trimmed.dropLast(suffix.count))
+        }
+
+        return trimmed
     }
 
     public func validate() throws {
@@ -115,7 +171,10 @@ public struct ClaudeProxyConfiguration: Sendable {
             return nil
         }
 
-        let baseURL = ProcessInfo.processInfo.environment["OPENAI_BASE_URL"] ?? "https://api.openai.com/v1"
+        let baseURL = ProcessInfo.processInfo.environment["OPENAI_BASE_URL"] ?? "https://api.openai.com"
+        let openAIUpstreamAPI = OpenAIUpstreamAPI.fromEnvironment(
+            ProcessInfo.processInfo.environment["OPENAI_API_MODE"]
+        )
         let clientKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]
         let bigModel = ProcessInfo.processInfo.environment["BIG_MODEL"] ?? "gpt-4o"
         let middleModel = ProcessInfo.processInfo.environment["MIDDLE_MODEL"] ?? "gpt-4o-mini"
@@ -126,6 +185,7 @@ public struct ClaudeProxyConfiguration: Sendable {
             enabled: true,
             mode: .openaiConvert,
             upstreamBaseURL: baseURL,
+            openAIUpstreamAPI: openAIUpstreamAPI,
             upstreamAPIKey: apiKey,
             expectedClientKey: clientKey,
             bigModel: bigModel,

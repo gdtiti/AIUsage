@@ -13,6 +13,7 @@ xcuserdata/
 *.xcscmblueprint
 *.xccheckout
 DerivedData/
+.derived-data/
 build/
 *.moved-aside
 *.hmap

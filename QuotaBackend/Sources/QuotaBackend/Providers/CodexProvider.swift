@@ -56,6 +56,7 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 accountEmail: label,
                 jwtPlanType: nil,
                 jwtUserId: nil,
+                jwtWorkspaceName: nil,
                 needsRefresh: false,
                 isApiKeyMode: true
             )
@@ -81,7 +82,8 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 source: source,
                 fallbackEmail: effectiveCreds.accountEmail ?? normalizedLabel(credential.accountLabel),
                 jwtPlanType: effectiveCreds.jwtPlanType,
-                jwtUserId: effectiveCreds.jwtUserId
+                jwtUserId: effectiveCreds.jwtUserId,
+                jwtWorkspaceName: effectiveCreds.jwtWorkspaceName
             )
         } catch let error as ProviderError where error.code == "unauthorized" {
             guard !effectiveCreds.isApiKeyMode,
@@ -95,7 +97,8 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 source: source,
                 fallbackEmail: refreshed.accountEmail ?? normalizedLabel(credential.accountLabel),
                 jwtPlanType: refreshed.jwtPlanType,
-                jwtUserId: refreshed.jwtUserId
+                jwtUserId: refreshed.jwtUserId,
+                jwtWorkspaceName: refreshed.jwtWorkspaceName
             )
         }
     }
@@ -158,6 +161,7 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         let accountEmail: String?
         let jwtPlanType: String?
         let jwtUserId: String?
+        let jwtWorkspaceName: String?
         let needsRefresh: Bool
         let isApiKeyMode: Bool
     }
@@ -236,6 +240,7 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 accountEmail: stringValue(json["email"]),
                 jwtPlanType: nil,
                 jwtUserId: nil,
+                jwtWorkspaceName: nil,
                 needsRefresh: false,
                 isApiKeyMode: true
             )
@@ -269,6 +274,7 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
             ?? decodeEmail(fromJWT: accessToken)
         let jwtPlanType = decodePlanType(fromJWT: idToken) ?? decodePlanType(fromJWT: accessToken)
         let jwtUserId = decodeUserId(fromJWT: idToken) ?? decodeUserId(fromJWT: accessToken)
+        let jwtWorkspaceName = decodeWorkspaceName(fromJWT: idToken) ?? decodeWorkspaceName(fromJWT: accessToken)
 
         let lastRefresh = stringValue(json["last_refresh"]).flatMap(parseDate)
         let expiryDate = stringValue(json["expired"]).flatMap(parseDate)
@@ -295,6 +301,7 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
             accountEmail: accountEmail,
             jwtPlanType: jwtPlanType,
             jwtUserId: jwtUserId,
+            jwtWorkspaceName: jwtWorkspaceName,
             needsRefresh: needsRefresh,
             isApiKeyMode: false
         )
@@ -331,6 +338,7 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
             accountEmail: creds.accountEmail,
             jwtPlanType: decodePlanType(fromJWT: newIdToken) ?? creds.jwtPlanType,
             jwtUserId: decodeUserId(fromJWT: newIdToken) ?? creds.jwtUserId,
+            jwtWorkspaceName: decodeWorkspaceName(fromJWT: newIdToken) ?? creds.jwtWorkspaceName,
             needsRefresh: false,
             isApiKeyMode: false
         )
@@ -429,7 +437,8 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 source: sourceInfo(for: authContext.url, mode: "oauth"),
                 fallbackEmail: creds.accountEmail,
                 jwtPlanType: creds.jwtPlanType,
-                jwtUserId: creds.jwtUserId
+                jwtUserId: creds.jwtUserId,
+                jwtWorkspaceName: creds.jwtWorkspaceName
             )
         } catch let error as ProviderError where error.code == "unauthorized" {
             guard !creds.isApiKeyMode,
@@ -443,7 +452,8 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 source: sourceInfo(for: authContext.url, mode: "oauth"),
                 fallbackEmail: refreshed.accountEmail,
                 jwtPlanType: refreshed.jwtPlanType,
-                jwtUserId: refreshed.jwtUserId
+                jwtUserId: refreshed.jwtUserId,
+                jwtWorkspaceName: refreshed.jwtWorkspaceName
             )
         }
     }
@@ -454,7 +464,8 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         source: SourceInfo,
         fallbackEmail: String?,
         jwtPlanType: String? = nil,
-        jwtUserId: String? = nil
+        jwtUserId: String? = nil,
+        jwtWorkspaceName: String? = nil
     ) -> ProviderUsage {
         let rateLimit = json["rate_limit"] as? [String: Any] ?? [:]
         let codeReviewLimit = json["code_review_rate_limit"] as? [String: Any] ?? [:]
@@ -478,6 +489,7 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         usage.extra["workspaceType"] = AnyCodable(wsType)
         if let accountId { usage.extra["workspaceId"] = AnyCodable(accountId) }
         if let jwtUserId { usage.extra["userId"] = AnyCodable(jwtUserId) }
+        if let jwtWorkspaceName { usage.extra["workspaceName"] = AnyCodable(jwtWorkspaceName) }
 
         usage.primary = parseWindow(rateLimit["primary_window"] as? [String: Any])
         usage.secondary = parseWindow(rateLimit["secondary_window"] as? [String: Any])
@@ -600,6 +612,17 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
             return stringValue(auth["chatgpt_user_id"])
         }
         return nil
+    }
+
+    private func decodeWorkspaceName(fromJWT token: String?) -> String? {
+        guard let payload = decodeJWTPayload(token: token) else { return nil }
+        guard let auth = payload["https://api.openai.com/auth"] as? [String: Any],
+              let orgs = auth["organizations"] as? [[String: Any]] else {
+            return nil
+        }
+        let title = orgs.first.flatMap { stringValue($0["title"]) }
+        guard let title, title.lowercased() != "personal" else { return nil }
+        return title
     }
 
     /// Derive a workspace type label from the plan string.

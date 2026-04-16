@@ -66,6 +66,10 @@ final class AccountStore: ObservableObject {
             if let credentialId, $0.credentialId == credentialId { return true }
             if let normalizedProviderResultId, $0.normalizedProviderResultId == normalizedProviderResultId { return true }
             if let normalizedAccountId, $0.normalizedAccountId == normalizedAccountId { return true }
+            if let normalizedAccountId, let storedAccountId = $0.normalizedAccountId,
+               storedAccountId != normalizedAccountId {
+                return false
+            }
             return $0.normalizedEmail == normalizedLookup
         }) {
             let existing = accountRegistry[index]

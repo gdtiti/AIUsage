@@ -168,7 +168,7 @@ enum ProviderAuthManager {
             ?? stringValue(json?["email"])
         let fingerprint: String?
         if let json {
-            fingerprint = sessionFingerprint(from: json, preferredKeys: ["account_id", "email"])
+            fingerprint = sessionFingerprint(from: json)
         } else {
             fingerprint = nil
         }

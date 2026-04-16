@@ -12,12 +12,14 @@ public struct OpenAIChatCompletionRequest: Codable, Sendable {
     public let stream: Bool?
     public let tools: [OpenAITool]?
     public let toolChoice: OpenAIToolChoice?
+    public let parallelToolCalls: Bool?
 
     enum CodingKeys: String, CodingKey {
         case model, messages, temperature, stop, stream, tools
         case topP = "top_p"
         case maxTokens = "max_tokens"
         case toolChoice = "tool_choice"
+        case parallelToolCalls = "parallel_tool_calls"
     }
 
     public init(
@@ -29,7 +31,8 @@ public struct OpenAIChatCompletionRequest: Codable, Sendable {
         stop: [String]? = nil,
         stream: Bool? = nil,
         tools: [OpenAITool]? = nil,
-        toolChoice: OpenAIToolChoice? = nil
+        toolChoice: OpenAIToolChoice? = nil,
+        parallelToolCalls: Bool? = nil
     ) {
         self.model = model
         self.messages = messages
@@ -40,6 +43,7 @@ public struct OpenAIChatCompletionRequest: Codable, Sendable {
         self.stream = stream
         self.tools = tools
         self.toolChoice = toolChoice
+        self.parallelToolCalls = parallelToolCalls
     }
 }
 
@@ -103,6 +107,8 @@ public enum OpenAIMessageContent: Codable, Sendable {
 public enum OpenAIContentPart: Codable, Sendable {
     case text(OpenAITextPart)
     case imageUrl(OpenAIImageUrlPart)
+    case inputFile(OpenAIFilePart)
+    case unknown(OpenAIUnknownContentPart)
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -117,12 +123,10 @@ public enum OpenAIContentPart: Codable, Sendable {
             self = .text(try OpenAITextPart(from: decoder))
         case "image_url":
             self = .imageUrl(try OpenAIImageUrlPart(from: decoder))
+        case "input_file", "file":
+            self = .inputFile(try OpenAIFilePart(from: decoder))
         default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .type,
-                in: container,
-                debugDescription: "Unknown content part type: \(type)"
-            )
+            self = .unknown(try OpenAIUnknownContentPart(from: decoder))
         }
     }
 
@@ -132,7 +136,36 @@ public enum OpenAIContentPart: Codable, Sendable {
             try part.encode(to: encoder)
         case .imageUrl(let part):
             try part.encode(to: encoder)
+        case .inputFile(let part):
+            try OpenAIChatFilePartEnvelope(fileId: part.fileId, filename: part.filename).encode(to: encoder)
+        case .unknown(let part):
+            try part.encode(to: encoder)
         }
+    }
+}
+
+public struct OpenAIUnknownContentPart: Codable, Sendable {
+    public let type: String
+    public let payload: [String: AnyCodable]
+
+    enum CodingKeys: String, CodingKey {
+        case type
+    }
+
+    public init(type: String, payload: [String: AnyCodable] = [:]) {
+        self.type = type
+        self.payload = payload
+    }
+
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode([String: AnyCodable].self)
+        self.payload = raw
+        self.type = raw["type"]?.value as? String ?? "unknown"
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(payload)
     }
 }
 
@@ -162,6 +195,76 @@ public struct OpenAIImageUrlPart: Codable, Sendable {
     public init(imageUrl: OpenAIImageUrl) {
         self.type = "image_url"
         self.imageUrl = imageUrl
+    }
+}
+
+public struct OpenAIFilePart: Codable, Sendable {
+    public let type: String
+    public let fileId: String?
+    public let filename: String?
+
+    enum CodingKeys: String, CodingKey {
+        case type, filename, file
+        case fileId = "file_id"
+    }
+
+    enum NestedFileKeys: String, CodingKey {
+        case filename
+        case fileId = "file_id"
+    }
+
+    public init(type: String = "input_file", fileId: String? = nil, filename: String? = nil) {
+        self.type = type
+        self.fileId = fileId
+        self.filename = filename
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+
+        self.type = type
+        if type == "file", container.contains(.file) {
+            let fileContainer = try container.nestedContainer(keyedBy: NestedFileKeys.self, forKey: .file)
+            self.fileId = try fileContainer.decodeIfPresent(String.self, forKey: .fileId)
+            self.filename = try fileContainer.decodeIfPresent(String.self, forKey: .filename)
+        } else {
+            self.fileId = try container.decodeIfPresent(String.self, forKey: .fileId)
+            self.filename = try container.decodeIfPresent(String.self, forKey: .filename)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+
+        if type == "file" {
+            var fileContainer = container.nestedContainer(keyedBy: NestedFileKeys.self, forKey: .file)
+            try fileContainer.encodeIfPresent(fileId, forKey: .fileId)
+            try fileContainer.encodeIfPresent(filename, forKey: .filename)
+        } else {
+            try container.encodeIfPresent(fileId, forKey: .fileId)
+            try container.encodeIfPresent(filename, forKey: .filename)
+        }
+    }
+}
+
+private struct OpenAIChatFilePartEnvelope: Encodable {
+    let type = "file"
+    let file: OpenAIChatFileDescriptor
+
+    init(fileId: String?, filename: String?) {
+        self.file = OpenAIChatFileDescriptor(fileId: fileId, filename: filename)
+    }
+}
+
+private struct OpenAIChatFileDescriptor: Encodable {
+    let fileId: String?
+    let filename: String?
+
+    enum CodingKeys: String, CodingKey {
+        case filename
+        case fileId = "file_id"
     }
 }
 
@@ -235,7 +338,12 @@ public enum OpenAIToolChoice: Codable, Sendable {
             default: self = .auto
             }
         } else {
-            self = .auto
+            let object = try container.decode(OpenAIToolChoiceObject.self)
+            if object.type == "function", let name = object.function?.name {
+                self = .function(name)
+            } else {
+                self = .auto
+            }
         }
     }
 
@@ -249,13 +357,21 @@ public enum OpenAIToolChoice: Codable, Sendable {
         case .required:
             try container.encode("required")
         case .function(let name):
-            let obj: [String: Any] = ["type": "function", "function": ["name": name]]
-            if let data = try? JSONSerialization.data(withJSONObject: obj),
-               let dict = try? JSONDecoder().decode([String: String].self, from: data) {
-                try container.encode(dict)
-            }
+            try container.encode(OpenAIToolChoiceObject(
+                type: "function",
+                function: OpenAIToolChoiceFunction(name: name)
+            ))
         }
     }
+}
+
+private struct OpenAIToolChoiceObject: Codable, Sendable {
+    let type: String
+    let function: OpenAIToolChoiceFunction?
+}
+
+private struct OpenAIToolChoiceFunction: Codable, Sendable {
+    let name: String
 }
 
 // MARK: - OpenAI API Response Models
@@ -317,6 +433,87 @@ public struct OpenAIUsage: Codable, Sendable {
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
         self.totalTokens = totalTokens
+    }
+}
+
+public struct OpenAIFileObject: Codable, Sendable {
+    public let id: String
+    public let object: String
+    public let bytes: Int?
+    public let createdAt: Int?
+    public let filename: String?
+    public let purpose: String?
+    public let status: String?
+    public let mimeType: String?
+    public let deleted: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case id, object, bytes, filename, purpose, status, deleted
+        case createdAt = "created_at"
+        case mimeType = "mime_type"
+    }
+
+    public init(
+        id: String,
+        object: String = "file",
+        bytes: Int? = nil,
+        createdAt: Int? = nil,
+        filename: String? = nil,
+        purpose: String? = nil,
+        status: String? = nil,
+        mimeType: String? = nil,
+        deleted: Bool? = nil
+    ) {
+        self.id = id
+        self.object = object
+        self.bytes = bytes
+        self.createdAt = createdAt
+        self.filename = filename
+        self.purpose = purpose
+        self.status = status
+        self.mimeType = mimeType
+        self.deleted = deleted
+    }
+}
+
+public struct OpenAIFileListResponse: Codable, Sendable {
+    public let object: String
+    public let data: [OpenAIFileObject]
+    public let hasMore: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case object, data
+        case hasMore = "has_more"
+    }
+
+    public init(object: String = "list", data: [OpenAIFileObject], hasMore: Bool? = nil) {
+        self.object = object
+        self.data = data
+        self.hasMore = hasMore
+    }
+}
+
+public struct OpenAIDeletedFileResponse: Codable, Sendable {
+    public let id: String
+    public let object: String
+    public let deleted: Bool
+
+    public init(id: String, object: String = "file", deleted: Bool) {
+        self.id = id
+        self.object = object
+        self.deleted = deleted
+    }
+}
+
+public struct OpenAIFileContentResponse: Sendable {
+    public let data: Data
+    public let contentType: String?
+    public let contentDisposition: String?
+
+    public init(data: Data, contentType: String? = nil, contentDisposition: String? = nil) {
+        self.data = data
+        self.contentType = contentType
+        self.contentDisposition = contentDisposition
     }
 }
 

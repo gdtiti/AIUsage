@@ -1,4 +1,5 @@
 import SwiftUI
+import QuotaBackend
 
 // MARK: - Proxy Config Editor
 
@@ -49,9 +50,6 @@ struct ProxyConfigEditorView: View {
                     switch config.nodeType {
                     case .anthropicDirect:
                         anthropicDirectSection
-                        if config.usePassthroughProxy {
-                            passthroughPricingSection
-                        }
                         modelMappingSection
                     case .openaiProxy:
                         networkSection
@@ -312,8 +310,31 @@ struct ProxyConfigEditorView: View {
                 Text(L("Base URL", "基础 URL"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                TextField("https://api.openai.com/v1", text: $config.upstreamBaseURL)
+                TextField("https://api.openai.com", text: $config.upstreamBaseURL)
                     .textFieldStyle(.roundedBorder)
+                Text(L(
+                    "Enter only the provider root URL. AIUsage will append /v1 and the selected endpoint automatically, and older values ending in /v1 or /v1/chat/completions remain compatible.",
+                    "这里只填写服务根地址即可。AIUsage 会根据所选接口自动补上 /v1 和具体端点，旧版本里以 /v1 或 /v1/chat/completions 结尾的配置也会自动兼容。"
+                ))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L("Upstream API", "上游接口"))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Picker("", selection: $config.openAIUpstreamAPI) {
+                    Text("Chat Completions").tag(OpenAIUpstreamAPI.chatCompletions)
+                    Text("Responses").tag(OpenAIUpstreamAPI.responses)
+                }
+                .pickerStyle(.segmented)
+                Text(L(
+                    "Responses is recommended for new OpenAI integrations. Keep Chat Completions for older compatible providers that only implement /v1/chat/completions.",
+                    "官方新的 OpenAI 集成更推荐 Responses；如果你的兼容服务仍只实现 /v1/chat/completions，请继续选择 Chat Completions。"
+                ))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -339,7 +360,7 @@ struct ProxyConfigEditorView: View {
                     }
                     .font(.caption.weight(.semibold))
                 }
-                .disabled(config.upstreamBaseURL.isEmpty || config.upstreamAPIKey.isEmpty || isFetchingModels)
+                .disabled(config.normalizedUpstreamBaseURL.isEmpty || config.upstreamAPIKey.isEmpty || isFetchingModels)
 
                 if !availableModels.isEmpty {
                     Text(L("\(availableModels.count) models available", "已获取 \(availableModels.count) 个模型"))
@@ -358,123 +379,6 @@ struct ProxyConfigEditorView: View {
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
     }
-
-    // MARK: - Passthrough Pricing Section
-
-    @State private var newModelName: String = ""
-
-    private var passthroughPricingSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(L("Model Pricing", "模型定价"))
-                    .font(.headline.weight(.bold))
-                Spacer()
-                Picker("", selection: $pricingCurrency) {
-                    Text("USD ($)").tag(ProxyConfiguration.PricingCurrency.usd)
-                    Text("CNY (¥)").tag(ProxyConfiguration.PricingCurrency.cny)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 160)
-                .onChange(of: pricingCurrency) { _, newCurrency in
-                    for key in config.passthroughPricing.keys {
-                        config.passthroughPricing[key]?.currency = newCurrency
-                    }
-                }
-            }
-
-            HStack(spacing: 6) {
-                Image(systemName: "info.circle.fill")
-                    .foregroundStyle(.teal)
-                Text(L("Model names are matched by substring (e.g. \"sonnet\" matches \"claude-sonnet-4-20250514\").",
-                       "模型名按子串匹配（如 \"sonnet\" 可匹配 \"claude-sonnet-4-20250514\"）。"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            if !config.passthroughPricing.isEmpty {
-                HStack(spacing: 0) {
-                    Text(L("Model", "模型"))
-                        .frame(width: 100, alignment: .leading)
-                    Text(L("Input", "输入"))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(L("Output", "输出"))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(L("Cache", "缓存"))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(L("/ M tokens", "/ 百万"))
-                        .frame(width: 64, alignment: .trailing)
-                    Spacer().frame(width: 28)
-                }
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
-            }
-
-            ForEach(Array(config.passthroughPricing.keys.sorted()), id: \.self) { modelKey in
-                let binding = Binding<ProxyConfiguration.ModelPricing>(
-                    get: { config.passthroughPricing[modelKey] ?? .zero },
-                    set: { config.passthroughPricing[modelKey] = $0 }
-                )
-                HStack(spacing: 0) {
-                    Text(modelKey)
-                        .font(.system(.caption, design: .monospaced).weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 100, alignment: .leading)
-                        .lineLimit(1)
-
-                    TextField("0", value: binding.inputPerMillion, format: .number.precision(.fractionLength(0...4)))
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12, design: .monospaced))
-                        .frame(maxWidth: .infinity)
-
-                    Spacer().frame(width: 6)
-
-                    TextField("0", value: binding.outputPerMillion, format: .number.precision(.fractionLength(0...4)))
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12, design: .monospaced))
-                        .frame(maxWidth: .infinity)
-
-                    Spacer().frame(width: 6)
-
-                    TextField("0", value: binding.cachePerMillion, format: .number.precision(.fractionLength(0...4)))
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12, design: .monospaced))
-                        .frame(maxWidth: .infinity)
-
-                    Spacer().frame(width: 6)
-
-                    Button(role: .destructive) {
-                        config.passthroughPricing.removeValue(forKey: modelKey)
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.system(size: 11))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.red.opacity(0.7))
-                    .frame(width: 22)
-                }
-            }
-
-            HStack(spacing: 8) {
-                TextField(L("Model name, e.g. sonnet", "模型名，如 sonnet"), text: $newModelName)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-                Button {
-                    let key = newModelName.trimmingCharacters(in: .whitespaces)
-                    guard !key.isEmpty, config.passthroughPricing[key] == nil else { return }
-                    config.passthroughPricing[key] = ProxyConfiguration.ModelPricing(currency: pricingCurrency)
-                    newModelName = ""
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                    Text(L("Add", "添加"))
-                }
-                .disabled(newModelName.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-        }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(nsColor: .controlBackgroundColor)))
-    }
-
-    // MARK: - Model Mapping Section (OpenAI Proxy)
 
     // MARK: - Model Configuration Section
 
@@ -612,6 +516,13 @@ struct ProxyConfigEditorView: View {
                 }
             }
 
+            if config.nodeType == .anthropicDirect {
+                Text(L("This node uses the pricing here for spend statistics. In Anthropic passthrough mode, you only need to configure this once.",
+                       "这个节点会直接使用这里的价格做消费统计。在 Anthropic 透传模式下，只需要配置这一处。"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
             // Table Header
             HStack(spacing: 0) {
                 Text("")
@@ -714,7 +625,7 @@ struct ProxyConfigEditorView: View {
             return nameValid &&
                 !config.host.isEmpty &&
                 config.port > 0 && config.port < 65536 &&
-                !config.upstreamBaseURL.isEmpty &&
+                !config.normalizedUpstreamBaseURL.isEmpty &&
                 !config.upstreamAPIKey.isEmpty &&
                 !config.modelMapping.bigModel.name.isEmpty &&
                 !config.modelMapping.middleModel.name.isEmpty &&
@@ -729,7 +640,7 @@ struct ProxyConfigEditorView: View {
         let apiKey: String
 
         if config.nodeType == .openaiProxy {
-            baseURL = config.upstreamBaseURL
+            baseURL = config.normalizedUpstreamBaseURL
             apiKey = config.upstreamAPIKey
         } else {
             baseURL = config.anthropicBaseURL
@@ -738,9 +649,16 @@ struct ProxyConfigEditorView: View {
 
         guard !baseURL.isEmpty, !apiKey.isEmpty else { return }
 
-        let urlString = baseURL.hasSuffix("/")
-            ? baseURL + "models"
-            : baseURL + "/models"
+        let urlString: String
+        if config.nodeType == .openaiProxy {
+            urlString = baseURL.hasSuffix("/")
+                ? baseURL + "v1/models"
+                : baseURL + "/v1/models"
+        } else {
+            urlString = baseURL.hasSuffix("/")
+                ? baseURL + "models"
+                : baseURL + "/models"
+        }
         guard let url = URL(string: urlString) else { return }
 
         isFetchingModels = true
@@ -778,10 +696,11 @@ struct ProxyConfigEditorView: View {
 
     private func saveConfiguration() {
         Task {
+            let normalizedConfig = config.normalizedForPersistence()
             if isNew {
-                viewModel.addConfiguration(config)
+                viewModel.addConfiguration(normalizedConfig)
             } else {
-                await viewModel.updateConfiguration(config)
+                await viewModel.updateConfiguration(normalizedConfig)
             }
             dismiss()
         }

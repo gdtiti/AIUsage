@@ -19,7 +19,7 @@ final class ClaudeProxyConverterTests: XCTestCase {
     func testModelMapping() {
         let config = ClaudeProxyConfiguration(
             enabled: true,
-            upstreamBaseURL: "https://api.openai.com/v1",
+            upstreamBaseURL: "https://api.openai.com",
             upstreamAPIKey: "test-key",
             bigModel: "gpt-4o",
             middleModel: "gpt-4o",
@@ -38,7 +38,7 @@ final class ClaudeProxyConverterTests: XCTestCase {
     func testConfigurationValidation() {
         var config = ClaudeProxyConfiguration(
             enabled: true,
-            upstreamBaseURL: "https://api.openai.com/v1",
+            upstreamBaseURL: "https://api.openai.com",
             upstreamAPIKey: "test-key"
         )
 
@@ -48,7 +48,7 @@ final class ClaudeProxyConverterTests: XCTestCase {
         config = ClaudeProxyConfiguration(
             enabled: true,
             bindPort: 0,
-            upstreamBaseURL: "https://api.openai.com/v1",
+            upstreamBaseURL: "https://api.openai.com",
             upstreamAPIKey: "test-key"
         )
         XCTAssertThrowsError(try config.validate()) { error in
@@ -58,12 +58,31 @@ final class ClaudeProxyConverterTests: XCTestCase {
         // Test empty API key
         config = ClaudeProxyConfiguration(
             enabled: true,
-            upstreamBaseURL: "https://api.openai.com/v1",
+            upstreamBaseURL: "https://api.openai.com",
             upstreamAPIKey: ""
         )
         XCTAssertThrowsError(try config.validate()) { error in
             XCTAssertEqual(error as? ConfigurationError, .missingAPIKey)
         }
+    }
+
+    func testNormalizeOpenAIBaseURL() {
+        XCTAssertEqual(
+            ClaudeProxyConfiguration.normalizeOpenAIBaseURL("https://api.openai.com/v1"),
+            "https://api.openai.com"
+        )
+        XCTAssertEqual(
+            ClaudeProxyConfiguration.normalizeOpenAIBaseURL("https://api.openai.com/v1/chat/completions"),
+            "https://api.openai.com"
+        )
+        XCTAssertEqual(
+            ClaudeProxyConfiguration.normalizeOpenAIBaseURL("https://example.com/openai/v1/responses"),
+            "https://example.com/openai"
+        )
+        XCTAssertEqual(
+            ClaudeProxyConfiguration.normalizeOpenAIBaseURL("https://example.com/proxy-root"),
+            "https://example.com/proxy-root"
+        )
     }
 
     // MARK: - Claude to OpenAI Conversion Tests
@@ -116,6 +135,113 @@ final class ClaudeProxyConverterTests: XCTestCase {
         }
     }
 
+    func testDecodeStructuredSystemBlocksPreservesJoinedTextAndRawBlocks() throws {
+        let payload = try JSONSerialization.data(
+            withJSONObject: [
+                "model": "claude-sonnet-4.5",
+                "messages": [
+                    [
+                        "role": "user",
+                        "content": "Hello"
+                    ]
+                ],
+                "system": [
+                    [
+                        "type": "text",
+                        "text": "You are a helpful assistant.",
+                        "cache_control": [
+                            "type": "ephemeral"
+                        ]
+                    ],
+                    [
+                        "type": "text",
+                        "text": "Prefer concise answers."
+                    ]
+                ],
+                "max_tokens": 1024
+            ]
+        )
+
+        let request = try JSONDecoder().decode(ClaudeMessageRequest.self, from: payload)
+        XCTAssertEqual(request.system, "You are a helpful assistant.\nPrefer concise answers.")
+        XCTAssertEqual(request.systemBlocks?.count, 2)
+        XCTAssertEqual(request.systemBlocks?.first?.text, "You are a helpful assistant.")
+        XCTAssertEqual(request.systemBlocks?.first?.cacheControl?["type"]?.value as? String, "ephemeral")
+    }
+
+    func testEncodeStructuredSystemBlocksPreservesArrayShape() throws {
+        let payload = try JSONSerialization.data(
+            withJSONObject: [
+                "model": "claude-sonnet-4.5",
+                "messages": [
+                    [
+                        "role": "user",
+                        "content": "Hello"
+                    ]
+                ],
+                "system": [
+                    [
+                        "type": "text",
+                        "text": "You are a helpful assistant.",
+                        "cache_control": [
+                            "type": "ephemeral"
+                        ]
+                    ],
+                    [
+                        "type": "text",
+                        "text": "Prefer concise answers."
+                    ]
+                ],
+                "max_tokens": 1024
+            ]
+        )
+
+        let request = try JSONDecoder().decode(ClaudeMessageRequest.self, from: payload)
+        let encoded = try JSONEncoder().encode(request)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        let system = try XCTUnwrap(json["system"] as? [[String: Any]])
+        XCTAssertEqual(system.count, 2)
+        XCTAssertEqual(system[0]["text"] as? String, "You are a helpful assistant.")
+        let cacheControl = try XCTUnwrap(system[0]["cache_control"] as? [String: Any])
+        XCTAssertEqual(cacheControl["type"] as? String, "ephemeral")
+    }
+
+    func testEncodeStructuredTokenCountSystemBlocksPreservesArrayShape() throws {
+        let payload = try JSONSerialization.data(
+            withJSONObject: [
+                "model": "claude-sonnet-4.5",
+                "messages": [
+                    [
+                        "role": "user",
+                        "content": "Hello"
+                    ]
+                ],
+                "system": [
+                    [
+                        "type": "text",
+                        "text": "You are a helpful assistant."
+                    ],
+                    [
+                        "type": "text",
+                        "text": "Prefer concise answers.",
+                        "cache_control": [
+                            "type": "ephemeral"
+                        ]
+                    ]
+                ]
+            ]
+        )
+
+        let request = try JSONDecoder().decode(ClaudeTokenCountRequest.self, from: payload)
+        let encoded = try JSONEncoder().encode(request)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        let system = try XCTUnwrap(json["system"] as? [[String: Any]])
+        XCTAssertEqual(system.count, 2)
+        XCTAssertEqual(system[1]["text"] as? String, "Prefer concise answers.")
+        let cacheControl = try XCTUnwrap(system[1]["cache_control"] as? [String: Any])
+        XCTAssertEqual(cacheControl["type"] as? String, "ephemeral")
+    }
+
     func testConvertImageMessage() throws {
         let converter = ClaudeToOpenAIConverter()
 
@@ -159,6 +285,192 @@ final class ClaudeProxyConverterTests: XCTestCase {
         }
     }
 
+    func testConvertClaudeDocumentFileIdToOpenAIInputFilePart() throws {
+        let converter = ClaudeToOpenAIConverter()
+        let claudeRequest = ClaudeMessageRequest(
+            model: "claude-sonnet-4.5",
+            messages: [
+                ClaudeMessage(role: "user", content: .blocks([
+                    .text(ClaudeTextBlock(text: "Summarize this document")),
+                    .document(ClaudeDocumentBlock(
+                        source: [
+                            "type": AnyCodable("file"),
+                            "file_id": AnyCodable("file_123")
+                        ],
+                        title: "report.pdf"
+                    ))
+                ]))
+            ],
+            maxTokens: 1024
+        )
+
+        let openAIRequest = try converter.convert(request: claudeRequest, upstreamModel: "gpt-4o")
+        guard case .parts(let parts) = openAIRequest.messages[0].content else {
+            return XCTFail("Expected multipart content")
+        }
+
+        XCTAssertEqual(parts.count, 2)
+        guard case .inputFile(let filePart) = parts[1] else {
+            return XCTFail("Expected input_file part")
+        }
+        XCTAssertEqual(filePart.fileId, "file_123")
+        XCTAssertEqual(filePart.filename, "report.pdf")
+    }
+
+    func testConvertClaudeDocumentURLSourceFallsBackToExplicitText() throws {
+        let converter = ClaudeToOpenAIConverter()
+        let claudeRequest = ClaudeMessageRequest(
+            model: "claude-sonnet-4.5",
+            messages: [
+                ClaudeMessage(role: "user", content: .blocks([
+                    .document(ClaudeDocumentBlock(
+                        source: [
+                            "type": AnyCodable("url"),
+                            "url": AnyCodable("https://example.com/spec.pdf")
+                        ],
+                        title: "spec.pdf",
+                        context: "Reference this spec"
+                    ))
+                ]))
+            ],
+            maxTokens: 1024
+        )
+
+        let openAIRequest = try converter.convert(request: claudeRequest, upstreamModel: "gpt-4o")
+        guard case .text(let text) = openAIRequest.messages[0].content else {
+            return XCTFail("Expected degraded document to become text content")
+        }
+
+        XCTAssertTrue(text.contains("Claude document degraded"))
+        XCTAssertTrue(text.contains("source.type=url"))
+        XCTAssertTrue(text.contains("title=spec.pdf"))
+        XCTAssertTrue(text.contains("context=Reference this spec"))
+        XCTAssertTrue(text.contains("detail=https://example.com/spec.pdf"))
+    }
+
+    func testConvertClaudeInlineTextDocumentPreservesTextBody() throws {
+        let converter = ClaudeToOpenAIConverter()
+        let claudeRequest = ClaudeMessageRequest(
+            model: "claude-sonnet-4.5",
+            messages: [
+                ClaudeMessage(role: "user", content: .blocks([
+                    .document(ClaudeDocumentBlock(
+                        source: [
+                            "type": AnyCodable("text"),
+                            "text": AnyCodable("Section 1: Requirements")
+                        ],
+                        title: "requirements.txt",
+                        context: "Use this as primary reference"
+                    ))
+                ]))
+            ],
+            maxTokens: 1024
+        )
+
+        let openAIRequest = try converter.convert(request: claudeRequest, upstreamModel: "gpt-4o")
+        guard case .text(let text) = openAIRequest.messages[0].content else {
+            return XCTFail("Expected inline document to become text content")
+        }
+
+        XCTAssertTrue(text.contains("Document title: requirements.txt"))
+        XCTAssertTrue(text.contains("Document context: Use this as primary reference"))
+        XCTAssertTrue(text.contains("Document content:"))
+        XCTAssertTrue(text.contains("Section 1: Requirements"))
+    }
+
+    func testConvertToolResultDocumentFallbackPreservesDegradedText() throws {
+        let converter = ClaudeToOpenAIConverter()
+        let claudeRequest = ClaudeMessageRequest(
+            model: "claude-sonnet-4.5",
+            messages: [
+                ClaudeMessage(role: "user", content: .blocks([
+                    .toolResult(ClaudeToolResultBlock(
+                        toolUseId: "toolu_spec",
+                        contentBlocks: [
+                            .document(ClaudeDocumentBlock(
+                                source: [
+                                    "type": AnyCodable("url"),
+                                    "url": AnyCodable("https://example.com/spec.pdf")
+                                ],
+                                title: "spec.pdf"
+                            ))
+                        ]
+                    ))
+                ]))
+            ],
+            maxTokens: 1024
+        )
+
+        let openAIRequest = try converter.convert(request: claudeRequest, upstreamModel: "gpt-4o")
+        XCTAssertEqual(openAIRequest.messages.count, 1)
+        XCTAssertEqual(openAIRequest.messages[0].role, "tool")
+
+        guard case .text(let text) = openAIRequest.messages[0].content else {
+            return XCTFail("Expected degraded tool result document to become text content")
+        }
+
+        XCTAssertTrue(text.contains("Claude document degraded"))
+        XCTAssertTrue(text.contains("source.type=url"))
+    }
+
+    func testEncodeOpenAIInputFilePartAsChatCompletionsFileShape() throws {
+        let request = OpenAIChatCompletionRequest(
+            model: "gpt-4o-mini",
+            messages: [
+                OpenAIChatMessage(
+                    role: "user",
+                    content: .parts([
+                        .text(OpenAITextPart(text: "See attached")),
+                        .inputFile(OpenAIFilePart(fileId: "file_123", filename: "report.pdf"))
+                    ])
+                )
+            ]
+        )
+
+        let data = try JSONEncoder().encode(request)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
+        let content = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+
+        XCTAssertEqual(content[1]["type"] as? String, "file")
+
+        let file = try XCTUnwrap(content[1]["file"] as? [String: Any])
+        XCTAssertEqual(file["file_id"] as? String, "file_123")
+        XCTAssertEqual(file["filename"] as? String, "report.pdf")
+    }
+
+    func testDecodeChatCompletionsFileShapeAsOpenAIInputFilePart() throws {
+        let payload = try JSONSerialization.data(
+            withJSONObject: [
+                "role": "user",
+                "content": [
+                    [
+                        "type": "text",
+                        "text": "See attached"
+                    ],
+                    [
+                        "type": "file",
+                        "file": [
+                            "file_id": "file_123",
+                            "filename": "report.pdf"
+                        ]
+                    ]
+                ]
+            ]
+        )
+
+        let message = try JSONDecoder().decode(OpenAIChatMessage.self, from: payload)
+        guard case .parts(let parts) = message.content else {
+            return XCTFail("Expected multipart content")
+        }
+        guard case .inputFile(let filePart) = parts[1] else {
+            return XCTFail("Expected file content to decode as inputFile")
+        }
+
+        XCTAssertEqual(filePart.fileId, "file_123")
+        XCTAssertEqual(filePart.filename, "report.pdf")
+    }
+
     func testConvertToolDefinition() throws {
         let converter = ClaudeToOpenAIConverter()
 
@@ -189,6 +501,261 @@ final class ClaudeProxyConverterTests: XCTestCase {
         XCTAssertEqual(openAIRequest.tools?.count, 1)
         XCTAssertEqual(openAIRequest.tools?[0].function.name, "get_weather")
         XCTAssertEqual(openAIRequest.tools?[0].function.description, "Get the weather for a location")
+    }
+
+    func testClaudeToolDecodesEagerInputStreaming() throws {
+        let payload = try JSONSerialization.data(
+            withJSONObject: [
+                "name": "stream_tool",
+                "description": "Stream tool inputs eagerly",
+                "input_schema": [
+                    "type": "object"
+                ],
+                "eager_input_streaming": true
+            ]
+        )
+
+        let decoded = try JSONDecoder().decode(ClaudeTool.self, from: payload)
+        XCTAssertEqual(decoded.name, "stream_tool")
+        XCTAssertEqual(decoded.eagerInputStreaming, true)
+    }
+
+    func testClaudeToolEncodesEagerInputStreaming() throws {
+        let tool = ClaudeTool(
+            name: "stream_tool",
+            description: "Stream tool inputs eagerly",
+            inputSchema: [
+                "type": AnyCodable("object")
+            ],
+            eagerInputStreaming: true
+        )
+
+        let data = try JSONEncoder().encode(tool)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["eager_input_streaming"] as? Bool, true)
+    }
+
+    func testConvertNamedToolChoiceEncodesStructuredChatCompletionsPayload() throws {
+        let request = OpenAIChatCompletionRequest(
+            model: "gpt-4o",
+            messages: [
+                OpenAIChatMessage(role: "user", content: .text("What's the weather?"))
+            ],
+            toolChoice: .function("get_weather")
+        )
+
+        let encoded = try JSONEncoder().encode(request)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        let toolChoice = try XCTUnwrap(json["tool_choice"] as? [String: Any])
+        XCTAssertEqual(toolChoice["type"] as? String, "function")
+
+        let function = try XCTUnwrap(toolChoice["function"] as? [String: Any])
+        XCTAssertEqual(function["name"] as? String, "get_weather")
+    }
+
+    func testDisableParallelToolUseMapsToParallelToolCalls() throws {
+        let converter = ClaudeToOpenAIConverter()
+        let claudeRequest = ClaudeMessageRequest(
+            model: "claude-sonnet-4.5",
+            messages: [
+                ClaudeMessage(role: "user", content: .text("What's the weather?"))
+            ],
+            maxTokens: 1024,
+            tools: [
+                ClaudeTool(
+                    name: "get_weather",
+                    description: "Get the weather",
+                    inputSchema: [
+                        "type": AnyCodable("object")
+                    ]
+                )
+            ],
+            toolChoice: ClaudeToolChoice(type: "any", disableParallelToolUse: true)
+        )
+
+        let openAIRequest = try converter.convert(request: claudeRequest, upstreamModel: "gpt-4o")
+        XCTAssertEqual(openAIRequest.parallelToolCalls, false)
+
+        let encoded = try JSONEncoder().encode(openAIRequest)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        XCTAssertEqual(json["parallel_tool_calls"] as? Bool, false)
+    }
+
+    func testDecodeNamedToolChoiceFromStructuredChatCompletionsPayload() throws {
+        let payload = try JSONSerialization.data(
+            withJSONObject: [
+                "model": "gpt-4o",
+                "messages": [
+                    [
+                        "role": "user",
+                        "content": "What's the weather?"
+                    ]
+                ],
+                "tool_choice": [
+                    "type": "function",
+                    "function": [
+                        "name": "get_weather"
+                    ]
+                ]
+            ]
+        )
+
+        let decoded = try JSONDecoder().decode(OpenAIChatCompletionRequest.self, from: payload)
+        guard let toolChoice = decoded.toolChoice else {
+            return XCTFail("Expected tool choice")
+        }
+
+        switch toolChoice {
+        case .function(let name):
+            XCTAssertEqual(name, "get_weather")
+        default:
+            XCTFail("Expected named function tool choice")
+        }
+    }
+
+    func testConvertMultipleToolResultsPreservesEachToolMessage() throws {
+        let converter = ClaudeToOpenAIConverter()
+
+        let assistantToolUse = ClaudeMessage(
+            role: "assistant",
+            content: .blocks([
+                .toolUse(ClaudeToolUseBlock(
+                    id: "toolu_weather",
+                    name: "get_weather",
+                    input: ["location": AnyCodable("Shanghai")]
+                )),
+                .toolUse(ClaudeToolUseBlock(
+                    id: "toolu_time",
+                    name: "get_time",
+                    input: ["timezone": AnyCodable("Asia/Shanghai")]
+                ))
+            ])
+        )
+
+        let userToolResults = ClaudeMessage(
+            role: "user",
+            content: .blocks([
+                .toolResult(ClaudeToolResultBlock(toolUseId: "toolu_weather", content: "Sunny")),
+                .toolResult(ClaudeToolResultBlock(toolUseId: "toolu_time", content: "12:00"))
+            ])
+        )
+
+        let openAIRequest = try converter.convert(
+            request: ClaudeMessageRequest(
+                model: "claude-sonnet-4.5",
+                messages: [assistantToolUse, userToolResults],
+                maxTokens: 1024
+            ),
+            upstreamModel: "gpt-4o"
+        )
+
+        XCTAssertEqual(openAIRequest.messages.count, 3)
+        XCTAssertEqual(openAIRequest.messages[0].role, "assistant")
+        XCTAssertEqual(openAIRequest.messages[0].toolCalls?.count, 2)
+        XCTAssertEqual(openAIRequest.messages[1].role, "tool")
+        XCTAssertEqual(openAIRequest.messages[1].toolCallId, "toolu_weather")
+        XCTAssertEqual(openAIRequest.messages[2].role, "tool")
+        XCTAssertEqual(openAIRequest.messages[2].toolCallId, "toolu_time")
+
+        if case .text(let content) = openAIRequest.messages[1].content {
+            XCTAssertEqual(content, "Sunny")
+        } else {
+            XCTFail("Expected text tool result content")
+        }
+
+        if case .text(let content) = openAIRequest.messages[2].content {
+            XCTAssertEqual(content, "12:00")
+        } else {
+            XCTFail("Expected text tool result content")
+        }
+    }
+
+    func testConvertStructuredToolResultBlocksPreservesImageParts() throws {
+        let converter = ClaudeToOpenAIConverter()
+
+        let screenshot = ClaudeImageBlock(source: ClaudeImageSource(
+            type: "base64",
+            mediaType: "image/png",
+            data: "AAAA"
+        ))
+
+        let openAIRequest = try converter.convert(
+            request: ClaudeMessageRequest(
+                model: "claude-sonnet-4.5",
+                messages: [
+                    ClaudeMessage(
+                        role: "user",
+                        content: .blocks([
+                            .toolResult(ClaudeToolResultBlock(
+                                toolUseId: "toolu_computer",
+                                contentBlocks: [
+                                    .text(ClaudeTextBlock(text: "Screenshot captured")),
+                                    .image(screenshot)
+                                ]
+                            ))
+                        ])
+                    )
+                ],
+                maxTokens: 1024
+            ),
+            upstreamModel: "gpt-4o"
+        )
+
+        XCTAssertEqual(openAIRequest.messages.count, 1)
+        XCTAssertEqual(openAIRequest.messages[0].role, "tool")
+        XCTAssertEqual(openAIRequest.messages[0].toolCallId, "toolu_computer")
+
+        guard case .parts(let parts) = openAIRequest.messages[0].content else {
+            return XCTFail("Expected structured tool result content")
+        }
+        XCTAssertEqual(parts.count, 2)
+        guard case .text(let textPart) = parts[0] else {
+            return XCTFail("Expected text part in tool result")
+        }
+        XCTAssertEqual(textPart.text, "Screenshot captured")
+        guard case .imageUrl(let imagePart) = parts[1] else {
+            return XCTFail("Expected image part in tool result")
+        }
+        XCTAssertTrue(imagePart.imageUrl.url.hasPrefix("data:image/png;base64,"))
+    }
+
+    func testConvertMixedUserTextAndToolResultsPreservesOrder() throws {
+        let converter = ClaudeToOpenAIConverter()
+
+        let openAIRequest = try converter.convert(
+            request: ClaudeMessageRequest(
+                model: "claude-sonnet-4.5",
+                messages: [
+                    ClaudeMessage(
+                        role: "user",
+                        content: .blocks([
+                            .text(ClaudeTextBlock(text: "Before tool")),
+                            .toolResult(ClaudeToolResultBlock(toolUseId: "toolu_weather", content: "Sunny")),
+                            .text(ClaudeTextBlock(text: "After tool"))
+                        ])
+                    )
+                ],
+                maxTokens: 1024
+            ),
+            upstreamModel: "gpt-4o"
+        )
+
+        XCTAssertEqual(openAIRequest.messages.count, 3)
+        XCTAssertEqual(openAIRequest.messages[0].role, "user")
+        XCTAssertEqual(openAIRequest.messages[1].role, "tool")
+        XCTAssertEqual(openAIRequest.messages[2].role, "user")
+
+        if case .text(let content) = openAIRequest.messages[0].content {
+            XCTAssertEqual(content, "Before tool")
+        } else {
+            XCTFail("Expected text content before tool result")
+        }
+
+        if case .text(let content) = openAIRequest.messages[2].content {
+            XCTAssertEqual(content, "After tool")
+        } else {
+            XCTFail("Expected text content after tool result")
+        }
     }
 
     // MARK: - OpenAI to Claude Conversion Tests
@@ -237,6 +804,47 @@ final class ClaudeProxyConverterTests: XCTestCase {
         }
     }
 
+    func testConvertOpenAIInputFilePartBackToClaudeDocumentBlock() throws {
+        let converter = OpenAIToClaudeConverter()
+
+        let openAIResponse = OpenAIChatCompletionResponse(
+            id: "chatcmpl-file-123",
+            created: Int(Date().timeIntervalSince1970),
+            model: "gpt-4o",
+            choices: [
+                OpenAIChoice(
+                    index: 0,
+                    message: OpenAIChatMessage(
+                        role: "assistant",
+                        content: .parts([
+                            .text(OpenAITextPart(text: "Please inspect this file.")),
+                            .inputFile(OpenAIFilePart(fileId: "file_123", filename: "report.pdf"))
+                        ])
+                    ),
+                    finishReason: "stop"
+                )
+            ],
+            usage: OpenAIUsage(
+                promptTokens: 10,
+                completionTokens: 20,
+                totalTokens: 30
+            )
+        )
+
+        let claudeResponse = try converter.convert(
+            response: openAIResponse,
+            originalModel: "claude-sonnet-4.5"
+        )
+
+        XCTAssertEqual(claudeResponse.content.count, 2)
+        guard case .document(let block) = claudeResponse.content[1] else {
+            return XCTFail("Expected document block")
+        }
+        XCTAssertEqual(block.title, "report.pdf")
+        XCTAssertEqual(block.source["type"]?.value as? String, "file")
+        XCTAssertEqual(block.source["file_id"]?.value as? String, "file_123")
+    }
+
     func testConvertFinishReasons() {
         let converter = OpenAIToClaudeConverter()
 
@@ -254,6 +862,133 @@ final class ClaudeProxyConverterTests: XCTestCase {
             converter.convertFinishReason("tool_calls"),
             "tool_use"
         )
+        XCTAssertEqual(
+            converter.convertFinishReason("pause_turn"),
+            "pause_turn"
+        )
+        XCTAssertEqual(
+            converter.convertFinishReason("content_filter"),
+            "refusal"
+        )
+        XCTAssertEqual(
+            converter.convertFinishReason("refusal"),
+            "refusal"
+        )
+    }
+
+    func testClaudeContentBlockStartEventSupportsTextBlocks() throws {
+        let payload = try JSONSerialization.data(
+            withJSONObject: [
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": [
+                    "type": "text",
+                    "text": ""
+                ]
+            ]
+        )
+
+        let event = try JSONDecoder().decode(ClaudeContentBlockStartEvent.self, from: payload)
+        XCTAssertEqual(event.index, 0)
+
+        guard case .text(let block) = event.contentBlock else {
+            return XCTFail("Expected text content block")
+        }
+        XCTAssertEqual(block.text, "")
+    }
+
+    func testClaudeContentBlockDeltaEventDecodesThinkingAndSignatureDeltas() throws {
+        let thinkingPayload = try JSONSerialization.data(
+            withJSONObject: [
+                "type": "content_block_delta",
+                "index": 1,
+                "delta": [
+                    "type": "thinking_delta",
+                    "thinking": "Let me reason about this."
+                ]
+            ]
+        )
+
+        let thinkingEvent = try JSONDecoder().decode(ClaudeContentBlockDeltaEvent.self, from: thinkingPayload)
+        switch thinkingEvent.delta {
+        case .thinking(let delta):
+            XCTAssertEqual(delta.thinking, "Let me reason about this.")
+        default:
+            XCTFail("Expected thinking delta")
+        }
+
+        let signaturePayload = try JSONSerialization.data(
+            withJSONObject: [
+                "type": "content_block_delta",
+                "index": 1,
+                "delta": [
+                    "type": "signature_delta",
+                    "signature": "sig_123"
+                ]
+            ]
+        )
+
+        let signatureEvent = try JSONDecoder().decode(ClaudeContentBlockDeltaEvent.self, from: signaturePayload)
+        switch signatureEvent.delta {
+        case .signature(let delta):
+            XCTAssertEqual(delta.signature, "sig_123")
+        default:
+            XCTFail("Expected signature delta")
+        }
+    }
+
+    func testClaudeContentBlockStopEventPreservesIndex() throws {
+        let event = ClaudeContentBlockStopEvent(index: 3)
+        let encoded = try JSONEncoder().encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        XCTAssertEqual(json["type"] as? String, "content_block_stop")
+        XCTAssertEqual(json["index"] as? Int, 3)
+    }
+
+    func testClaudeToolChoiceDecodesDisableParallelToolUseAndNone() throws {
+        let autoPayload = try JSONSerialization.data(
+            withJSONObject: [
+                "model": "claude-sonnet-4.5",
+                "messages": [
+                    [
+                        "role": "user",
+                        "content": "Call a tool"
+                    ]
+                ],
+                "tool_choice": [
+                    "type": "auto",
+                    "disable_parallel_tool_use": true
+                ],
+                "max_tokens": 1024
+            ]
+        )
+
+        let autoRequest = try JSONDecoder().decode(ClaudeMessageRequest.self, from: autoPayload)
+        XCTAssertEqual(autoRequest.toolChoice?.type, "auto")
+        XCTAssertEqual(autoRequest.toolChoice?.disableParallelToolUse, true)
+
+        let noneChoice = ClaudeToolChoice(type: "none")
+        let openAIToolChoice = try ClaudeToOpenAIConverter()
+            .convert(
+                request: ClaudeMessageRequest(
+                    model: "claude-sonnet-4.5",
+                    messages: [ClaudeMessage(role: "user", content: .text("Hi"))],
+                    maxTokens: 128,
+                    toolChoice: noneChoice
+                ),
+                upstreamModel: "gpt-4o"
+            )
+            .toolChoice
+
+        guard let openAIToolChoice else {
+            return XCTFail("Expected tool choice")
+        }
+        switch openAIToolChoice {
+        case .none:
+            break
+        default:
+            XCTFail("Expected .none tool choice")
+        }
     }
 
     // MARK: - Token Estimation Tests

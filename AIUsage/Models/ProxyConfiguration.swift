@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import QuotaBackend
 
 // MARK: - Node Type
 
@@ -26,13 +27,12 @@ struct ProxyConfiguration: Codable, Identifiable {
     var port: Int
     var allowLAN: Bool
     var upstreamBaseURL: String
+    var openAIUpstreamAPI: OpenAIUpstreamAPI
     var upstreamAPIKey: String
     var expectedClientKey: String
     var defaultModel: String
     var modelMapping: ModelMapping
     var maxOutputTokens: Int // 0 = no cap, pass through original value
-    var passthroughPricing: [String: ModelPricing]
-
     var createdAt: Date
     var lastUsedAt: Date?
 
@@ -125,6 +125,14 @@ struct ProxyConfiguration: Codable, Identifiable {
             if smallModel.name == model { return smallModel.pricing }
             return nil
         }
+
+        func pricingForFamily(of model: String) -> ModelPricing? {
+            guard let family = ProxyConfiguration.modelFamilyHint(for: model) else { return nil }
+            if ProxyConfiguration.modelFamilyHint(for: bigModel.name) == family { return bigModel.pricing }
+            if ProxyConfiguration.modelFamilyHint(for: middleModel.name) == family { return middleModel.pricing }
+            if ProxyConfiguration.modelFamilyHint(for: smallModel.name) == family { return smallModel.pricing }
+            return nil
+        }
     }
 
     init(
@@ -138,13 +146,13 @@ struct ProxyConfiguration: Codable, Identifiable {
         host: String = "127.0.0.1",
         port: Int = 8080,
         allowLAN: Bool = false,
-        upstreamBaseURL: String = "https://api.openai.com/v1",
+        upstreamBaseURL: String = "https://api.openai.com",
+        openAIUpstreamAPI: OpenAIUpstreamAPI = .chatCompletions,
         upstreamAPIKey: String = "",
         expectedClientKey: String = "",
         defaultModel: String = "",
         modelMapping: ModelMapping = .default,
         maxOutputTokens: Int = 0,
-        passthroughPricing: [String: ModelPricing] = [:],
         createdAt: Date = Date(),
         lastUsedAt: Date? = nil
     ) {
@@ -158,13 +166,13 @@ struct ProxyConfiguration: Codable, Identifiable {
         self.host = host
         self.port = port
         self.allowLAN = allowLAN
-        self.upstreamBaseURL = upstreamBaseURL
+        self.upstreamBaseURL = ClaudeProxyConfiguration.normalizeOpenAIBaseURL(upstreamBaseURL)
+        self.openAIUpstreamAPI = openAIUpstreamAPI
         self.upstreamAPIKey = upstreamAPIKey
         self.expectedClientKey = expectedClientKey
         self.defaultModel = defaultModel
         self.modelMapping = modelMapping
         self.maxOutputTokens = maxOutputTokens
-        self.passthroughPricing = passthroughPricing
         self.createdAt = createdAt
         self.lastUsedAt = lastUsedAt
     }
@@ -181,13 +189,15 @@ struct ProxyConfiguration: Codable, Identifiable {
         host = try container.decode(String.self, forKey: .host)
         port = try container.decode(Int.self, forKey: .port)
         allowLAN = try container.decode(Bool.self, forKey: .allowLAN)
-        upstreamBaseURL = try container.decode(String.self, forKey: .upstreamBaseURL)
+        upstreamBaseURL = ClaudeProxyConfiguration.normalizeOpenAIBaseURL(
+            try container.decode(String.self, forKey: .upstreamBaseURL)
+        )
+        openAIUpstreamAPI = try container.decodeIfPresent(OpenAIUpstreamAPI.self, forKey: .openAIUpstreamAPI) ?? .chatCompletions
         upstreamAPIKey = try container.decode(String.self, forKey: .upstreamAPIKey)
         expectedClientKey = try container.decode(String.self, forKey: .expectedClientKey)
         defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? ""
         modelMapping = try container.decode(ModelMapping.self, forKey: .modelMapping)
         maxOutputTokens = try container.decodeIfPresent(Int.self, forKey: .maxOutputTokens) ?? 0
-        passthroughPricing = try container.decodeIfPresent([String: ModelPricing].self, forKey: .passthroughPricing) ?? [:]
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         lastUsedAt = try container.decodeIfPresent(Date.self, forKey: .lastUsedAt)
     }
@@ -211,10 +221,25 @@ struct ProxyConfiguration: Codable, Identifiable {
 
     func pricingForModel(_ model: String) -> ModelPricing? {
         if let p = modelMapping.pricingForUpstreamModel(model) { return p }
-        if let p = passthroughPricing[model] { return p }
-        for (key, pricing) in passthroughPricing {
-            if model.lowercased().contains(key.lowercased()) { return pricing }
-        }
+        if let p = modelMapping.pricingForFamily(of: model) { return p }
+        return nil
+    }
+
+    var normalizedUpstreamBaseURL: String {
+        ClaudeProxyConfiguration.normalizeOpenAIBaseURL(upstreamBaseURL)
+    }
+
+    func normalizedForPersistence() -> ProxyConfiguration {
+        var copy = self
+        copy.upstreamBaseURL = normalizedUpstreamBaseURL
+        return copy
+    }
+
+    private static func modelFamilyHint(for model: String) -> String? {
+        let normalized = model.lowercased()
+        if normalized.contains("opus") { return "opus" }
+        if normalized.contains("sonnet") { return "sonnet" }
+        if normalized.contains("haiku") { return "haiku" }
         return nil
     }
 }

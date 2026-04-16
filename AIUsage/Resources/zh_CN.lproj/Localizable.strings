@@ -656,16 +656,13 @@
 "AIUsage/Views/ProxyConfigEditorView.swift::Model Configuration" = "模型配置";
 
 /* Views/ProxyConfigEditorView.swift */
-"AIUsage/Views/ProxyConfigEditorView.swift::Model Pricing" = "模型定价";
 
 /* Views/ProxyConfigEditorView.swift */
 "AIUsage/Views/ProxyConfigEditorView.swift::Model Slots" = "模型槽位";
 
 /* Views/ProxyConfigEditorView.swift */
-"AIUsage/Views/ProxyConfigEditorView.swift::Model name, e.g. sonnet" = "模型名，如 sonnet";
 
 /* Views/ProxyConfigEditorView.swift */
-"AIUsage/Views/ProxyConfigEditorView.swift::Model names are matched by substring (e.g. \"sonnet\" matches \"claude-sonnet-4-20250514\")." = "模型名按子串匹配（如 \"sonnet\" 可匹配 \"claude-sonnet-4-20250514\"）。";
 
 /* Views/ProxyConfigEditorView.swift */
 "AIUsage/Views/ProxyConfigEditorView.swift::Name" = "名称";

@@ -52,7 +52,9 @@ extension QuotaHTTPServer {
         if !config.upstreamAPIKey.isEmpty {
             upstreamReq.setValue(config.upstreamAPIKey, forHTTPHeaderField: "x-api-key")
         }
-        upstreamReq.setValue("application/json", forHTTPHeaderField: "content-type")
+        if request.headers["content-type"] == nil {
+            upstreamReq.setValue("application/json", forHTTPHeaderField: "content-type")
+        }
 
         let isStreaming: Bool
         let requestModel: String
@@ -77,7 +79,6 @@ extension QuotaHTTPServer {
             let httpResp = response as? HTTPURLResponse
             let statusCode = httpResp?.statusCode ?? 502
 
-            let responseStr = String(data: data, encoding: .utf8) ?? ""
             var respHeaders: [String: String] = ["Content-Type": "application/json"]
             httpResp?.allHeaderFields.forEach { key, value in
                 if let k = key as? String, let v = value as? String {
@@ -94,11 +95,12 @@ extension QuotaHTTPServer {
                 emitPassthroughLog(model: requestModel, usage: usage, responseTimeMs: Int(elapsed), success: statusCode < 400)
             }
 
-            let resp = HTTPResponse(status: statusCode, headers: respHeaders, body: responseStr)
+            let resp = HTTPResponse(status: statusCode, headers: respHeaders, bodyData: data)
             await sendResponse(connection, response: resp)
             connection.cancel()
         } catch {
-            let resp = HTTPResponse(status: 502, headers: [:], body: "{\"error\":\"Upstream error: \(error.localizedDescription)\"}")
+            let escaped = escapeJSON("Upstream error: \(error.localizedDescription)")
+            let resp = HTTPResponse(status: 502, headers: ["Content-Type": "application/json"], body: "{\"error\":\(escaped)}")
             await sendResponse(connection, response: resp)
             connection.cancel()
         }
@@ -112,31 +114,64 @@ extension QuotaHTTPServer {
             let httpResp = response as? HTTPURLResponse
             let statusCode = httpResp?.statusCode ?? 502
 
-            await streamer.sendHeaders(status: statusCode, headers: [
-                "Content-Type": "text/event-stream",
+            var respHeaders: [String: String] = [
                 "Cache-Control": "no-cache",
-                "Connection": "keep-alive"
-            ])
+                "Connection": "keep-alive",
+            ]
+            httpResp?.allHeaderFields.forEach { key, value in
+                guard let k = key as? String, let v = value as? String else { return }
+                let lk = k.lowercased()
+                if lk != "content-length" && lk != "transfer-encoding" && lk != "connection" {
+                    respHeaders[k] = v
+                }
+            }
+            if respHeaders["Content-Type"] == nil && respHeaders["content-type"] == nil {
+                respHeaders["Content-Type"] = "text/event-stream"
+            }
+            await streamer.sendHeaders(status: statusCode, headers: respHeaders)
 
             var totalInputTokens = 0
             var totalOutputTokens = 0
             var cacheCreationTokens = 0
             var cacheReadTokens = 0
+            var lineBuffer = Data()
 
-            for try await line in bytes.lines {
-                await streamer.sendChunk(line + "\n")
-
-                if line.hasPrefix("data: "), let jsonStart = line.firstIndex(of: Character("{")) {
-                    let jsonStr = String(line[jsonStart...])
-                    if let eventData = try? JSONSerialization.jsonObject(with: Data(jsonStr.utf8)) as? [String: Any] {
-                        if let usage = eventData["usage"] as? [String: Any] {
-                            if let v = usage["input_tokens"] as? Int { totalInputTokens = v }
-                            if let v = usage["output_tokens"] as? Int { totalOutputTokens = v }
-                            if let v = usage["cache_creation_input_tokens"] as? Int { cacheCreationTokens = v }
-                            if let v = usage["cache_read_input_tokens"] as? Int { cacheReadTokens = v }
-                        }
-                    }
+            func processUsageLine(_ line: String) {
+                guard line.hasPrefix("data: "), let jsonStart = line.firstIndex(of: Character("{")) else {
+                    return
                 }
+                let jsonStr = String(line[jsonStart...])
+                guard let eventData = try? JSONSerialization.jsonObject(with: Data(jsonStr.utf8)) as? [String: Any],
+                      let usage = eventData["usage"] as? [String: Any] else {
+                    return
+                }
+                if let v = usage["input_tokens"] as? Int { totalInputTokens = v }
+                if let v = usage["output_tokens"] as? Int { totalOutputTokens = v }
+                if let v = usage["cache_creation_input_tokens"] as? Int { cacheCreationTokens = v }
+                if let v = usage["cache_read_input_tokens"] as? Int { cacheReadTokens = v }
+            }
+
+            for try await byte in bytes {
+                lineBuffer.append(byte)
+
+                if byte == 0x0A {
+                    // Forward each line immediately for real-time SSE delivery
+                    await streamer.sendDataChunk(lineBuffer)
+
+                    var trimmed = lineBuffer
+                    if trimmed.last == 0x0A { trimmed.removeLast() }
+                    if trimmed.last == 0x0D { trimmed.removeLast() }
+                    let line = String(decoding: trimmed, as: UTF8.self)
+                    processUsageLine(line)
+
+                    lineBuffer.removeAll(keepingCapacity: true)
+                }
+            }
+
+            if !lineBuffer.isEmpty {
+                let trailingLine = String(decoding: lineBuffer, as: UTF8.self)
+                processUsageLine(trailingLine)
+                await streamer.sendDataChunk(lineBuffer)
             }
 
             let elapsed = Date().timeIntervalSince(startTime) * 1000
@@ -148,10 +183,11 @@ extension QuotaHTTPServer {
             ]
             emitPassthroughLog(model: requestModel, usage: usageDict, responseTimeMs: Int(elapsed), success: statusCode < 400)
 
-            streamer.close()
+            await streamer.finish()
         } catch {
-            await streamer.sendChunk("event: error\ndata: {\"error\":\"\(error.localizedDescription)\"}\n\n")
-            streamer.close()
+            let escaped = escapeJSON(error.localizedDescription)
+            await streamer.sendChunk("event: error\ndata: {\"error\":\(escaped)}\n\n")
+            await streamer.finish()
         }
     }
 
@@ -186,10 +222,11 @@ extension QuotaHTTPServer {
             return HTTPResponse(
                 status: httpResp?.statusCode ?? 502,
                 headers: ["Content-Type": "application/json"],
-                body: String(data: data, encoding: .utf8) ?? ""
+                bodyData: data
             )
         } catch {
-            return HTTPResponse(status: 502, headers: [:], body: "{\"error\":\"\(error.localizedDescription)\"}")
+            let escaped = escapeJSON(error.localizedDescription)
+            return HTTPResponse(status: 502, headers: ["Content-Type": "application/json"], body: "{\"error\":\(escaped)}")
         }
     }
 
@@ -213,6 +250,7 @@ extension QuotaHTTPServer {
 
         if let data = try? JSONSerialization.data(withJSONObject: log),
            let jsonStr = String(data: data, encoding: .utf8) {
+            // stdout is parsed by the macOS host app for structured log ingestion
             print("PROXY_LOG:\(jsonStr)")
         }
     }

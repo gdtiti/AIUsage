@@ -6,6 +6,13 @@ private let upstreamLog = Logger(subsystem: "com.aiusage.quotaserver", category:
 // MARK: - OpenAI-Compatible HTTP Client
 
 public actor OpenAICompatibleClient {
+    private static let jsonDecoder = JSONDecoder()
+    private static let jsonEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return encoder
+    }()
+
     private let configuration: ClaudeProxyConfiguration
     private let session: URLSession
 
@@ -22,6 +29,135 @@ public actor OpenAICompatibleClient {
     public func sendChatCompletion(
         request: OpenAIChatCompletionRequest
     ) async throws -> OpenAIChatCompletionResponse {
+        guard configuration.openAIUpstreamAPI == .chatCompletions else {
+            throw UpstreamError.invalidResponse(
+                "sendChatCompletion requires .chatCompletions upstream; use sendResponses for .responses"
+            )
+        }
+        return try await sendChatCompletionViaChatCompletions(
+            request: request,
+            allowRetryWithoutMaxTokens: true
+        )
+    }
+
+    public func sendResponses(
+        request: OpenAIResponsesRequest
+    ) async throws -> OpenAIResponsesResponse {
+        try await sendResponsesRequest(
+            request: request,
+            allowRetryWithoutMaxTokens: true
+        )
+    }
+
+    // MARK: - Streaming Request
+
+    public func streamCompletion(
+        request: OpenAIChatCompletionRequest,
+        onEvent: @escaping (OpenAIUpstreamStreamEvent) async throws -> Void
+    ) async throws {
+        guard configuration.openAIUpstreamAPI == .chatCompletions else {
+            throw UpstreamError.invalidResponse(
+                "streamCompletion requires .chatCompletions upstream; use streamResponses for .responses"
+            )
+        }
+        try await streamViaChatCompletions(
+            request: request,
+            allowRetryWithoutMaxTokens: true,
+            onEvent: onEvent
+        )
+    }
+
+    public func streamResponses(
+        request: OpenAIResponsesRequest,
+        onEvent: @escaping (OpenAIUpstreamStreamEvent) async throws -> Void
+    ) async throws {
+        try await streamResponsesRequest(
+            request: request,
+            allowRetryWithoutMaxTokens: true,
+            onEvent: onEvent
+        )
+    }
+
+    public func listFiles(limit: Int?, after: String?) async throws -> OpenAIFileListResponse {
+        var queryItems: [URLQueryItem] = []
+        if let limit {
+            queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+        if let after, !after.isEmpty {
+            queryItems.append(URLQueryItem(name: "after", value: after))
+        }
+
+        let request = try makeUpstreamRequest(path: "/files", method: "GET", queryItems: queryItems)
+        let (data, response) = try await session.data(for: request)
+        return try decodeUpstreamJSONResponse(OpenAIFileListResponse.self, from: data, response: response)
+    }
+
+    public func retrieveFile(fileID: String) async throws -> OpenAIFileObject {
+        let request = try makeUpstreamRequest(path: "/files/\(fileID)", method: "GET")
+        let (data, response) = try await session.data(for: request)
+        return try decodeUpstreamJSONResponse(OpenAIFileObject.self, from: data, response: response)
+    }
+
+    public func deleteFile(fileID: String) async throws -> OpenAIDeletedFileResponse {
+        let request = try makeUpstreamRequest(path: "/files/\(fileID)", method: "DELETE")
+        let (data, response) = try await session.data(for: request)
+        return try decodeUpstreamJSONResponse(OpenAIDeletedFileResponse.self, from: data, response: response)
+    }
+
+    public func uploadFile(
+        filename: String,
+        mimeType: String?,
+        data: Data,
+        purpose: String = "user_data"
+    ) async throws -> OpenAIFileObject {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = try makeUpstreamRequest(
+            path: "/files",
+            method: "POST",
+            contentType: "multipart/form-data; boundary=\(boundary)"
+        )
+        request.httpBody = buildMultipartFileUploadBody(
+            filename: filename,
+            mimeType: mimeType,
+            fileData: data,
+            purpose: purpose,
+            boundary: boundary
+        )
+        let (responseData, response) = try await session.data(for: request)
+        return try decodeUpstreamJSONResponse(OpenAIFileObject.self, from: responseData, response: response)
+    }
+
+    public func retrieveFileContent(fileID: String) async throws -> OpenAIFileContentResponse {
+        let request = try makeUpstreamRequest(path: "/files/\(fileID)/content", method: "GET")
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw UpstreamError.invalidResponse("Not an HTTP response")
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let errorBody = String(data: data, encoding: .utf8) ?? ""
+            upstreamLog.warning("Upstream \(httpResponse.statusCode): \(String(errorBody.prefix(500)), privacy: .private)")
+            throw UpstreamError.httpError(
+                statusCode: httpResponse.statusCode,
+                message: errorBody,
+                requestID: upstreamRequestID(from: httpResponse)
+            )
+        }
+
+        return OpenAIFileContentResponse(
+            data: data,
+            contentType: httpResponse.value(forHTTPHeaderField: "Content-Type"),
+            contentDisposition: httpResponse.value(forHTTPHeaderField: "Content-Disposition")
+        )
+    }
+
+    // MARK: - Chat Completions
+
+    private func sendChatCompletionViaChatCompletions(
+        request: OpenAIChatCompletionRequest,
+        allowRetryWithoutMaxTokens: Bool
+    ) async throws -> OpenAIChatCompletionResponse {
         let nonStreamRequest = OpenAIChatCompletionRequest(
             model: request.model,
             messages: request.messages,
@@ -31,21 +167,11 @@ public actor OpenAICompatibleClient {
             stop: request.stop,
             stream: false,
             tools: request.tools,
-            toolChoice: request.toolChoice
+            toolChoice: request.toolChoice,
+            parallelToolCalls: request.parallelToolCalls
         )
 
-        let url = try buildURL(path: "/chat/completions")
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue("Bearer \(configuration.upstreamAPIKey)", forHTTPHeaderField: "Authorization")
-        for (key, value) in configuration.customHeaders {
-            urlRequest.setValue(value, forHTTPHeaderField: key)
-        }
-        let body = try JSONEncoder().encode(nonStreamRequest)
-        urlRequest.httpBody = body
-        upstreamLog.debug("Upstream: \(url.absoluteString, privacy: .private) model=\(nonStreamRequest.model)")
-
+        let urlRequest = try makeJSONRequest(path: "/chat/completions", body: nonStreamRequest)
         let (data, response) = try await session.data(for: urlRequest)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -53,11 +179,11 @@ public actor OpenAICompatibleClient {
         }
 
         if httpResponse.statusCode == 200 {
-            if let result = try? JSONDecoder().decode(OpenAIChatCompletionResponse.self, from: data) {
+            if let result = try? Self.jsonDecoder.decode(OpenAIChatCompletionResponse.self, from: data) {
                 return result
             }
             if let body = String(data: data, encoding: .utf8), body.contains("data: ") {
-                return try assembleFromSSE(body: body)
+                return try assembleChatCompletionFromSSE(body: body)
             }
             let body = String(data: data, encoding: .utf8) ?? "Unable to read response"
             throw UpstreamError.decodingFailed("Failed to decode upstream response. Body: \(body)")
@@ -66,8 +192,8 @@ public actor OpenAICompatibleClient {
         let errorBody = String(data: data, encoding: .utf8) ?? ""
         upstreamLog.warning("Upstream \(httpResponse.statusCode): \(String(errorBody.prefix(500)), privacy: .private)")
 
-        let isMaxTokensError = errorBody.contains("max_tokens") || errorBody.contains("model output limit")
-        if isMaxTokensError {
+        if allowRetryWithoutMaxTokens, nonStreamRequest.maxTokens != nil, shouldRetryWithoutMaxTokens(errorBody) {
+            upstreamLog.info("Retrying chat/completions without max_tokens")
             let retryRequest = OpenAIChatCompletionRequest(
                 model: request.model,
                 messages: request.messages,
@@ -77,35 +203,28 @@ public actor OpenAICompatibleClient {
                 stop: request.stop,
                 stream: false,
                 tools: request.tools,
-                toolChoice: request.toolChoice
+                toolChoice: request.toolChoice,
+                parallelToolCalls: request.parallelToolCalls
             )
-            upstreamLog.info("Retrying without max_tokens")
-            var retryURLRequest = urlRequest
-            retryURLRequest.httpBody = try JSONEncoder().encode(retryRequest)
-
-            let (retryData, retryResponse) = try await session.data(for: retryURLRequest)
-            guard let retryHTTP = retryResponse as? HTTPURLResponse else {
-                throw UpstreamError.invalidResponse("Not an HTTP response on retry")
-            }
-            if retryHTTP.statusCode == 200 {
-                if let result = try? JSONDecoder().decode(OpenAIChatCompletionResponse.self, from: retryData) {
-                    return result
-                }
-                if let retryBody = String(data: retryData, encoding: .utf8), retryBody.contains("data: ") {
-                    return try assembleFromSSE(body: retryBody)
-                }
-            }
-            let retryError = String(data: retryData, encoding: .utf8) ?? ""
-            throw UpstreamError.httpError(statusCode: retryHTTP.statusCode, message: retryError)
+            return try await sendChatCompletionViaChatCompletions(
+                request: retryRequest,
+                allowRetryWithoutMaxTokens: false
+            )
         }
 
-        throw UpstreamError.httpError(statusCode: httpResponse.statusCode, message: errorBody)
+        throw UpstreamError.httpError(
+            statusCode: httpResponse.statusCode,
+            message: errorBody,
+            requestID: upstreamRequestID(from: httpResponse)
+        )
     }
 
-    private func fallbackViaStreaming(
-        request: OpenAIChatCompletionRequest
-    ) async throws -> OpenAIChatCompletionResponse {
-        let streamReq = OpenAIChatCompletionRequest(
+    private func streamViaChatCompletions(
+        request: OpenAIChatCompletionRequest,
+        allowRetryWithoutMaxTokens: Bool,
+        onEvent: @escaping (OpenAIUpstreamStreamEvent) async throws -> Void
+    ) async throws {
+        let streamRequest = OpenAIChatCompletionRequest(
             model: request.model,
             messages: request.messages,
             temperature: request.temperature,
@@ -114,93 +233,604 @@ public actor OpenAICompatibleClient {
             stop: request.stop,
             stream: true,
             tools: request.tools,
-            toolChoice: request.toolChoice
+            toolChoice: request.toolChoice,
+            parallelToolCalls: request.parallelToolCalls
         )
 
-        let url = try buildURL(path: "/chat/completions")
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue("Bearer \(configuration.upstreamAPIKey)", forHTTPHeaderField: "Authorization")
-        for (key, value) in configuration.customHeaders {
-            urlRequest.setValue(value, forHTTPHeaderField: key)
-        }
-        urlRequest.httpBody = try JSONEncoder().encode(streamReq)
-
+        let urlRequest = try makeJSONRequest(path: "/chat/completions", body: streamRequest)
         let (bytes, response) = try await session.bytes(for: urlRequest)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            let errorBody = try await readUTF8TextPrefix(from: bytes, maxBytes: 2048)
-            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw UpstreamError.invalidResponse("Not an HTTP response")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let errorBody = try await readUTF8TextPrefix(from: bytes, maxBytes: 4096)
+            upstreamLog.warning("Upstream streaming \(httpResponse.statusCode): \(String(errorBody.prefix(500)), privacy: .private)")
+
+            if allowRetryWithoutMaxTokens, streamRequest.maxTokens != nil, shouldRetryWithoutMaxTokens(errorBody) {
+                upstreamLog.info("Retrying streaming chat/completions without max_tokens")
+                let retryRequest = OpenAIChatCompletionRequest(
+                    model: request.model,
+                    messages: request.messages,
+                    temperature: request.temperature,
+                    topP: request.topP,
+                    maxTokens: nil,
+                    stop: request.stop,
+                    stream: true,
+                    tools: request.tools,
+                    toolChoice: request.toolChoice,
+                    parallelToolCalls: request.parallelToolCalls
+                )
+                try await streamViaChatCompletions(
+                    request: retryRequest,
+                    allowRetryWithoutMaxTokens: false,
+                    onEvent: onEvent
+                )
+                return
+            }
+
             throw UpstreamError.httpError(
-                statusCode: code,
-                message: "Streaming fallback failed (\(code)): \(errorBody)"
+                statusCode: httpResponse.statusCode,
+                message: errorBody.isEmpty ? "Upstream returned status \(httpResponse.statusCode)" : errorBody,
+                requestID: upstreamRequestID(from: httpResponse)
             )
         }
 
-        var assembledContent = ""
-        var finishReason: String? = "length"
-        var responseId = ""
-        var model = ""
-        var created = 0
-        var pendingToolCalls: [Int: (id: String, name: String, args: String)] = [:]
+        let decoder = Self.jsonDecoder
+        var startedToolIndices = Set<Int>()
+        var finishReason: String?
 
-        for try await line in bytes.lines {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard trimmed.hasPrefix("data: ") else { continue }
+        try await consumeSSEPayloads(from: bytes) { payload in
+            if payload == "[DONE]" { return }
 
-            let payload = String(trimmed.dropFirst(6))
-            if payload == "[DONE]" { break }
+            guard let data = payload.data(using: .utf8),
+                  let chunk = try? decoder.decode(OpenAIStreamChunk.self, from: data),
+                  let choice = chunk.choices.first else {
+                return
+            }
 
-            if let chunkData = payload.data(using: .utf8),
-               let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: chunkData),
-               let choice = chunk.choices.first {
-                if responseId.isEmpty { responseId = chunk.id }
-                if model.isEmpty { model = chunk.model }
-                if created == 0 { created = chunk.created }
-                if let content = choice.delta.content { assembledContent += content }
-                if let deltaTools = choice.delta.toolCalls {
-                    for tc in deltaTools {
-                        var entry = pendingToolCalls[tc.index] ?? (id: "", name: "", args: "")
-                        if let id = tc.id { entry.id = id }
-                        if let name = tc.function?.name { entry.name = name }
-                        if let args = tc.function?.arguments { entry.args += args }
-                        pendingToolCalls[tc.index] = entry
+            if let content = choice.delta.content, !content.isEmpty {
+                try await onEvent(.textDelta(content))
+            }
+
+            if let toolCalls = choice.delta.toolCalls {
+                for toolCall in toolCalls {
+                    if let id = toolCall.id,
+                       let name = toolCall.function?.name,
+                       !startedToolIndices.contains(toolCall.index) {
+                        startedToolIndices.insert(toolCall.index)
+                        try await onEvent(.toolCallStarted(index: toolCall.index, id: id, name: name))
+                    }
+
+                    if let arguments = toolCall.function?.arguments, !arguments.isEmpty {
+                        try await onEvent(.toolCallArgumentsDelta(index: toolCall.index, argumentsDelta: arguments))
                     }
                 }
-                if let fr = choice.finishReason { finishReason = fr }
+            }
+
+            if let chunkFinishReason = choice.finishReason {
+                finishReason = chunkFinishReason
             }
         }
 
-        var toolCalls: [OpenAIToolCall] = []
-        for (_, entry) in pendingToolCalls.sorted(by: { $0.key < $1.key }) {
-            toolCalls.append(OpenAIToolCall(
-                id: entry.id, type: "function",
-                function: OpenAIFunctionCall(name: entry.name, arguments: entry.args)
-            ))
+        try await onEvent(.completed(finishReason: finishReason, usage: nil))
+    }
+
+    // MARK: - Responses API
+
+    private func sendResponsesRequest(
+        request: OpenAIResponsesRequest,
+        allowRetryWithoutMaxTokens: Bool
+    ) async throws -> OpenAIResponsesResponse {
+        let urlRequest = try makeJSONRequest(path: "/responses", body: request)
+        let (data, response) = try await session.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw UpstreamError.invalidResponse("Not an HTTP response")
         }
 
-        let message = OpenAIChatMessage(
-            role: "assistant",
-            content: assembledContent.isEmpty ? nil : .text(assembledContent),
-            toolCalls: toolCalls.isEmpty ? nil : toolCalls
-        )
-        let estimatedTokens = max(1, assembledContent.count / 4)
+        if httpResponse.statusCode == 200 {
+            return try decodeResponsesResponse(data)
+        }
 
-        return OpenAIChatCompletionResponse(
-            id: responseId.isEmpty ? "chatcmpl-\(UUID().uuidString.prefix(12))" : responseId,
-            object: "chat.completion",
-            created: created == 0 ? Int(Date().timeIntervalSince1970) : created,
-            model: model.isEmpty ? request.model : model,
-            choices: [OpenAIChoice(index: 0, message: message, finishReason: finishReason)],
-            usage: OpenAIUsage(promptTokens: 0, completionTokens: estimatedTokens, totalTokens: estimatedTokens)
+        let errorBody = String(data: data, encoding: .utf8) ?? ""
+        upstreamLog.warning("Upstream \(httpResponse.statusCode): \(String(errorBody.prefix(500)), privacy: .private)")
+
+        if allowRetryWithoutMaxTokens, request.maxOutputTokens != nil, shouldRetryWithoutMaxTokens(errorBody) {
+            upstreamLog.info("Retrying responses without max_output_tokens")
+            let retryRequest = OpenAIResponsesRequest(
+                model: request.model,
+                input: request.input,
+                temperature: request.temperature,
+                topP: request.topP,
+                maxOutputTokens: nil,
+                stream: request.stream,
+                store: request.store,
+                tools: request.tools,
+                toolChoice: request.toolChoice,
+                parallelToolCalls: request.parallelToolCalls
+            )
+            return try await sendResponsesRequest(
+                request: retryRequest,
+                allowRetryWithoutMaxTokens: false
+            )
+        }
+
+        throw UpstreamError.httpError(
+            statusCode: httpResponse.statusCode,
+            message: errorBody,
+            requestID: upstreamRequestID(from: httpResponse)
         )
     }
 
-    private func assembleFromSSE(body: String) throws -> OpenAIChatCompletionResponse {
-        let decoder = JSONDecoder()
+    private func streamResponsesRequest(
+        request: OpenAIResponsesRequest,
+        allowRetryWithoutMaxTokens: Bool,
+        onEvent: @escaping (OpenAIUpstreamStreamEvent) async throws -> Void
+    ) async throws {
+        let urlRequest = try makeJSONRequest(path: "/responses", body: request)
+        let (bytes, response) = try await session.bytes(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw UpstreamError.invalidResponse("Not an HTTP response")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let errorBody = try await readUTF8TextPrefix(from: bytes, maxBytes: 4096)
+            upstreamLog.warning("Upstream streaming \(httpResponse.statusCode): \(String(errorBody.prefix(500)), privacy: .private)")
+
+            if allowRetryWithoutMaxTokens, request.maxOutputTokens != nil, shouldRetryWithoutMaxTokens(errorBody) {
+                upstreamLog.info("Retrying streaming responses without max_output_tokens")
+                let retryRequest = OpenAIResponsesRequest(
+                    model: request.model,
+                    input: request.input,
+                    temperature: request.temperature,
+                    topP: request.topP,
+                    maxOutputTokens: nil,
+                    stream: request.stream,
+                    store: request.store,
+                    tools: request.tools,
+                    toolChoice: request.toolChoice,
+                    parallelToolCalls: request.parallelToolCalls
+                )
+                try await streamResponsesRequest(
+                    request: retryRequest,
+                    allowRetryWithoutMaxTokens: false,
+                    onEvent: onEvent
+                )
+                return
+            }
+
+            throw UpstreamError.httpError(
+                statusCode: httpResponse.statusCode,
+                message: errorBody.isEmpty ? "Upstream returned status \(httpResponse.statusCode)" : errorBody,
+                requestID: upstreamRequestID(from: httpResponse)
+            )
+        }
+
+        let decoder = Self.jsonDecoder
+        var startedToolIndices = Set<Int>()
+        var accumulatedArgumentsByIndex: [Int: String] = [:]
+        var toolOrdinalsByOutputIndex: [Int: Int] = [:]
+        var nextToolOrdinal = 0
+        var emittedReasoningText = ""
+        var emittedCompletion = false
+
+        try await consumeSSEPayloads(from: bytes) { payload in
+            if payload == "[DONE]" { return }
+            guard let data = payload.data(using: .utf8),
+                  let envelope = try? decoder.decode(OpenAIResponsesStreamEnvelope.self, from: data) else {
+                return
+            }
+
+            switch envelope.type {
+            case "response.output_item.added":
+                guard let event = try? decoder.decode(OpenAIResponsesOutputItemAddedEvent.self, from: data) else {
+                    return
+                }
+                let upstreamEvents = self.makeResponsesToolEvents(
+                    from: event.item,
+                    outputIndex: event.outputIndex,
+                    toolOrdinalsByOutputIndex: &toolOrdinalsByOutputIndex,
+                    nextToolOrdinal: &nextToolOrdinal,
+                    startedToolIndices: &startedToolIndices,
+                    accumulatedArgumentsByIndex: &accumulatedArgumentsByIndex,
+                    emittedReasoningText: &emittedReasoningText
+                )
+                for upstreamEvent in upstreamEvents {
+                    try await onEvent(upstreamEvent)
+                }
+
+            case "response.output_item.done":
+                guard let event = try? decoder.decode(OpenAIResponsesOutputItemDoneEvent.self, from: data) else {
+                    return
+                }
+                let upstreamEvents = self.makeResponsesToolEvents(
+                    from: event.item,
+                    outputIndex: event.outputIndex,
+                    toolOrdinalsByOutputIndex: &toolOrdinalsByOutputIndex,
+                    nextToolOrdinal: &nextToolOrdinal,
+                    startedToolIndices: &startedToolIndices,
+                    accumulatedArgumentsByIndex: &accumulatedArgumentsByIndex,
+                    emittedReasoningText: &emittedReasoningText
+                )
+                for upstreamEvent in upstreamEvents {
+                    try await onEvent(upstreamEvent)
+                }
+
+            case "response.output_text.delta":
+                guard let event = try? decoder.decode(OpenAIResponsesOutputTextDeltaEvent.self, from: data),
+                      !event.delta.isEmpty else {
+                    return
+                }
+                try await onEvent(.textDelta(event.delta))
+
+            case "response.reasoning_summary_text.delta":
+                guard let event = try? decoder.decode(OpenAIResponsesReasoningSummaryTextDeltaEvent.self, from: data),
+                      !event.delta.isEmpty else {
+                    return
+                }
+                emittedReasoningText += event.delta
+                try await onEvent(.reasoningSummaryDelta(event.delta))
+
+            case "response.function_call_arguments.delta":
+                guard let event = try? decoder.decode(OpenAIResponsesFunctionCallArgumentsDeltaEvent.self, from: data),
+                      !event.delta.isEmpty else {
+                    return
+                }
+                let toolIndex = self.toolOrdinal(
+                    for: event.outputIndex,
+                    toolOrdinalsByOutputIndex: &toolOrdinalsByOutputIndex,
+                    nextToolOrdinal: &nextToolOrdinal
+                )
+                accumulatedArgumentsByIndex[toolIndex, default: ""] += event.delta
+                try await onEvent(.toolCallArgumentsDelta(index: toolIndex, argumentsDelta: event.delta))
+
+            case "response.function_call_arguments.done":
+                guard let event = try? decoder.decode(OpenAIResponsesFunctionCallArgumentsDoneEvent.self, from: data) else {
+                    return
+                }
+
+                if let item = event.item {
+                    let toolIndex = self.toolOrdinal(
+                        for: event.outputIndex,
+                        toolOrdinalsByOutputIndex: &toolOrdinalsByOutputIndex,
+                        nextToolOrdinal: &nextToolOrdinal
+                    )
+                    if !startedToolIndices.contains(toolIndex) {
+                        startedToolIndices.insert(toolIndex)
+                        try await onEvent(
+                            .toolCallStarted(index: toolIndex, id: item.callId, name: item.name)
+                        )
+                    }
+
+                    if accumulatedArgumentsByIndex[toolIndex, default: ""].isEmpty, !item.arguments.isEmpty {
+                        accumulatedArgumentsByIndex[toolIndex] = item.arguments
+                        try await onEvent(
+                            .toolCallArgumentsDelta(index: toolIndex, argumentsDelta: item.arguments)
+                        )
+                    }
+                } else if let arguments = event.arguments,
+                          let toolIndex = toolOrdinalsByOutputIndex[event.outputIndex],
+                          accumulatedArgumentsByIndex[toolIndex, default: ""].isEmpty,
+                          !arguments.isEmpty {
+                    accumulatedArgumentsByIndex[toolIndex] = arguments
+                    try await onEvent(
+                        .toolCallArgumentsDelta(index: toolIndex, argumentsDelta: arguments)
+                    )
+                }
+
+            case "response.completed":
+                guard let event = try? decoder.decode(OpenAIResponsesCompletedEvent.self, from: data) else {
+                    return
+                }
+                emittedCompletion = true
+                try await onEvent(
+                    .completed(
+                        finishReason: self.determineResponsesFinishReason(from: event.response),
+                        usage: self.mapResponsesUsage(event.response.usage)
+                    )
+                )
+
+            default:
+                return
+            }
+        }
+
+        if !emittedCompletion {
+            try await onEvent(.completed(finishReason: nil, usage: nil))
+        }
+    }
+
+    // MARK: - Request Builders
+
+    private func makeJSONRequest<T: Encodable>(path: String, body: T) throws -> URLRequest {
+        var request = try makeUpstreamRequest(
+            path: path,
+            method: "POST",
+            contentType: "application/json"
+        )
+        request.httpBody = try Self.jsonEncoder.encode(body)
+        return request
+    }
+
+    private func makeUpstreamRequest(
+        path: String,
+        method: String,
+        queryItems: [URLQueryItem] = [],
+        contentType: String? = nil
+    ) throws -> URLRequest {
+        let url = try buildURL(path: path, queryItems: queryItems)
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        if let contentType {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        }
+        request.setValue("Bearer \(configuration.upstreamAPIKey)", forHTTPHeaderField: "Authorization")
+        for (key, value) in configuration.customHeaders {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        upstreamLog.debug("Upstream: \(url.absoluteString, privacy: .private)")
+        return request
+    }
+
+    private func decodeUpstreamJSONResponse<T: Decodable>(
+        _ type: T.Type,
+        from data: Data,
+        response: URLResponse
+    ) throws -> T {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw UpstreamError.invalidResponse("Not an HTTP response")
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let errorBody = String(data: data, encoding: .utf8) ?? ""
+            upstreamLog.warning("Upstream \(httpResponse.statusCode): \(String(errorBody.prefix(500)), privacy: .private)")
+            throw UpstreamError.httpError(
+                statusCode: httpResponse.statusCode,
+                message: errorBody,
+                requestID: upstreamRequestID(from: httpResponse)
+            )
+        }
+
+        do {
+            return try Self.jsonDecoder.decode(type, from: data)
+        } catch {
+            let body = String(data: data, encoding: .utf8) ?? "Unable to read response"
+            throw UpstreamError.decodingFailed("Failed to decode upstream response. Body: \(body)")
+        }
+    }
+
+    private func decodeResponsesResponse(_ data: Data) throws -> OpenAIResponsesResponse {
+        guard let decoded = try? Self.jsonDecoder.decode(OpenAIResponsesResponse.self, from: data) else {
+            let body = String(data: data, encoding: .utf8) ?? "Unable to read response"
+            throw UpstreamError.decodingFailed("Failed to decode upstream Responses response. Body: \(body)")
+        }
+        return decoded
+    }
+
+    private func upstreamRequestID(from response: HTTPURLResponse) -> String? {
+        response.value(forHTTPHeaderField: "request-id")
+            ?? response.value(forHTTPHeaderField: "x-request-id")
+    }
+
+    private func buildMultipartFileUploadBody(
+        filename: String,
+        mimeType: String?,
+        fileData: Data,
+        purpose: String,
+        boundary: String
+    ) -> Data {
+        var body = Data()
+        let normalizedMimeType = mimeType?.isEmpty == false ? mimeType! : "application/octet-stream"
+        let escapedFilename = filename
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+
+        appendMultipartString("--\(boundary)\r\n", to: &body)
+        appendMultipartString("Content-Disposition: form-data; name=\"purpose\"\r\n\r\n", to: &body)
+        appendMultipartString("\(purpose)\r\n", to: &body)
+
+        appendMultipartString("--\(boundary)\r\n", to: &body)
+        appendMultipartString("Content-Disposition: form-data; name=\"file\"; filename=\"\(escapedFilename)\"\r\n", to: &body)
+        appendMultipartString("Content-Type: \(normalizedMimeType)\r\n\r\n", to: &body)
+        body.append(fileData)
+        appendMultipartString("\r\n--\(boundary)--\r\n", to: &body)
+
+        return body
+    }
+
+    private func appendMultipartString(_ string: String, to body: inout Data) {
+        body.append(Data(string.utf8))
+    }
+
+    private func makeResponsesToolEvents(
+        from item: OpenAIResponsesOutputItem,
+        outputIndex: Int,
+        toolOrdinalsByOutputIndex: inout [Int: Int],
+        nextToolOrdinal: inout Int,
+        startedToolIndices: inout Set<Int>,
+        accumulatedArgumentsByIndex: inout [Int: String],
+        emittedReasoningText: inout String
+    ) -> [OpenAIUpstreamStreamEvent] {
+        var events: [OpenAIUpstreamStreamEvent] = []
+
+        switch item {
+        case .functionCall(let functionCall):
+            let toolIndex = toolOrdinal(
+                for: outputIndex,
+                toolOrdinalsByOutputIndex: &toolOrdinalsByOutputIndex,
+                nextToolOrdinal: &nextToolOrdinal
+            )
+
+            if !startedToolIndices.contains(toolIndex) {
+                startedToolIndices.insert(toolIndex)
+                events.append(
+                    .toolCallStarted(index: toolIndex, id: functionCall.callId, name: functionCall.name)
+                )
+            }
+
+            if !functionCall.arguments.isEmpty,
+               accumulatedArgumentsByIndex[toolIndex, default: ""].isEmpty {
+                accumulatedArgumentsByIndex[toolIndex] = functionCall.arguments
+                events.append(
+                    .toolCallArgumentsDelta(index: toolIndex, argumentsDelta: functionCall.arguments)
+                )
+            }
+
+        case .reasoning(let reasoning):
+            let fullText = normalizedReasoningSummaryText(from: reasoning)
+            let unseenText = unseenReasoningText(fullText: fullText, emittedSoFar: emittedReasoningText)
+            if !unseenText.isEmpty {
+                emittedReasoningText += unseenText
+                events.append(.reasoningSummaryDelta(unseenText))
+            }
+
+        default:
+            break
+        }
+
+        return events
+    }
+
+    private func toolOrdinal(
+        for outputIndex: Int,
+        toolOrdinalsByOutputIndex: inout [Int: Int],
+        nextToolOrdinal: inout Int
+    ) -> Int {
+        if let existing = toolOrdinalsByOutputIndex[outputIndex] {
+            return existing
+        }
+
+        let newOrdinal = nextToolOrdinal
+        nextToolOrdinal += 1
+        toolOrdinalsByOutputIndex[outputIndex] = newOrdinal
+        return newOrdinal
+    }
+
+    private func normalizedReasoningSummaryText(from reasoning: OpenAIResponsesReasoningItem) -> String {
+        let summaryText = reasoning.summary
+            .map(\.text)
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        if !summaryText.isEmpty {
+            return summaryText
+        }
+
+        return reasoning.content?
+            .map(\.text)
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n") ?? ""
+    }
+
+    private func unseenReasoningText(fullText: String, emittedSoFar: String) -> String {
+        guard !fullText.isEmpty else { return "" }
+        guard !emittedSoFar.isEmpty else { return fullText }
+
+        if fullText.hasPrefix(emittedSoFar) {
+            return String(fullText.dropFirst(emittedSoFar.count))
+        }
+
+        // Upstream replaced the summary text entirely; only emit the new portion
+        // to avoid duplicate content in the thinking block.
+        if emittedSoFar.hasPrefix(fullText) {
+            return ""
+        }
+
+        return fullText
+    }
+
+    // MARK: - Response Adapters
+
+    private func determineResponsesFinishReason(from response: OpenAIResponsesResponse) -> String? {
+        if responseRequiresPauseTurn(response) {
+            return "pause_turn"
+        }
+
+        switch response.status {
+        case "incomplete":
+            return "length"
+        case "failed":
+            return nil
+        default:
+            break
+        }
+
+        if response.output.contains(where: {
+            if case .functionCall = $0 { return true }
+            return false
+        }) {
+            return "tool_calls"
+        }
+
+        return "stop"
+    }
+
+    private func responseRequiresPauseTurn(_ response: OpenAIResponsesResponse) -> Bool {
+        guard let status = response.status?.lowercased(),
+              status == "incomplete" || status == "in_progress" else {
+            return false
+        }
+
+        return response.output.contains(where: hostedToolItemIsPending)
+    }
+
+    private func hostedToolItemIsPending(_ item: OpenAIResponsesOutputItem) -> Bool {
+        switch item {
+        case .fileSearchCall(let call):
+            return hostedToolStatusRequiresPauseTurn(call.status)
+        case .webSearchCall(let call):
+            return hostedToolStatusRequiresPauseTurn(call.status)
+        case .computerCall(let call):
+            return hostedToolStatusRequiresPauseTurn(call.status)
+        case .imageGenerationCall(let call):
+            return hostedToolStatusRequiresPauseTurn(call.status)
+        case .codeInterpreterCall(let call):
+            return hostedToolStatusRequiresPauseTurn(call.status)
+        case .toolSearchCall(let call):
+            return hostedToolStatusRequiresPauseTurn(call.status)
+        case .localShellCall(let call):
+            return hostedToolStatusRequiresPauseTurn(call.status)
+        case .shellCall(let call):
+            return hostedToolStatusRequiresPauseTurn(call.status)
+        case .applyPatchCall(let call):
+            return hostedToolStatusRequiresPauseTurn(call.status)
+        case .mcpCall(let call):
+            return hostedToolStatusRequiresPauseTurn(call.status)
+        default:
+            return false
+        }
+    }
+
+    private func hostedToolStatusRequiresPauseTurn(_ status: String?) -> Bool {
+        guard let normalized = status?.lowercased() else {
+            return true
+        }
+
+        switch normalized {
+        case "completed", "failed", "cancelled", "canceled":
+            return false
+        default:
+            return true
+        }
+    }
+
+    private func mapResponsesUsage(_ usage: OpenAIResponsesUsage?) -> OpenAIUsage? {
+        guard let usage else { return nil }
+        return OpenAIUsage(
+            promptTokens: usage.inputTokens,
+            completionTokens: usage.outputTokens,
+            totalTokens: usage.totalTokens
+        )
+    }
+
+    // MARK: - SSE Helpers
+
+    private func assembleChatCompletionFromSSE(body: String) throws -> OpenAIChatCompletionResponse {
+        let decoder = Self.jsonDecoder
         var assembledContent = ""
-        var finishReason: String? = nil
+        var finishReason: String?
         var responseId = ""
         var model = ""
         var created = 0
@@ -224,6 +854,7 @@ public actor OpenAICompatibleClient {
             if let content = choice.delta.content {
                 assembledContent += content
             }
+
             if let deltaTools = choice.delta.toolCalls {
                 for tc in deltaTools {
                     var entry = pendingToolCalls[tc.index] ?? (id: "", name: "", args: "")
@@ -233,24 +864,18 @@ public actor OpenAICompatibleClient {
                     pendingToolCalls[tc.index] = entry
                 }
             }
-            if let fr = choice.finishReason {
-                finishReason = fr
+
+            if let chunkFinishReason = choice.finishReason {
+                finishReason = chunkFinishReason
             }
         }
 
         for (_, entry) in pendingToolCalls.sorted(by: { $0.key < $1.key }) {
             toolCalls.append(OpenAIToolCall(
                 id: entry.id,
-                type: "function",
                 function: OpenAIFunctionCall(name: entry.name, arguments: entry.args)
             ))
         }
-
-        let message = OpenAIChatMessage(
-            role: "assistant",
-            content: assembledContent.isEmpty ? nil : .text(assembledContent),
-            toolCalls: toolCalls.isEmpty ? nil : toolCalls
-        )
 
         let estimatedTokens = max(1, assembledContent.count / 4)
 
@@ -259,7 +884,17 @@ public actor OpenAICompatibleClient {
             object: "chat.completion",
             created: created,
             model: model,
-            choices: [OpenAIChoice(index: 0, message: message, finishReason: finishReason)],
+            choices: [
+                OpenAIChoice(
+                    index: 0,
+                    message: OpenAIChatMessage(
+                        role: "assistant",
+                        content: assembledContent.isEmpty ? nil : .text(assembledContent),
+                        toolCalls: toolCalls.isEmpty ? nil : toolCalls
+                    ),
+                    finishReason: finishReason
+                )
+            ],
             usage: OpenAIUsage(
                 promptTokens: 0,
                 completionTokens: estimatedTokens,
@@ -268,83 +903,57 @@ public actor OpenAICompatibleClient {
         )
     }
 
-    // MARK: - Streaming Request
-
-    public func sendStreamingChatCompletion(
-        request: OpenAIChatCompletionRequest
-    ) async throws -> (URLSession.AsyncBytes, HTTPURLResponse) {
-        let url = try buildURL(path: "/chat/completions")
-
-        func makeURLRequest(for req: OpenAIChatCompletionRequest) throws -> URLRequest {
-            var r = URLRequest(url: url)
-            r.httpMethod = "POST"
-            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            r.setValue("Bearer \(configuration.upstreamAPIKey)", forHTTPHeaderField: "Authorization")
-            for (key, value) in configuration.customHeaders {
-                r.setValue(value, forHTTPHeaderField: key)
-            }
-            r.httpBody = try JSONEncoder().encode(req)
-            return r
+    private func consumeSSEPayloads(
+        from bytes: URLSession.AsyncBytes,
+        onPayload: @escaping (String) async throws -> Void
+    ) async throws {
+        for try await line in bytes.lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.hasPrefix("data:") else { continue }
+            let payload = String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+            try await onPayload(payload)
         }
-
-        let urlRequest = try makeURLRequest(for: request)
-        let (bytes, response) = try await session.bytes(for: urlRequest)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw UpstreamError.invalidResponse("Not an HTTP response")
-        }
-
-        if httpResponse.statusCode == 200 {
-            return (bytes, httpResponse)
-        }
-
-        let errorBody = try await readUTF8TextPrefix(from: bytes, maxBytes: 4096)
-        upstreamLog.warning("Upstream streaming \(httpResponse.statusCode): \(String(errorBody.prefix(500)), privacy: .private)")
-
-        let isMaxTokensError = errorBody.contains("max_tokens") || errorBody.contains("model output limit")
-        if isMaxTokensError {
-            upstreamLog.info("Retrying streaming without max_tokens")
-            let retryReq = OpenAIChatCompletionRequest(
-                model: request.model, messages: request.messages,
-                temperature: request.temperature, topP: request.topP,
-                maxTokens: nil, stop: request.stop, stream: true,
-                tools: request.tools, toolChoice: request.toolChoice
-            )
-            let retryURLRequest = try makeURLRequest(for: retryReq)
-            let (retryBytes, retryResp) = try await session.bytes(for: retryURLRequest)
-            guard let retryHTTP = retryResp as? HTTPURLResponse, retryHTTP.statusCode == 200 else {
-                throw UpstreamError.httpError(
-                    statusCode: (retryResp as? HTTPURLResponse)?.statusCode ?? 0,
-                    message: "Retry without max_tokens also failed"
-                )
-            }
-            return (retryBytes, retryHTTP)
-        }
-
-        throw UpstreamError.httpError(
-            statusCode: httpResponse.statusCode,
-            message: errorBody.isEmpty ? "Upstream returned status \(httpResponse.statusCode)" : errorBody
-        )
     }
 
     // MARK: - Helpers
 
-    private func buildURL(path: String) throws -> URL {
-        var baseURL = configuration.upstreamBaseURL
-        if baseURL.hasSuffix("/") {
-            baseURL = String(baseURL.dropLast())
-        }
-        // Remove trailing /v1 if present since we add path ourselves
-        if baseURL.hasSuffix("/v1") {
-            // Keep as is, append path
-        } else if !baseURL.contains("/v1") {
-            baseURL += "/v1"
+    private func buildURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
+        let normalizedBaseURL = ClaudeProxyConfiguration.normalizeOpenAIBaseURL(configuration.upstreamBaseURL)
+        guard var components = URLComponents(string: normalizedBaseURL) else {
+            throw UpstreamError.invalidURL(normalizedBaseURL)
         }
 
-        guard let url = URL(string: baseURL + path) else {
-            throw UpstreamError.invalidURL(baseURL + path)
+        let existingPath = components.path.split(separator: "/").map(String.init)
+        let endpointPath = path.split(separator: "/").map(String.init)
+        let fullPath = (existingPath + ["v1"] + endpointPath).joined(separator: "/")
+        components.path = "/" + fullPath
+        if !queryItems.isEmpty {
+            components.queryItems = queryItems
+        }
+
+        guard let url = components.url else {
+            throw UpstreamError.invalidURL(normalizedBaseURL + path)
         }
         return url
+    }
+
+    private func shouldRetryWithoutMaxTokens(_ errorBody: String) -> Bool {
+        guard let data = errorBody.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        let message: String
+        if let errorObj = json["error"] as? [String: Any],
+           let msg = errorObj["message"] as? String {
+            message = msg.lowercased()
+        } else if let msg = json["message"] as? String {
+            message = msg.lowercased()
+        } else {
+            return false
+        }
+        return message.contains("max_tokens")
+            || message.contains("max_output_tokens")
+            || message.contains("model output limit")
     }
 
     private func readUTF8TextPrefix(
@@ -365,12 +974,24 @@ public actor OpenAICompatibleClient {
     }
 }
 
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
+}
+
+private extension Array {
+    var nilIfEmpty: [Element]? {
+        isEmpty ? nil : self
+    }
+}
+
 // MARK: - Upstream Errors
 
 public enum UpstreamError: Error, LocalizedError {
     case invalidURL(String)
     case invalidResponse(String)
-    case httpError(statusCode: Int, message: String)
+    case httpError(statusCode: Int, message: String, requestID: String? = nil)
     case decodingFailed(String)
     case streamingFailed(String)
 
@@ -380,7 +1001,10 @@ public enum UpstreamError: Error, LocalizedError {
             return "Invalid upstream URL: \(url)"
         case .invalidResponse(let msg):
             return "Invalid response: \(msg)"
-        case .httpError(let code, let msg):
+        case .httpError(let code, let msg, let requestID):
+            if let requestID, !requestID.isEmpty {
+                return "Upstream HTTP \(code): \(msg) (request_id: \(requestID))"
+            }
             return "Upstream HTTP \(code): \(msg)"
         case .decodingFailed(let msg):
             return "Decoding failed: \(msg)"

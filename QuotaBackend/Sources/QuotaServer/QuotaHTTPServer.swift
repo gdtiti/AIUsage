@@ -193,6 +193,10 @@ public final class QuotaHTTPServer: @unchecked Sendable {
         if self.proxyService != nil {
             httpLog.info("  POST /v1/messages (Claude Proxy - OpenAI Convert)")
             httpLog.info("  POST /v1/messages/count_tokens (Claude Proxy)")
+            httpLog.info("  GET /v1/files (Claude Proxy)")
+            httpLog.info("  POST /v1/files (Claude Proxy)")
+            httpLog.info("  GET /v1/files/:id (Claude Proxy)")
+            httpLog.info("  DELETE /v1/files/:id (Claude Proxy)")
         }
         if self.isPassthrough {
             httpLog.info("  POST /v1/messages (Anthropic Passthrough)")
@@ -241,8 +245,8 @@ public final class QuotaHTTPServer: @unchecked Sendable {
         let queryItems = parseQueryItems(request.path)
         let corsHeaders = [
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type"
+            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, x-api-key, authorization, anthropic-version, anthropic-beta"
         ]
 
         if request.method == "OPTIONS" {
@@ -267,6 +271,18 @@ public final class QuotaHTTPServer: @unchecked Sendable {
 
         case ("POST", "/v1/messages/count_tokens"):
             return await handleCountTokensEndpoint(request: request, headers: corsHeaders)
+
+        case ("GET", "/v1/files"):
+            return await handleListFilesEndpoint(request: request, queryItems: queryItems, headers: corsHeaders)
+
+        case ("POST", "/v1/files"):
+            return await handleCreateFileEndpoint(request: request, headers: corsHeaders)
+
+        case ("GET", _) where path.hasPrefix("/v1/files/"):
+            return await handleFileSubresourceEndpoint(request: request, path: path, headers: corsHeaders)
+
+        case ("DELETE", _) where path.hasPrefix("/v1/files/"):
+            return await handleDeleteFileEndpoint(request: request, path: path, headers: corsHeaders)
 
         case ("POST", "/api/event_logging/batch"):
             if isPassthrough {
@@ -303,9 +319,7 @@ public final class QuotaHTTPServer: @unchecked Sendable {
     // MARK: - Error Helpers
 
     func claudeErrorResponse(type: String, message: String, status: Int, headers: [String: String]) -> HTTPResponse {
-        let errorJSON = """
-        {"type":"error","error":{"type":"\(type)","message":"\(message)"}}
-        """
+        let errorJSON = "{\"type\":\"error\",\"error\":{\"type\":\(escapeJSON(type)),\"message\":\(escapeJSON(message))}}"
         var h = headers
         h["Content-Type"] = "application/json"
         h["Content-Length"] = "\(errorJSON.utf8.count)"
@@ -346,7 +360,19 @@ public final class QuotaHTTPServer: @unchecked Sendable {
     struct HTTPResponse {
         let status: Int
         let headers: [String: String]
-        let body: String
+        let body: Data
+
+        init(status: Int, headers: [String: String], body: String) {
+            self.status = status
+            self.headers = headers
+            self.body = Data(body.utf8)
+        }
+
+        init(status: Int, headers: [String: String], bodyData: Data) {
+            self.status = status
+            self.headers = headers
+            self.body = bodyData
+        }
     }
 
     // MARK: - Streaming Response
@@ -364,14 +390,17 @@ public final class QuotaHTTPServer: @unchecked Sendable {
             headersSent = true
 
             let statusText = httpStatusText(status)
+            var h = headers
+            h["Transfer-Encoding"] = "chunked"
+
             var headerLines = "HTTP/1.1 \(status) \(statusText)\r\n"
-            for (key, value) in headers {
+            for (key, value) in h {
                 headerLines += "\(key): \(value)\r\n"
             }
             headerLines += "\r\n"
 
             guard let data = headerLines.data(using: .utf8) else { return }
-            await sendData(data)
+            await sendRaw(data)
         }
 
         func sendSSEEvent(event: String?, data: String) async {
@@ -382,19 +411,44 @@ public final class QuotaHTTPServer: @unchecked Sendable {
             message += "data: \(data)\n\n"
 
             guard let eventData = message.data(using: .utf8) else { return }
-            await sendData(eventData)
+            await sendChunkedFrame(eventData)
         }
 
         func sendChunk(_ text: String) async {
             guard let data = text.data(using: .utf8) else { return }
-            await sendData(data)
+            await sendChunkedFrame(data)
+        }
+
+        func sendDataChunk(_ data: Data) async {
+            guard !data.isEmpty else { return }
+            await sendChunkedFrame(data)
+        }
+
+        func finish() async {
+            let terminator = Data("0\r\n\r\n".utf8)
+            await sendRaw(terminator)
+
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                connection.send(content: nil, contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { _ in
+                    continuation.resume()
+                })
+            }
+            connection.cancel()
         }
 
         nonisolated func close() {
             connection.cancel()
         }
 
-        private func sendData(_ data: Data) async {
+        private func sendChunkedFrame(_ body: Data) async {
+            let sizeHex = String(body.count, radix: 16)
+            var frame = Data("\(sizeHex)\r\n".utf8)
+            frame.append(body)
+            frame.append(Data("\r\n".utf8))
+            await sendRaw(frame)
+        }
+
+        private func sendRaw(_ data: Data) async {
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                 connection.send(content: data, completion: .contentProcessed { _ in
                     continuation.resume()
@@ -403,12 +457,25 @@ public final class QuotaHTTPServer: @unchecked Sendable {
         }
 
         private func httpStatusText(_ code: Int) -> String {
-            [200: "OK", 204: "No Content", 400: "Bad Request", 401: "Unauthorized", 404: "Not Found", 500: "Internal Server Error"][code] ?? "OK"
+            [
+                200: "OK",
+                204: "No Content",
+                400: "Bad Request",
+                401: "Unauthorized",
+                404: "Not Found",
+                500: "Internal Server Error",
+                501: "Not Implemented",
+                503: "Service Unavailable",
+            ][code] ?? "OK"
         }
     }
 
-    private func parseHTTPRequest(_ data: Data) -> HTTPRequest {
-        let text = String(data: data, encoding: .utf8) ?? ""
+    func parseHTTPRequest(_ data: Data) -> HTTPRequest {
+        let headerSeparator = Data([13, 10, 13, 10])
+        let headerRange = data.range(of: headerSeparator)
+        let headerData = headerRange.map { Data(data[..<($0.lowerBound)]) } ?? data
+        let bodyData = headerRange.map { Data(data[$0.upperBound...]) } ?? Data()
+        let text = String(data: headerData, encoding: .utf8) ?? ""
         let lines = text.components(separatedBy: "\r\n")
         let firstLine = lines.first ?? ""
         let parts = firstLine.components(separatedBy: " ")
@@ -417,10 +484,8 @@ public final class QuotaHTTPServer: @unchecked Sendable {
 
         // Parse headers
         var headers: [String: String] = [:]
-        var bodyStartIndex = 0
         for (index, line) in lines.enumerated() {
             if line.isEmpty {
-                bodyStartIndex = index + 1
                 break
             }
             if index > 0, let colonIndex = line.firstIndex(of: ":") {
@@ -429,11 +494,6 @@ public final class QuotaHTTPServer: @unchecked Sendable {
                 headers[key] = value
             }
         }
-
-        // Extract body
-        let bodyLines = lines.dropFirst(bodyStartIndex)
-        let bodyText = bodyLines.joined(separator: "\r\n")
-        let bodyData = bodyText.data(using: .utf8) ?? Data()
 
         return HTTPRequest(method: method, path: path, headers: headers, body: bodyData)
     }
@@ -485,6 +545,7 @@ public final class QuotaHTTPServer: @unchecked Sendable {
     private func receiveData(_ connection: NWConnection) async -> Data? {
         // Support larger payloads (up to 10MB) with chunked reading
         let maxSize = 10 * 1024 * 1024 // 10MB
+        let headerSeparator = Data([13, 10, 13, 10])
         var accumulated = Data()
 
         while accumulated.count < maxSize {
@@ -494,20 +555,15 @@ public final class QuotaHTTPServer: @unchecked Sendable {
             accumulated.append(chunk)
 
             // Check if we have a complete HTTP request (headers + body)
-            if let text = String(data: accumulated, encoding: .utf8),
-               text.contains("\r\n\r\n") {
-                // Check Content-Length to see if we have the full body
-                if let contentLength = extractContentLength(from: text) {
-                    guard let headerEnd = text.range(of: "\r\n\r\n") else {
-                        continue
-                    }
-                    let headerEndOffset = text.distance(from: text.startIndex, to: headerEnd.upperBound)
-                    let bodySize = accumulated.count - headerEndOffset
+            if let headerRange = accumulated.range(of: headerSeparator) {
+                let headerText = String(data: accumulated[..<headerRange.lowerBound], encoding: .utf8) ?? ""
+                if let contentLength = extractContentLength(from: headerText) {
+                    let bodySize = accumulated.count - headerRange.upperBound
                     if bodySize >= contentLength {
                         break
                     }
                 } else {
-                    // No Content-Length, assume complete
+                    // No Content-Length, assume complete once headers are fully received.
                     break
                 }
             }
@@ -543,7 +599,8 @@ public final class QuotaHTTPServer: @unchecked Sendable {
             headerLines += "\(key): \(value)\r\n"
         }
         headerLines += "\r\n"
-        let full = (headerLines + response.body).data(using: .utf8) ?? Data()
+        var full = Data(headerLines.utf8)
+        full.append(response.body)
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             connection.send(content: full, completion: .contentProcessed { _ in
@@ -553,28 +610,15 @@ public final class QuotaHTTPServer: @unchecked Sendable {
     }
 
     private func httpStatusText(_ code: Int) -> String {
-        [200: "OK", 204: "No Content", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"][code] ?? "OK"
+        [
+            200: "OK",
+            204: "No Content",
+            400: "Bad Request",
+            401: "Unauthorized",
+            404: "Not Found",
+            500: "Internal Server Error",
+            501: "Not Implemented",
+            503: "Service Unavailable",
+        ][code] ?? "OK"
     }
-}
-
-// MARK: - CLI Argument Parsing
-
-func parseArgs() -> [String: String] {
-    var result: [String: String] = [:]
-    let args = CommandLine.arguments.dropFirst()
-    var i = args.startIndex
-    while i < args.endIndex {
-        let arg = args[i]
-        if arg.hasPrefix("--") {
-            let key = String(arg.dropFirst(2))
-            let nextIdx = args.index(after: i)
-            if nextIdx < args.endIndex && !args[nextIdx].hasPrefix("--") {
-                result[key] = args[nextIdx]
-                i = args.index(after: nextIdx)
-                continue
-            }
-        }
-        i = args.index(after: i)
-    }
-    return result
 }

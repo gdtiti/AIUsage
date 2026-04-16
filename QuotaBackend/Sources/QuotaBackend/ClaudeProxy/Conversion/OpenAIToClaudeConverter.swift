@@ -2,6 +2,8 @@ import Foundation
 
 // MARK: - OpenAI to Claude Converter
 
+// Reference converter retained as a regression baseline for tests.
+// Production response building now flows through the canonical layer.
 public struct OpenAIToClaudeConverter {
 
     public init() {}
@@ -76,11 +78,11 @@ public struct OpenAIToClaudeConverter {
                 // Tool use start
                 return .contentBlockStart(ClaudeContentBlockStartEvent(
                     index: toolCall.index,
-                    contentBlock: ClaudeToolUseStart(
-                        type: "tool_use",
+                    contentBlock: .toolUse(ClaudeToolUseBlock(
                         id: id,
-                        name: name
-                    )
+                        name: name,
+                        input: [:]
+                    ))
                 ))
             } else if let args = toolCall.function?.arguments {
                 // Tool use input delta
@@ -114,8 +116,24 @@ public struct OpenAIToClaudeConverter {
                 }
             case .parts(let parts):
                 for part in parts {
-                    if case .text(let textPart) = part {
+                    switch part {
+                    case .text(let textPart):
                         blocks.append(.text(ClaudeTextBlock(text: textPart.text)))
+                    case .inputFile(let filePart):
+                        var source: [String: AnyCodable] = [
+                            "type": AnyCodable("file")
+                        ]
+                        if let fileId = filePart.fileId {
+                            source["file_id"] = AnyCodable(fileId)
+                        }
+                        blocks.append(.document(ClaudeDocumentBlock(
+                            source: source,
+                            title: filePart.filename
+                        )))
+                    case .imageUrl:
+                        break
+                    case .unknown:
+                        break
                     }
                 }
             }
@@ -160,8 +178,12 @@ public struct OpenAIToClaudeConverter {
             return "max_tokens"
         case "tool_calls":
             return "tool_use"
-        case "content_filter":
-            return "stop_sequence"
+        case "pause_turn":
+            return "pause_turn"
+        case "refusal", "content_filter":
+            return "refusal"
+        case "model_context_window_exceeded":
+            return "model_context_window_exceeded"
         default:
             return "end_turn"
         }
@@ -174,7 +196,7 @@ public enum ClaudeStreamEvent {
     case messageStart(ClaudeMessageStartEvent)
     case contentBlockStart(ClaudeContentBlockStartEvent)
     case contentBlockDelta(ClaudeContentBlockDeltaEvent)
-    case contentBlockStop
+    case contentBlockStop(ClaudeContentBlockStopEvent)
     case messageDelta(ClaudeMessageDeltaEvent)
     case messageStop
     case ping
@@ -216,41 +238,105 @@ public struct ClaudeMessageStart: Codable, Sendable {
     public let id: String
     public let type: String
     public let role: String
+    public let content: [ClaudeContentBlock]
     public let model: String
+    public let stopReason: String?
+    public let stopSequence: String?
+    public let usage: ClaudeUsage
 
-    public init(id: String, type: String, role: String, model: String) {
+    enum CodingKeys: String, CodingKey {
+        case id, type, role, content, model, usage
+        case stopReason = "stop_reason"
+        case stopSequence = "stop_sequence"
+    }
+
+    public init(
+        id: String,
+        type: String,
+        role: String,
+        content: [ClaudeContentBlock] = [],
+        model: String,
+        stopReason: String? = nil,
+        stopSequence: String? = nil,
+        usage: ClaudeUsage = ClaudeUsage(inputTokens: 0, outputTokens: 0)
+    ) {
         self.id = id
         self.type = type
         self.role = role
+        self.content = content
         self.model = model
+        self.stopReason = stopReason
+        self.stopSequence = stopSequence
+        self.usage = usage
     }
 }
 
 public struct ClaudeContentBlockStartEvent: Codable, Sendable {
     public let type: String = "content_block_start"
     public let index: Int
-    public let contentBlock: ClaudeToolUseStart
+    public let contentBlock: ClaudeContentBlock
 
     enum CodingKeys: String, CodingKey {
         case type, index
         case contentBlock = "content_block"
     }
 
-    public init(index: Int, contentBlock: ClaudeToolUseStart) {
+    public init(index: Int, contentBlock: ClaudeContentBlock) {
         self.index = index
         self.contentBlock = contentBlock
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        guard type == "content_block_start" else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Expected content_block_start event, got \(type)"
+            )
+        }
+        self.index = try container.decode(Int.self, forKey: .index)
+        self.contentBlock = try container.decode(ClaudeContentBlock.self, forKey: .contentBlock)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encode(index, forKey: .index)
+        try container.encode(contentBlock, forKey: .contentBlock)
+    }
 }
 
-public struct ClaudeToolUseStart: Codable, Sendable {
-    public let type: String
-    public let id: String
-    public let name: String
+public struct ClaudeContentBlockStopEvent: Codable, Sendable {
+    public let type: String = "content_block_stop"
+    public let index: Int
 
-    public init(type: String, id: String, name: String) {
-        self.type = type
-        self.id = id
-        self.name = name
+    enum CodingKeys: String, CodingKey {
+        case type, index
+    }
+
+    public init(index: Int) {
+        self.index = index
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        guard type == "content_block_stop" else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Expected content_block_stop event, got \(type)"
+            )
+        }
+        self.index = try container.decode(Int.self, forKey: .index)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encode(index, forKey: .index)
     }
 }
 
@@ -293,12 +379,47 @@ public struct ClaudeContentBlockDeltaEvent: Codable, Sendable {
 public enum ClaudeDelta: Codable, Sendable {
     case text(ClaudeTextDelta)
     case inputJson(ClaudeInputJsonDelta)
+    case thinking(ClaudeThinkingDelta)
+    case signature(ClaudeSignatureDelta)
+    case citations(ClaudeCitationsDelta)
+    case unknown(ClaudeUnknownDelta)
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        switch type {
+        case "text_delta":
+            self = .text(try ClaudeTextDelta(from: decoder))
+        case "input_json_delta":
+            self = .inputJson(try ClaudeInputJsonDelta(from: decoder))
+        case "thinking_delta":
+            self = .thinking(try ClaudeThinkingDelta(from: decoder))
+        case "signature_delta":
+            self = .signature(try ClaudeSignatureDelta(from: decoder))
+        case "citations_delta":
+            self = .citations(try ClaudeCitationsDelta(from: decoder))
+        default:
+            self = .unknown(ClaudeUnknownDelta(type: type))
+        }
+    }
 
     public func encode(to encoder: Encoder) throws {
         switch self {
         case .text(let delta):
             try delta.encode(to: encoder)
         case .inputJson(let delta):
+            try delta.encode(to: encoder)
+        case .thinking(let delta):
+            try delta.encode(to: encoder)
+        case .signature(let delta):
+            try delta.encode(to: encoder)
+        case .citations(let delta):
+            try delta.encode(to: encoder)
+        case .unknown(let delta):
             try delta.encode(to: encoder)
         }
     }
@@ -326,6 +447,44 @@ public struct ClaudeInputJsonDelta: Codable, Sendable {
     public init(type: String, partialJson: String) {
         self.type = type
         self.partialJson = partialJson
+    }
+}
+
+public struct ClaudeThinkingDelta: Codable, Sendable {
+    public let type: String
+    public let thinking: String
+
+    public init(type: String = "thinking_delta", thinking: String) {
+        self.type = type
+        self.thinking = thinking
+    }
+}
+
+public struct ClaudeSignatureDelta: Codable, Sendable {
+    public let type: String
+    public let signature: String
+
+    public init(type: String = "signature_delta", signature: String) {
+        self.type = type
+        self.signature = signature
+    }
+}
+
+public struct ClaudeCitationsDelta: Codable, Sendable {
+    public let type: String
+    public let citation: AnyCodable?
+
+    public init(type: String = "citations_delta", citation: AnyCodable? = nil) {
+        self.type = type
+        self.citation = citation
+    }
+}
+
+public struct ClaudeUnknownDelta: Codable, Sendable {
+    public let type: String
+
+    public init(type: String) {
+        self.type = type
     }
 }
 

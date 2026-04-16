@@ -1,4 +1,5 @@
 import SwiftUI
+import QuotaBackend
 
 // MARK: - Proxy Management View
 
@@ -377,7 +378,11 @@ struct ProxyManagementView: View {
                     detailItem(label: L("Local Proxy", "本地代理"), value: "http://\(config.host):\(config.port)")
                 }
             case .openaiProxy:
-                detailItem(label: L("Upstream", "上游"), value: config.upstreamBaseURL)
+                detailItem(label: L("Upstream", "上游"), value: config.normalizedUpstreamBaseURL)
+                detailItem(
+                    label: L("API Mode", "接口模式"),
+                    value: openAIUpstreamAPILabel(config.openAIUpstreamAPI)
+                )
                 detailItem(
                     label: L("Model Mapping", "模型映射"),
                     value: "Opus\u{2192}\(config.modelMapping.bigModel.name), Sonnet\u{2192}\(config.modelMapping.middleModel.name), Haiku\u{2192}\(config.modelMapping.smallModel.name)"
@@ -661,12 +666,12 @@ struct ProxyManagementView: View {
             port: newPort,
             allowLAN: config.allowLAN,
             upstreamBaseURL: config.upstreamBaseURL,
+            openAIUpstreamAPI: config.openAIUpstreamAPI,
             upstreamAPIKey: config.upstreamAPIKey,
             expectedClientKey: config.expectedClientKey,
             defaultModel: config.defaultModel,
             modelMapping: config.modelMapping,
-            maxOutputTokens: config.maxOutputTokens,
-            passthroughPricing: config.passthroughPricing
+            maxOutputTokens: config.maxOutputTokens
         )
         viewModel.addConfiguration(copy)
     }
@@ -682,6 +687,15 @@ struct ProxyManagementView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func openAIUpstreamAPILabel(_ api: OpenAIUpstreamAPI) -> String {
+        switch api {
+        case .chatCompletions:
+            return "Chat Completions"
+        case .responses:
+            return "Responses"
+        }
     }
 }
 

@@ -421,36 +421,34 @@ CanonicalUsage
 
 ## 第一版落地顺序
 
-### [ ] Step C1-1
+### [x] Step C1-1
 
-先在代码里新增 `Canonical*` value models，只定义结构，不替换现有 adapter。
+`Canonical*` value models 已实现于 `QuotaBackend/Sources/QuotaBackend/ClaudeProxy/Canonical/`。
 
-### [ ] Step C1-2
+### [x] Step C1-2
 
-实现：
+已实现非流式映射：
 
-- Claude -> Canonical
-- OpenAI `chat/completions` -> Canonical
-- OpenAI `responses` -> Canonical
+- Claude -> Canonical (`CanonicalClaudeBuilders`)
+- OpenAI `chat/completions` -> Canonical (`CanonicalOpenAIBuilders`)
+- OpenAI `responses` -> Canonical (`CanonicalOpenAIResponsesBuilders`)
 
-只做非流式 first pass。
+### [x] Step C1-3
 
-### [ ] Step C1-3
-
-实现：
+已实现反向映射：
 
 - Canonical -> Claude
 - Canonical -> OpenAI `chat/completions`
 - Canonical -> OpenAI `responses`
 
-### [ ] Step C1-4
+### [x] Step C1-4
 
-最后把 streaming event 也抽成 Canonical 层，替换当前 server-side 直接拼 SSE 的部分。
+Streaming event 已抽成 Canonical 层，通过 `CanonicalClaudeStreamBuilder` 和 `CanonicalOpenAIUpstreamStreamMapper` 替换直接 SSE 拼接。
 
 ---
 
-## 当前断点
+## 当前状态 (v0.4.20)
 
-- 这份文档已经给出 Canonical v1 的最小字段闭包。
-- 下一步进入代码实现时，优先先建 value models 和字段映射单测。
-- 第一轮不要碰现有 bridge 主链路，只做 parallel implementation + tests。
+- Canonical v1 全部四步已落地并投入生产使用。
+- 测试覆盖：12 个 Canonical 单测 + 33 个 Converter 单测 + 29 个集成测试。
+- 后续方向：hosted tool、MCP 协议扩展等新能力在 Canonical 层追加字段即可。

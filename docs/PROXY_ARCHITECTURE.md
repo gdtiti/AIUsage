@@ -267,7 +267,7 @@ OpenAIUpstreamStreamEvent
   │ CanonicalOpenAIUpstreamStreamMapper
   ▼
 CanonicalStreamEvent
-  │ CanonicalClaudeStreamBuilder (in QuotaHTTPServer+ClaudeProxy.swift)
+  │ CanonicalClaudeStreamBuilder (in CanonicalClaudeBuilders.swift, called from QuotaHTTPServer+ClaudeProxy.swift)
   ▼
 Claude SSE 事件文本
 ```
@@ -511,10 +511,10 @@ ConversionError
 
 | 文件 | 覆盖范围 | 测试数 |
 |------|---------|--------|
-| `QuotaHTTPServerProxyIntegrationTests.swift` | 端到端集成：路由、鉴权、非流式/流式、工具调用、图片、文件、reasoning、错误、usage | 28 |
+| `QuotaHTTPServerProxyIntegrationTests.swift` | 端到端集成：路由、鉴权、非流式/流式、工具调用、图片、文件、reasoning、错误、usage | 29 |
 | `CanonicalMiddleLayerTests.swift` | Canonical 层映射正确性、shadow tests（与直连转换器对比） | 12 |
 | `ClaudeProxyConverterTests.swift` | 直连转换器单测 | 33 |
-| `OpenAIResponsesTests.swift` | Responses API 模型、流式事件、reasoning、tool streaming | 14 |
+| `OpenAIResponsesTests.swift` | Responses API 模型、流式事件、reasoning、tool streaming | 12 |
 | `HTTPServerTests.swift` | HTTP 请求解析、二进制安全 | 9 |
 | `ProxyIntegrationTestSupport.swift` | Mock 上游服务器、测试辅助工具 | — |
 

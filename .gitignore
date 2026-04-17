@@ -58,6 +58,7 @@ Carthage/
 # === Internal planning docs ===
 docs/NEXT_VERSION_TODO.md
 docs/PROVIDER_AUDIT_PLAN.md
+docs/CODEX_IDENTITY_FLOW.md
 
 # === Misc ===
 *.log

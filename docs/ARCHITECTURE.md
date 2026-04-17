@@ -50,19 +50,20 @@ QuotaBackend/Sources/
 │   │   ├── AccountCredentialStore.swift  # Keychain credential storage
 │   │   └── BrowserDiscovery.swift        # Browser profile helpers
 │   ├── Providers/
-│   │   ├── ClaudeProvider.swift    # Local JSONL log scanner
-│   │   ├── CodexProvider.swift     # OpenAI Codex API
-│   │   ├── CopilotProvider.swift   # GitHub Copilot
-│   │   ├── CursorProvider.swift    # Cursor IDE
-│   │   ├── GeminiProvider.swift    # Google Gemini CLI
-│   │   ├── AmpProvider.swift       # Amp
-│   │   ├── DroidProvider.swift     # Droid
-│   │   ├── KiroProvider.swift      # Kiro
-│   │   ├── WarpProvider.swift      # Warp
-│   │   └── AntigravityProvider.swift
+│   │   ├── ClaudeProvider.swift         # Local JSONL log scanner
+│   │   ├── CodexProvider.swift          # OpenAI Codex API (multi-workspace)
+│   │   ├── CopilotProvider.swift        # GitHub Copilot
+│   │   ├── CursorProvider.swift         # Cursor IDE
+│   │   ├── GeminiProvider.swift         # Google Gemini CLI
+│   │   ├── AmpProvider.swift            # Amp
+│   │   ├── DroidProvider.swift          # Droid (+API, +Auth, +Helpers, +Parsing)
+│   │   ├── KiroProvider.swift           # Kiro (+Auth, +Parsing)
+│   │   ├── WarpProvider.swift           # Warp
+│   │   └── AntigravityProvider.swift    # Antigravity (multi-workspace)
 │   ├── Normalizer/
-│   │   ├── UsageNormalizer.swift   # Raw → ProviderSummary + DashboardOverview
-│   │   └── ProviderSummary.swift   # Normalized summary structs
+│   │   ├── UsageNormalizer.swift        # Raw → ProviderSummary + DashboardOverview
+│   │   ├── UsageNormalizer+<Provider>.swift  # Per-provider normalizers (11 files)
+│   │   └── ProviderSummary.swift        # Normalized summary structs
 │   ├── ClaudeProxy/
 │   │   ├── Canonical/             # Unified middle layer (production pipeline)
 │   │   ├── Runtime/               # Proxy service, upstream client

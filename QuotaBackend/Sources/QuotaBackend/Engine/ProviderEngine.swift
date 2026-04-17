@@ -200,6 +200,7 @@ public actor ProviderEngine {
             summary.providerId = provider.id
             summary.accountId = fallbackAccountId
             summary.accountLabel = label
+            summary.sourceFilePath = credentialSourceFilePath(for: credential)
 
             return ProviderResult(
                 id: uniqueId,
@@ -243,6 +244,13 @@ public actor ProviderEngine {
         summary.accountId = usage.usageAccountId
         if summary.accountLabel?.nilIfBlank == nil {
             summary.accountLabel = label
+        }
+        // Multi-workspace identity anchor: ensure the credential-backed summary
+        // carries the same sourceFilePath the automatic scan would produce, so
+        // the two branches converge on one identityKey in mergeResults. Without
+        // this, Codex would show the same workspace twice (one auto, one cred).
+        if summary.sourceFilePath?.nilIfBlank == nil {
+            summary.sourceFilePath = credentialSourceFilePath(for: credential)
         }
 
         return ProviderResult(
@@ -314,6 +322,15 @@ public actor ProviderEngine {
             ?? (tokens["accountId"] as? String)?.nilIfBlank
             ?? (json["account_id"] as? String)?.nilIfBlank
             ?? (json["accountId"] as? String)?.nilIfBlank
+    }
+
+    /// Resolve the on-disk auth file path a credential points to, if any.
+    /// Used so multi-workspace providers (Codex) can surface the same
+    /// sourceFilePath on credential-backed and automatic-scan results, letting
+    /// mergeResults dedupe them. Returns nil for non-authFile credentials.
+    private func credentialSourceFilePath(for credential: AccountCredential) -> String? {
+        guard credential.authMethod == .authFile else { return nil }
+        return credential.credential.nilIfBlank
     }
 
     private func fetchMultiAccount(provider: MultiAccountProviderFetcher) async -> [ProviderResult] {
@@ -443,10 +460,15 @@ public actor ProviderEngine {
         }
     }
 
-    private static let multiWorkspaceProviders: Set<String> = ["codex"]
-
     private func identityKey(for result: ProviderResult, providerId: String) -> String {
-        if Self.multiWorkspaceProviders.contains(providerId.lowercased()) {
+        // Multi-workspace providers (Codex): identity is anchored on
+        // sourceFilePath first, then credentialId. Path wins because the
+        // automatic scan branch never carries a credentialId but always
+        // knows the auth file it read from, while the credential-backed
+        // branch carries both (we populate summary.sourceFilePath from
+        // credential.credential for authFile credentials). Using path first
+        // lets the two branches for the same workspace converge on one key.
+        if AccountCredentialStore.isMultiWorkspace(providerId) {
             if let path = result.summary?.sourceFilePath?.nilIfBlank {
                 let normalized = AccountCredentialStore.normalizedAuthFilePath(path)
                 return "\(providerId):path:\(normalized)"
@@ -474,8 +496,8 @@ public actor ProviderEngine {
     }
 
     private func extractCredentialId(from resultId: String) -> String? {
-        guard resultId.contains(":cred:") else { return nil }
-        return resultId.components(separatedBy: ":cred:").last?.nilIfBlank
+        guard let range = resultId.range(of: ":cred:") else { return nil }
+        return String(resultId[range.upperBound...]).nilIfBlank
     }
 
     private func normalizedIdentity(_ value: String?) -> String? {

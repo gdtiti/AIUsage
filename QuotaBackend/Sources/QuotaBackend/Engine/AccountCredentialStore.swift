@@ -435,7 +435,16 @@ public final class AccountCredentialStore: @unchecked Sendable {
         return (canonical, remappedIDs)
     }
 
-    private static let multiWorkspaceProviders: Set<String> = ["codex"]
+    /// Single source of truth for providers whose accounts cannot be deduped by
+    /// email or accountId alone (same email may span multiple workspaces, and
+    /// the same user-xxx may represent both Plus and Team). All identity layers
+    /// — credential store, provider engine, app-side AccountIdentityPolicy —
+    /// must consult this set rather than keeping their own copies.
+    public static let multiWorkspaceProviders: Set<String> = ["codex"]
+
+    public static func isMultiWorkspace(_ providerId: String) -> Bool {
+        multiWorkspaceProviders.contains(providerId.lowercased())
+    }
 
     /// Normalize an auth-file path for identity comparison.
     /// - Expands `~`, removes `//` / `.` / `..`, resolves symlinks so two credentials

@@ -16,10 +16,15 @@ internal let accountPersistenceLog = Logger(subsystem: "com.aiusage.desktop", ca
 /// (reconcile worker) and `AccountStore` extensions can share exactly one
 /// implementation — the two used to be hand-kept in sync and were drifting.
 enum AccountIdentityPolicy {
-    static let multiWorkspaceProviders: Set<String> = ["codex"]
+    /// Delegates to the QuotaBackend definition so the credential store,
+    /// provider engine, and app-side policy all agree on which providers
+    /// are multi-workspace without three copies drifting out of sync.
+    static var multiWorkspaceProviders: Set<String> {
+        AccountCredentialStore.multiWorkspaceProviders
+    }
 
     static func isMultiWorkspace(_ providerId: String) -> Bool {
-        multiWorkspaceProviders.contains(providerId.lowercased())
+        AccountCredentialStore.isMultiWorkspace(providerId)
     }
 
     // MARK: - Normalization

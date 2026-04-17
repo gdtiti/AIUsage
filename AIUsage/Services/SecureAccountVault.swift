@@ -2,6 +2,8 @@ import Foundation
 import Security
 import os.log
 
+private let vaultLog = Logger(subsystem: "com.aiusage.desktop", category: "SecureAccountVault")
+
 final class SecureAccountVault: @unchecked Sendable {
     nonisolated static let shared = SecureAccountVault()
 
@@ -10,7 +12,71 @@ final class SecureAccountVault: @unchecked Sendable {
 
     private init() {}
 
+    // MARK: - Public API
+
     nonisolated func loadAccounts() -> [StoredProviderAccount] {
+        if let data = readFromDataProtectionKeychain() {
+            return decodeAccounts(data)
+        }
+        if let data = readFromLegacyKeychain() {
+            let accounts = decodeAccounts(data)
+            migrateToDataProtectionKeychain(data)
+            return accounts
+        }
+        return []
+    }
+
+    nonisolated func saveAccounts(_ accounts: [StoredProviderAccount]) throws {
+        let data = try JSONEncoder().encode(accounts)
+        try writeToDataProtectionKeychain(data)
+    }
+
+    // MARK: - Data Protection Keychain (no password prompts)
+
+    private func dataProtectionQuery() -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecUseDataProtectionKeychain as String: true
+        ]
+    }
+
+    private func readFromDataProtectionKeychain() -> Data? {
+        var query = dataProtectionQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess else { return nil }
+        return item as? Data
+    }
+
+    private func writeToDataProtectionKeychain(_ data: Data) throws {
+        let base = dataProtectionQuery()
+        let update: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+
+        let status = SecItemUpdate(base as CFDictionary, update as CFDictionary)
+        if status == errSecItemNotFound {
+            var create = base
+            create[kSecValueData as String] = data
+            create[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            let addStatus = SecItemAdd(create as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw VaultError.osStatus(addStatus)
+            }
+        } else if status != errSecSuccess {
+            throw VaultError.osStatus(status)
+        }
+    }
+
+    // MARK: - Legacy Keychain (one-time read for migration)
+
+    private func readFromLegacyKeychain() -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -24,56 +90,40 @@ final class SecureAccountVault: @unchecked Sendable {
 
         if status != errSecSuccess && status != errSecItemNotFound {
             let msg = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
-            Logger(subsystem: "com.aiusage.desktop", category: "SecureAccountVault")
-                .error("Keychain read failed: \(msg)")
+            vaultLog.error("Legacy keychain read failed: \(msg)")
         }
 
-        guard status == errSecSuccess else {
-            return []
-        }
-
-        guard let data = item as? Data else {
-            Logger(subsystem: "com.aiusage.desktop", category: "SecureAccountVault")
-                .error("Keychain read returned unexpected payload for stored provider accounts")
-            return []
-        }
-
-        do {
-            return try JSONDecoder().decode([StoredProviderAccount].self, from: data)
-        } catch {
-            Logger(subsystem: "com.aiusage.desktop", category: "SecureAccountVault")
-                .error("Keychain decode failed for stored provider accounts: \(String(describing: error), privacy: .public)")
-            return []
-        }
+        guard status == errSecSuccess else { return nil }
+        return item as? Data
     }
 
-    nonisolated func saveAccounts(_ accounts: [StoredProviderAccount]) throws {
-        let data = try JSONEncoder().encode(accounts)
-        let baseQuery: [String: Any] = [
+    private func deleteLegacyKeychainItem() {
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
+        SecItemDelete(query as CFDictionary)
+    }
 
-        let update: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-
-        let status = SecItemUpdate(baseQuery as CFDictionary, update as CFDictionary)
-        if status == errSecItemNotFound {
-            var create = baseQuery
-            create[kSecValueData as String] = data
-            create[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            let addStatus = SecItemAdd(create as CFDictionary, nil)
-            guard addStatus == errSecSuccess else {
-                throw VaultError.osStatus(addStatus)
-            }
-            return
+    private func migrateToDataProtectionKeychain(_ data: Data) {
+        do {
+            try writeToDataProtectionKeychain(data)
+            deleteLegacyKeychainItem()
+            vaultLog.info("Migrated account registry to Data Protection Keychain")
+        } catch {
+            vaultLog.error("Migration to Data Protection Keychain failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
 
-        guard status == errSecSuccess else {
-            throw VaultError.osStatus(status)
+    // MARK: - Helpers
+
+    private func decodeAccounts(_ data: Data) -> [StoredProviderAccount] {
+        do {
+            return try JSONDecoder().decode([StoredProviderAccount].self, from: data)
+        } catch {
+            vaultLog.error("Account registry decode failed: \(String(describing: error), privacy: .public)")
+            return []
         }
     }
 }

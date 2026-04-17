@@ -193,9 +193,15 @@ public final class AccountCredentialStore: @unchecked Sendable {
             return cachedCredentialsByStorageKey
         }
 
-        if let storedVault = loadCredentialVaultUnsafe() {
-            cachedCredentialsByStorageKey = storedVault
-            return storedVault
+        if let dpVault = loadVaultFromDataProtectionKeychainUnsafe() {
+            cachedCredentialsByStorageKey = dpVault
+            return dpVault
+        }
+
+        if let legacyVault = loadVaultFromLegacyKeychainUnsafe() {
+            cachedCredentialsByStorageKey = legacyVault
+            migrateVaultToDataProtectionKeychainUnsafe(legacyVault)
+            return legacyVault
         }
 
         let legacyCredentials = loadCredentialsByLegacySearchUnsafe()
@@ -206,11 +212,7 @@ public final class AccountCredentialStore: @unchecked Sendable {
 
         guard !migratedVault.isEmpty else { return migratedVault }
 
-        do {
-            try saveCredentialVaultUnsafe(migratedVault)
-        } catch {
-            credentialLog.error("Keychain write failed: \(error.localizedDescription, privacy: .public)")
-        }
+        migrateVaultToDataProtectionKeychainUnsafe(migratedVault)
         for key in migratedVault.keys {
             deleteCredentialStorageKeyUnsafe(key)
         }
@@ -218,7 +220,34 @@ public final class AccountCredentialStore: @unchecked Sendable {
         return migratedVault
     }
 
-    private func loadCredentialVaultUnsafe() -> [String: AccountCredential]? {
+    private func dpVaultQuery() -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: Self.credentialVaultAccount,
+            kSecUseDataProtectionKeychain as String: true
+        ]
+    }
+
+    private func loadVaultFromDataProtectionKeychainUnsafe() -> [String: AccountCredential]? {
+        var query = dpVaultQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let vault = try? JSONDecoder().decode(CredentialVault.self, from: data) else {
+            return nil
+        }
+
+        return Dictionary(
+            uniqueKeysWithValues: vault.credentials.map { (storageKey($0), $0) }
+        )
+    }
+
+    private func loadVaultFromLegacyKeychainUnsafe() -> [String: AccountCredential]? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.service,
@@ -240,23 +269,38 @@ public final class AccountCredentialStore: @unchecked Sendable {
         )
     }
 
-    private func saveCredentialVaultUnsafe(_ credentialsByStorageKey: [String: AccountCredential]) throws {
-        let orderedCredentials = credentialsByStorageKey.values.sorted(by: credentialSort)
-        let data = try JSONEncoder().encode(CredentialVault(credentials: orderedCredentials))
+    private func migrateVaultToDataProtectionKeychainUnsafe(_ vault: [String: AccountCredential]) {
+        do {
+            try saveCredentialVaultUnsafe(vault)
+            deleteLegacyVaultItemUnsafe()
+            credentialLog.info("Migrated credential vault to Data Protection Keychain")
+        } catch {
+            credentialLog.error("Migration to Data Protection Keychain failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 
-        let baseQuery: [String: Any] = [
+    private func deleteLegacyVaultItemUnsafe() {
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.service,
             kSecAttrAccount as String: Self.credentialVaultAccount
         ]
+        SecItemDelete(query as CFDictionary)
+    }
+
+    private func saveCredentialVaultUnsafe(_ credentialsByStorageKey: [String: AccountCredential]) throws {
+        let orderedCredentials = credentialsByStorageKey.values.sorted(by: credentialSort)
+        let data = try JSONEncoder().encode(CredentialVault(credentials: orderedCredentials))
+
+        let base = dpVaultQuery()
         let update: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: Self.keychainAccessibility
         ]
 
-        let status = SecItemUpdate(baseQuery as CFDictionary, update as CFDictionary)
+        let status = SecItemUpdate(base as CFDictionary, update as CFDictionary)
         if status == errSecItemNotFound {
-            var create = baseQuery
+            var create = base
             create[kSecValueData as String] = data
             create[kSecAttrAccessible as String] = Self.keychainAccessibility
             let addStatus = SecItemAdd(create as CFDictionary, nil)

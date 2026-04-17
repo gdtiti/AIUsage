@@ -271,11 +271,13 @@ public final class AccountCredentialStore: @unchecked Sendable {
 
     private func migrateVaultToDataProtectionKeychainUnsafe(_ vault: [String: AccountCredential]) {
         do {
-            try saveCredentialVaultUnsafe(vault)
+            try writeToDPKeychainUnsafe(
+                try JSONEncoder().encode(CredentialVault(credentials: vault.values.sorted(by: credentialSort)))
+            )
             deleteLegacyVaultItemUnsafe()
             credentialLog.info("Migrated credential vault to Data Protection Keychain")
         } catch {
-            credentialLog.error("Migration to Data Protection Keychain failed: \(error.localizedDescription, privacy: .public)")
+            credentialLog.warning("DP migration skipped (entitlement missing?), using legacy keychain")
         }
     }
 
@@ -292,6 +294,15 @@ public final class AccountCredentialStore: @unchecked Sendable {
         let orderedCredentials = credentialsByStorageKey.values.sorted(by: credentialSort)
         let data = try JSONEncoder().encode(CredentialVault(credentials: orderedCredentials))
 
+        do {
+            try writeToDPKeychainUnsafe(data)
+        } catch {
+            credentialLog.warning("DP Keychain write failed, falling back to legacy: \(error.localizedDescription, privacy: .public)")
+            try writeToLegacyKeychainUnsafe(data)
+        }
+    }
+
+    private func writeToDPKeychainUnsafe(_ data: Data) throws {
         let base = dpVaultQuery()
         let update: [String: Any] = [
             kSecValueData as String: data,
@@ -301,6 +312,31 @@ public final class AccountCredentialStore: @unchecked Sendable {
         let status = SecItemUpdate(base as CFDictionary, update as CFDictionary)
         if status == errSecItemNotFound {
             var create = base
+            create[kSecValueData as String] = data
+            create[kSecAttrAccessible as String] = Self.keychainAccessibility
+            let addStatus = SecItemAdd(create as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw CredentialStoreError.keychainWriteFailed(addStatus)
+            }
+        } else if status != errSecSuccess {
+            throw CredentialStoreError.keychainWriteFailed(status)
+        }
+    }
+
+    private func writeToLegacyKeychainUnsafe(_ data: Data) throws {
+        let baseQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: Self.credentialVaultAccount
+        ]
+        let update: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: Self.keychainAccessibility
+        ]
+
+        let status = SecItemUpdate(baseQuery as CFDictionary, update as CFDictionary)
+        if status == errSecItemNotFound {
+            var create = baseQuery
             create[kSecValueData as String] = data
             create[kSecAttrAccessible as String] = Self.keychainAccessibility
             let addStatus = SecItemAdd(create as CFDictionary, nil)

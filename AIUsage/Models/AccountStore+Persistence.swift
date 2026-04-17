@@ -137,7 +137,8 @@ private struct AccountRegistryRefreshSnapshot {
                     updated.email = label
                     didChange = true
                 }
-                if updated.accountId != provider.accountId {
+                let isLiveSuccess = provider.status != .error
+                if isLiveSuccess, updated.accountId != provider.accountId {
                     updated.accountId = provider.accountId
                     didChange = true
                 }
@@ -165,13 +166,14 @@ private struct AccountRegistryRefreshSnapshot {
                 let isMultiWs = Self.multiWorkspaceProviders.contains(provider.baseProviderId.lowercased())
                 if let dupeIndex = accountRegistry.firstIndex(where: {
                     guard $0.providerId == provider.baseProviderId, !$0.isHidden else { return false }
+                    if isMultiWs, let inferredCredentialId {
+                        return $0.credentialId == inferredCredentialId
+                    }
                     if let normalizedNewAccountId, $0.normalizedAccountId == normalizedNewAccountId {
-                        if isMultiWs { return $0.normalizedEmail == normalizedNewEmail }
                         return true
                     }
                     if let normalizedNewAccountId, let storedAccountId = $0.normalizedAccountId,
                        storedAccountId != normalizedNewAccountId {
-                        if isMultiWs { return $0.normalizedEmail == normalizedNewEmail }
                         return false
                     }
                     return $0.normalizedEmail == normalizedNewEmail
@@ -181,7 +183,7 @@ private struct AccountRegistryRefreshSnapshot {
                         existing.providerResultId = provider.id
                         didChange = true
                     }
-                    if existing.accountId != provider.accountId {
+                    if provider.status != .error, existing.accountId != provider.accountId {
                         existing.accountId = provider.accountId
                         didChange = true
                     }
@@ -238,6 +240,11 @@ private struct AccountRegistryRefreshSnapshot {
         for account: StoredProviderAccount,
         candidates: [AccountCredential]
     ) -> AccountCredential? {
+        if let credId = account.providerResultId.flatMap(extractCredentialId),
+           let directMatch = candidates.first(where: { $0.id == credId }) {
+            return directMatch
+        }
+
         let normalizedAccountId = account.normalizedAccountId
         if let normalizedAccountId,
            let accountIDMatch = candidates.first(where: {
@@ -269,6 +276,18 @@ private struct AccountRegistryRefreshSnapshot {
         excluding reservedStoredIDs: Set<String>,
         allowUnseenCredentialFallback: Bool
     ) -> Int? {
+        // Step 0: credentialId — 最精确，不受 accountId 格式影响
+        if let liveCredentialId = extractCredentialId(from: provider.id) {
+            if let credMatch = accountRegistry.firstIndex(where: {
+                !reservedStoredIDs.contains($0.id) && !$0.isHidden &&
+                $0.providerId == provider.baseProviderId &&
+                $0.credentialId == liveCredentialId
+            }) {
+                return credMatch
+            }
+        }
+
+        // Step 1: accountId 精确匹配
         let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
         if let liveAccountId {
             if let accountIdMatch = accountRegistry.firstIndex(where: {
@@ -280,6 +299,7 @@ private struct AccountRegistryRefreshSnapshot {
             }
         }
 
+        // Step 2: providerResultId / email 等模糊匹配
         if let exactIndex = accountRegistry.firstIndex(where: {
             !reservedStoredIDs.contains($0.id) && !$0.isHidden && storedAccountMatchesLive($0, provider: provider)
         }) {
@@ -334,13 +354,6 @@ private struct AccountRegistryRefreshSnapshot {
                     }
                 }
                 return true
-            }
-            if Self.multiWorkspaceProviders.contains(stored.providerId.lowercased()) {
-                let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
-                if let liveEmail, !stored.normalizedEmail.isEmpty,
-                   stored.normalizedEmail == liveEmail {
-                    return true
-                }
             }
             return false
         }

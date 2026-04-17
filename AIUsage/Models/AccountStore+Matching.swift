@@ -11,6 +11,11 @@ extension AccountStore {
         for account: StoredProviderAccount,
         candidates: [AccountCredential]
     ) -> AccountCredential? {
+        if let credId = account.providerResultId.flatMap(extractCredentialId),
+           let directMatch = candidates.first(where: { $0.id == credId }) {
+            return directMatch
+        }
+
         let normalizedAccountId = account.normalizedAccountId
         if let normalizedAccountId,
            let accountIDMatch = candidates.first(where: {
@@ -42,6 +47,16 @@ extension AccountStore {
         excluding reservedStoredIDs: Set<String>,
         allowUnseenCredentialFallback: Bool
     ) -> Int? {
+        if let liveCredentialId = extractCredentialId(from: provider.id) {
+            if let credMatch = accountRegistry.firstIndex(where: {
+                !reservedStoredIDs.contains($0.id) && !$0.isHidden &&
+                $0.providerId == provider.baseProviderId &&
+                $0.credentialId == liveCredentialId
+            }) {
+                return credMatch
+            }
+        }
+
         let liveAccountId = normalizedLiveAccountID(for: provider)
         if let liveAccountId {
             if let accountIdMatch = accountRegistry.firstIndex(where: {
@@ -107,13 +122,6 @@ extension AccountStore {
                     }
                 }
                 return true
-            }
-            if Self.multiWorkspaceProviders.contains(stored.providerId.lowercased()) {
-                let liveEmail = normalizedAccountIdentifier(for: provider)
-                if let liveEmail, !stored.normalizedEmail.isEmpty,
-                   stored.normalizedEmail == liveEmail {
-                    return true
-                }
             }
             return false
         }

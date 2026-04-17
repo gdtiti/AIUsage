@@ -28,10 +28,15 @@ final class SecureAccountVault: @unchecked Sendable {
 
     nonisolated func saveAccounts(_ accounts: [StoredProviderAccount]) throws {
         let data = try JSONEncoder().encode(accounts)
-        try writeToDataProtectionKeychain(data)
+        do {
+            try writeToDataProtectionKeychain(data)
+        } catch {
+            vaultLog.warning("DP Keychain write failed, falling back to legacy: \(error.localizedDescription, privacy: .public)")
+            try writeToLegacyKeychain(data)
+        }
     }
 
-    // MARK: - Data Protection Keychain (no password prompts)
+    // MARK: - Data Protection Keychain
 
     private func dataProtectionQuery() -> [String: Any] {
         [
@@ -74,7 +79,7 @@ final class SecureAccountVault: @unchecked Sendable {
         }
     }
 
-    // MARK: - Legacy Keychain (one-time read for migration)
+    // MARK: - Legacy Keychain
 
     private func readFromLegacyKeychain() -> Data? {
         let query: [String: Any] = [
@@ -97,6 +102,31 @@ final class SecureAccountVault: @unchecked Sendable {
         return item as? Data
     }
 
+    private func writeToLegacyKeychain(_ data: Data) throws {
+        let baseQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let update: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+
+        let status = SecItemUpdate(baseQuery as CFDictionary, update as CFDictionary)
+        if status == errSecItemNotFound {
+            var create = baseQuery
+            create[kSecValueData as String] = data
+            create[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            let addStatus = SecItemAdd(create as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw VaultError.osStatus(addStatus)
+            }
+        } else if status != errSecSuccess {
+            throw VaultError.osStatus(status)
+        }
+    }
+
     private func deleteLegacyKeychainItem() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -112,7 +142,7 @@ final class SecureAccountVault: @unchecked Sendable {
             deleteLegacyKeychainItem()
             vaultLog.info("Migrated account registry to Data Protection Keychain")
         } catch {
-            vaultLog.error("Migration to Data Protection Keychain failed: \(error.localizedDescription, privacy: .public)")
+            vaultLog.warning("DP migration skipped (entitlement missing?), using legacy keychain")
         }
     }
 

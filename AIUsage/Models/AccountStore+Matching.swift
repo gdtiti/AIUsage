@@ -3,6 +3,8 @@ import Combine
 import QuotaBackend
 
 extension AccountStore {
+    private static let multiWorkspaceProviders: Set<String> = ["codex"]
+
     // MARK: - Account matching & lookup
 
     func bestCredentialMatch(
@@ -97,7 +99,14 @@ extension AccountStore {
 
         if let storedAccountId = stored.normalizedAccountId,
            let liveAccountId = normalizedLiveAccountID(for: provider) {
-            return storedAccountId == liveAccountId
+            if storedAccountId != liveAccountId { return false }
+            if Self.multiWorkspaceProviders.contains(stored.providerId.lowercased()) {
+                let liveEmail = normalizedAccountIdentifier(for: provider)
+                if let liveEmail, !stored.normalizedEmail.isEmpty {
+                    return stored.normalizedEmail == liveEmail
+                }
+            }
+            return true
         }
 
         if let liveEmail = normalizedAccountIdentifier(for: provider),

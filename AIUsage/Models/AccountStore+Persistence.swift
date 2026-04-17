@@ -162,9 +162,11 @@ private struct AccountRegistryRefreshSnapshot {
             } else {
                 let normalizedNewEmail = label.lowercased()
                 let normalizedNewAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+                let isMultiWs = Self.multiWorkspaceProviders.contains(provider.baseProviderId.lowercased())
                 if let dupeIndex = accountRegistry.firstIndex(where: {
                     guard $0.providerId == provider.baseProviderId, !$0.isHidden else { return false }
-                    if normalizedNewAccountId != nil, $0.normalizedAccountId == normalizedNewAccountId {
+                    if let normalizedNewAccountId, $0.normalizedAccountId == normalizedNewAccountId {
+                        if isMultiWs { return $0.normalizedEmail == normalizedNewEmail }
                         return true
                     }
                     if let normalizedNewAccountId, let storedAccountId = $0.normalizedAccountId,
@@ -323,7 +325,14 @@ private struct AccountRegistryRefreshSnapshot {
 
         if let storedAccountId = stored.normalizedAccountId,
            let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank {
-            return storedAccountId == liveAccountId
+            if storedAccountId != liveAccountId { return false }
+            if Self.multiWorkspaceProviders.contains(stored.providerId.lowercased()) {
+                let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+                if let liveEmail, !stored.normalizedEmail.isEmpty {
+                    return stored.normalizedEmail == liveEmail
+                }
+            }
+            return true
         }
 
         if let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
@@ -377,9 +386,15 @@ private struct AccountRegistryRefreshSnapshot {
         }
     }
 
+    private static let multiWorkspaceProviders: Set<String> = ["codex"]
+
     nonisolated func storedAccountIdentityKey(_ account: StoredProviderAccount) -> String {
         let providerId = account.providerId.lowercased()
         if let accountId = account.normalizedAccountId {
+            if Self.multiWorkspaceProviders.contains(providerId),
+               !account.normalizedEmail.isEmpty {
+                return "\(providerId):account:\(accountId):email:\(account.normalizedEmail)"
+            }
             return "\(providerId):account:\(accountId)"
         }
         if !account.normalizedEmail.isEmpty {
@@ -789,9 +804,15 @@ extension AccountStore {
         }
     }
 
+    private static let multiWorkspaceProviders: Set<String> = ["codex"]
+
     func storedAccountIdentityKey(_ account: StoredProviderAccount) -> String {
         let providerId = account.providerId.lowercased()
         if let accountId = account.normalizedAccountId {
+            if Self.multiWorkspaceProviders.contains(providerId),
+               !account.normalizedEmail.isEmpty {
+                return "\(providerId):account:\(accountId):email:\(account.normalizedEmail)"
+            }
             return "\(providerId):account:\(accountId)"
         }
         if !account.normalizedEmail.isEmpty {

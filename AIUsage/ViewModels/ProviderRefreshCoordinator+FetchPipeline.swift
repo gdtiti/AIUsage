@@ -507,13 +507,20 @@ extension ProviderRefreshCoordinator {
     }
 
     func liveProviderIdentity(_ provider: ProviderData) -> String {
+        let pid = provider.baseProviderId
+        if AccountIdentityPolicy.isMultiWorkspace(pid) {
+            if let path = provider.sourceFilePath?.nilIfBlank {
+                return "\(pid):path:\(AccountCredentialStore.normalizedAuthFilePath(path))"
+            }
+            return "\(pid):result:\(provider.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+        }
         if let accountId = normalizedLiveAccountID(for: provider) {
-            return "\(provider.baseProviderId):id:\(accountId)"
+            return "\(pid):id:\(accountId)"
         }
         if let label = normalizedAccountIdentifier(for: provider) {
-            return "\(provider.baseProviderId):label:\(label)"
+            return "\(pid):label:\(label)"
         }
-        return "\(provider.baseProviderId):result:\(provider.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+        return "\(pid):result:\(provider.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
     }
 
     func preferredLiveProvider(

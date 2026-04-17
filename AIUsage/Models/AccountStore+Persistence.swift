@@ -9,7 +9,7 @@ internal let accountPersistenceLog = Logger(subsystem: "com.aiusage.desktop", ca
 ///
 /// Codex allows one email to exist in multiple workspaces (personal + multiple teams),
 /// and one team to hold multiple emails. Identity therefore has to be anchored on
-/// `credentialId` or `workspaceId`, never email alone. Non-multi-workspace providers
+/// `credentialId` or `sourceFilePath` (normalized auth file path), never email alone. Non-multi-workspace providers
 /// (Gemini, Cursor, etc.) fall back to email as before.
 ///
 /// All matching and dedup logic lives here so the `AccountRegistryRefreshSnapshot`
@@ -489,7 +489,8 @@ private struct AccountRegistryRefreshSnapshot {
                     hidden.credentialId = inferredCredentialId
                     didChange = true
                 }
-                if let livePath = provider.sourceFilePath, hidden.sourceFilePath != livePath {
+                if let livePath = provider.sourceFilePath,
+                   !AccountIdentityPolicy.sourceFilePathsMatch(hidden.sourceFilePath, livePath) {
                     hidden.sourceFilePath = livePath
                     didChange = true
                 }
@@ -526,7 +527,8 @@ private struct AccountRegistryRefreshSnapshot {
                     updated.credentialId = inferredCredentialId
                     didChange = true
                 }
-                if let livePath = provider.sourceFilePath, updated.sourceFilePath != livePath {
+                if let livePath = provider.sourceFilePath,
+                   !AccountIdentityPolicy.sourceFilePathsMatch(updated.sourceFilePath, livePath) {
                     updated.sourceFilePath = livePath
                     didChange = true
                 }
@@ -574,7 +576,8 @@ private struct AccountRegistryRefreshSnapshot {
                         existing.credentialId = inferredCredentialId
                         didChange = true
                     }
-                    if let livePath = provider.sourceFilePath, existing.sourceFilePath != livePath {
+                    if let livePath = provider.sourceFilePath,
+                       !AccountIdentityPolicy.sourceFilePathsMatch(existing.sourceFilePath, livePath) {
                         existing.sourceFilePath = livePath
                         didChange = true
                     }
@@ -748,28 +751,26 @@ extension AccountStore {
         let normalizedSourceIdentifier = normalizedAccountLookupValue(sourceIdentifier)
 
         return AccountCredentialStore.shared.loadCredentials(for: providerId).first { credential in
-            if sourceIdentifierIsStable,
+            let isMultiWs = AccountIdentityPolicy.isMultiWorkspace(providerId)
+
+            if !isMultiWs,
+               sourceIdentifierIsStable,
                let normalizedSourceIdentifier,
                credential.metadata["identityScope"] == ProviderAuthCandidate.IdentityScope.accountScoped.rawValue,
                normalizedAccountLookupValue(credential.metadata["sourceIdentifier"]) == normalizedSourceIdentifier {
                 return true
             }
 
-            if let normalizedFingerprint,
+            if !isMultiWs,
+               let normalizedFingerprint,
                normalizedAccountLookupValue(credential.metadata["sessionFingerprint"]) == normalizedFingerprint {
                 return true
             }
 
-            let isMultiWs = AccountIdentityPolicy.isMultiWorkspace(providerId)
-
             if let normalizedAccountId,
                normalizedAccountLookupValue(credential.metadata["accountId"]) == normalizedAccountId {
                 if isMultiWs {
-                    guard let normalizedSourceIdentifier,
-                          let credSourceId = normalizedAccountLookupValue(credential.metadata["sourceIdentifier"]) else {
-                        return false
-                    }
-                    return credSourceId == normalizedSourceIdentifier
+                    return false
                 }
                 return true
             }

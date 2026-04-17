@@ -330,6 +330,9 @@ public actor ProviderEngine {
     /// mergeResults dedupe them. Returns nil for non-authFile credentials.
     private func credentialSourceFilePath(for credential: AccountCredential) -> String? {
         guard credential.authMethod == .authFile else { return nil }
+        if let original = credential.metadata["sourcePath"]?.nilIfBlank {
+            return original
+        }
         return credential.credential.nilIfBlank
     }
 
@@ -437,20 +440,14 @@ public actor ProviderEngine {
             }
         }
 
-        let autoAccountIds = Set(automatic.compactMap {
-            normalizedIdentity($0.resultAccountId)
-                ?? normalizedIdentity($0.summary?.accountId)
-                ?? normalizedIdentity($0.usage?.usageAccountId)
-        })
+        let autoIdentityKeys = Set(automatic.map { identityKey(for: $0, providerId: provider.id) })
 
         return orderedKeys.compactMap { key -> ProviderResult? in
             guard let result = mergedByKey[key] else { return nil }
             if result.ok { return result }
-            guard result.id.contains(":cred:"), !autoAccountIds.isEmpty else { return result }
-            let resultAccountId = normalizedIdentity(result.resultAccountId)
-                ?? normalizedIdentity(result.summary?.accountId)
-                ?? normalizedIdentity(result.usage?.usageAccountId)
-            if let resultAccountId, autoAccountIds.contains(resultAccountId) { return result }
+            guard result.id.contains(":cred:"), !autoIdentityKeys.isEmpty else { return result }
+            let credKey = identityKey(for: result, providerId: provider.id)
+            if autoIdentityKeys.contains(credKey) { return result }
             let msg = (result.error ?? "").lowercased()
             if msg.contains("unauthorized") || msg.contains("invalid or expired")
                 || msg.contains("not_logged_in") || msg.contains("missing_token") {

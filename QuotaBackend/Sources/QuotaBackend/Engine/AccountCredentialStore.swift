@@ -466,17 +466,6 @@ public final class AccountCredentialStore: @unchecked Sendable {
             if credential.authMethod == .authFile {
                 return "\(provider):authfile:\(Self.normalizedAuthFilePath(credential.credential))"
             }
-            if let accountId = normalizedLookup(credential.metadata["accountId"]) {
-                let handle = normalizedLookup(
-                    credential.metadata["accountEmail"]
-                        ?? credential.metadata["accountHandle"]
-                        ?? credential.accountLabel
-                )
-                if let handle {
-                    return "\(provider):account:\(accountId):handle:\(handle)"
-                }
-                return "\(provider):account:\(accountId)"
-            }
             return "\(provider):raw:\(credential.id.lowercased())"
         }
 

@@ -86,6 +86,12 @@ final class ProviderActivationManager: ObservableObject {
     func isActiveAccount(_ entry: ProviderAccountEntry) -> Bool {
         guard let activeId = activeProviderAccountIds[entry.providerId]?.lowercased() else { return false }
 
+        if AccountIdentityPolicy.isMultiWorkspace(entry.providerId) {
+            let entryPath = entry.storedAccount?.sourceFilePath ?? entry.liveProvider?.sourceFilePath
+            guard let entryPath else { return false }
+            return AccountCredentialStore.normalizedAuthFilePath(entryPath) == activeId
+        }
+
         let entryAccountId = (entry.storedAccount?.accountId ?? entry.liveProvider?.accountId)?.lowercased().nilIfBlank
         if let entryAccountId {
             return entryAccountId == activeId
@@ -125,7 +131,12 @@ final class ProviderActivationManager: ObservableObject {
 
         try writeAuthFileWithBackup(targetDir: codexDir, targetPath: targetPath, data: nativeData, fm: fm)
 
-        activeProviderAccountIds["codex"] = accountId ?? email
+        let entryPath = entry.storedAccount?.sourceFilePath ?? entry.liveProvider?.sourceFilePath
+        if let entryPath {
+            activeProviderAccountIds["codex"] = AccountCredentialStore.normalizedAuthFilePath(entryPath)
+        } else {
+            activeProviderAccountIds["codex"] = accountId ?? email
+        }
         persistActiveIds()
 
         let label = email ?? accountId ?? "Codex"
@@ -301,18 +312,6 @@ final class ProviderActivationManager: ObservableObject {
 
     private func resolveCliProxyOrManagedSource(prefix: String, email: String?, entry: ProviderAccountEntry) -> String? {
         let fm = FileManager.default
-        let proxyDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
-        let entryAccountId = entry.storedAccount?.accountId ?? entry.liveProvider?.accountId
-
-        if let email {
-            if let entryAccountId,
-               let exactPath = proxyFileMatchingAccountId(dir: proxyDir, prefix: prefix, email: email, accountId: entryAccountId, fm: fm) {
-                return exactPath
-            }
-            if let freshPath = freshestCliProxyFile(dir: proxyDir, prefix: prefix, email: email, fm: fm) {
-                return freshPath
-            }
-        }
 
         let credentials = accountStore.matchingCredentials(for: entry)
         if let credential = credentials.first {
@@ -323,6 +322,19 @@ final class ProviderActivationManager: ObservableObject {
             for p in candidatePaths.compactMap({ $0?.nilIfBlank }) {
                 let expanded = NSString(string: p).expandingTildeInPath
                 if fm.fileExists(atPath: expanded) { return expanded }
+            }
+        }
+
+        let proxyDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        let entryAccountId = entry.storedAccount?.accountId ?? entry.liveProvider?.accountId
+
+        if let email {
+            if let entryAccountId,
+               let exactPath = proxyFileMatchingAccountId(dir: proxyDir, prefix: prefix, email: email, accountId: entryAccountId, fm: fm) {
+                return exactPath
+            }
+            if let freshPath = freshestCliProxyFile(dir: proxyDir, prefix: prefix, email: email, fm: fm) {
+                return freshPath
             }
         }
 
@@ -405,44 +417,35 @@ final class ProviderActivationManager: ObservableObject {
 
     func detectActiveCodexAccount() {
         let authPath = NSString(string: "~/.codex/auth.json").expandingTildeInPath
-        guard let data = FileManager.default.contents(atPath: authPath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            applyDetectedActiveId(nil, for: "codex", reason: "auth file missing or invalid")
+        guard FileManager.default.fileExists(atPath: authPath) else {
+            applyDetectedActiveId(nil, for: "codex", reason: "auth file missing")
             return
         }
 
-        let tokens = json["tokens"] as? [String: Any]
-        let fileWorkspaceId = ((tokens?["account_id"] as? String)
-            ?? (json["account_id"] as? String))?.nilIfBlank
-        let fileEmail = (json["email"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
-            ?? jwtEmailFromToken(tokens?["id_token"] as? String)
-            ?? jwtEmailFromToken(json["id_token"] as? String)
-
+        let normalizedPath = AccountCredentialStore.normalizedAuthFilePath(authPath)
         let codexAccounts = accountStore.accountRegistry.filter { $0.providerId == "codex" }
 
-        if let fileEmail {
-            let emailMatches = codexAccounts.filter { $0.email.lowercased() == fileEmail }
-            if emailMatches.count == 1, let match = emailMatches.first {
-                applyDetectedActiveId(match.accountId ?? match.email, for: "codex", reason: "matched by email")
-                return
-            }
-            if let fileWorkspaceId {
-                for candidate in emailMatches {
-                    if let credId = candidate.credentialId,
-                       let cred = AccountCredentialStore.shared.loadCredentials(for: "codex").first(where: { $0.id == credId }),
-                       let sourcePath = cred.metadata["sourcePath"]?.nilIfBlank,
-                       let sourceJson = Self.loadJSON(atPath: sourcePath),
-                       let sourceWorkspaceId = (sourceJson["account_id"] as? String
-                           ?? (sourceJson["tokens"] as? [String: Any])?["account_id"] as? String)?.nilIfBlank,
-                       sourceWorkspaceId == fileWorkspaceId {
-                        applyDetectedActiveId(candidate.accountId ?? candidate.email, for: "codex", reason: "matched by workspace id")
-                        return
-                    }
-                }
-            }
+        if let match = codexAccounts.first(where: {
+            AccountIdentityPolicy.sourceFilePathsMatch($0.sourceFilePath, authPath)
+        }) {
+            applyDetectedActiveId(normalizedPath, for: "codex", reason: "matched by sourceFilePath")
+            return
         }
 
-        applyDetectedActiveId(fileEmail ?? fileWorkspaceId, for: "codex", reason: "no stored account matched")
+        let credentials = AccountCredentialStore.shared.loadCredentials(for: "codex")
+        if let credMatch = credentials.first(where: { cred in
+            guard cred.authMethod == .authFile else { return false }
+            let sourcePath = cred.metadata["sourcePath"]?.nilIfBlank ?? cred.credential
+            return AccountCredentialStore.normalizedAuthFilePath(sourcePath) == normalizedPath
+        }) {
+            if let storedMatch = codexAccounts.first(where: { $0.credentialId == credMatch.id }) {
+                let storedPath = storedMatch.sourceFilePath.flatMap {
+                    AccountCredentialStore.normalizedAuthFilePath($0)
+                } ?? normalizedPath
+                applyDetectedActiveId(storedPath, for: "codex", reason: "matched managed credential")
+                return
+            }
+        }
     }
 
     private static func loadJSON(atPath path: String) -> [String: Any]? {

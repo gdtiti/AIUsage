@@ -292,16 +292,7 @@ enum ProviderAuthManager {
                 credentialValue = candidate.credentialValue
             }
 
-            let storedSourcePath: String
-            if (candidate.providerId == "codex" || candidate.providerId == "gemini" || candidate.providerId == "kiro"), let copiedPath {
-                // Codex, Gemini, and Kiro imports may originate from singleton session
-                // files (for example ~/.codex/auth.json, ~/.gemini/oauth_creds.json, or
-                // Kiro's IDE cache). Once imported, the managed copy must remain the
-                // source of truth so later logins do not overwrite this saved account.
-                storedSourcePath = copiedPath
-            } else {
-                storedSourcePath = candidate.sourcePath ?? ""
-            }
+            let storedSourcePath = candidate.sourcePath ?? ""
 
             let credential = AccountCredential(
                 providerId: candidate.providerId,

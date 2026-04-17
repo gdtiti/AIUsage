@@ -102,11 +102,8 @@ struct MenuBarView: View {
         let totalAccounts = groups.reduce(0) { $0 + $1.accounts.count }
         let connectedAccounts = groups.reduce(0) { $0 + $1.connectedCount }
 
-        let quotaProviders = refreshCoordinator.providers.compactMap(\.remainingPercent)
-        let avgQuota = quotaProviders.isEmpty ? nil : quotaProviders.reduce(0, +) / Double(quotaProviders.count)
-
-        let proxyCost = proxyVM.overallStats(nodeFilter: nil, modelFilter: nil).cost
-        let monthlyCost = (refreshCoordinator.overview?.localCostMonthUsd ?? 0) + proxyCost
+        let proxyStats = proxyVM.overallStats(nodeFilter: nil, modelFilter: nil)
+        let activeNode = proxyVM.configurations.first { $0.id == proxyVM.activatedConfigId }
 
         return HStack(spacing: 0) {
             summaryStatCell(
@@ -117,24 +114,141 @@ struct MenuBarView: View {
 
             summaryStatDivider
 
-            summaryStatCell(
-                value: avgQuota.map { "\(Int($0))%" } ?? "—",
-                label: L("Avg Quota", "平均配额"),
-                icon: "chart.bar.fill",
-                valueColor: avgQuota.map { quotaColor($0) }
-            )
+            proxyNodeSwitcher(activeNode: activeNode)
 
             summaryStatDivider
 
-            summaryStatCell(
-                value: formatCostCompact(monthlyCost),
-                label: L("Monthly", "本月"),
-                icon: "dollarsign.circle.fill",
-                valueColor: monthlyCost > 0 ? .orange : nil
-            )
+            proxyCostCell(cost: proxyStats.cost, requests: proxyStats.requests)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+    }
+
+    private func proxyNodeSwitcher(activeNode: ProxyConfiguration?) -> some View {
+        Menu {
+            if proxyVM.configurations.isEmpty {
+                Text(L("No proxy nodes", "暂无代理节点"))
+            } else {
+                let anthropicNodes = proxyVM.configurations.filter { $0.nodeType == .anthropicDirect }
+                let openaiNodes = proxyVM.configurations.filter { $0.nodeType == .openaiProxy }
+
+                if !anthropicNodes.isEmpty {
+                    Section("Anthropic") {
+                        ForEach(anthropicNodes) { config in
+                            proxyNodeMenuItem(config)
+                        }
+                    }
+                }
+
+                if !openaiNodes.isEmpty {
+                    Section("OpenAI") {
+                        ForEach(openaiNodes) { config in
+                            proxyNodeMenuItem(config)
+                        }
+                    }
+                }
+
+                Divider()
+
+                Button {
+                    if let activeId = proxyVM.activatedConfigId {
+                        Task { await proxyVM.deactivateConfiguration(activeId) }
+                    }
+                } label: {
+                    Label(L("Stop Proxy", "停止代理"), systemImage: "stop.circle")
+                }
+                .disabled(proxyVM.activatedConfigId == nil)
+            }
+        } label: {
+            VStack(spacing: 3) {
+                HStack(spacing: 4) {
+                    Image(systemName: activeNode != nil ? "bolt.circle.fill" : "bolt.slash.circle")
+                        .font(.system(size: 9))
+                        .foregroundColor(activeNode != nil ? .green : .gray)
+                    Text(activeNode?.name ?? L("Off", "未启用"))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(activeNode != nil ? .primary : .secondary)
+                        .lineLimit(1)
+                }
+                if let node = activeNode {
+                    Text(proxyNodeTypeLabel(node))
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(proxyNodeTypeColor(node))
+                } else {
+                    Text(L("Proxy", "代理"))
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+    }
+
+    @ViewBuilder
+    private func proxyNodeMenuItem(_ config: ProxyConfiguration) -> some View {
+        let isActive = config.id == proxyVM.activatedConfigId
+        Button {
+            Task { await proxyVM.toggleActivation(config.id) }
+        } label: {
+            Label {
+                Text(config.name)
+            } icon: {
+                Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+            }
+        }
+    }
+
+    private func proxyNodeTypeLabel(_ config: ProxyConfiguration) -> String {
+        switch config.nodeType {
+        case .anthropicDirect:
+            return config.usePassthroughProxy ? "Anthropic Proxy" : "Anthropic Direct"
+        case .openaiProxy:
+            return "OpenAI Proxy"
+        }
+    }
+
+    private func proxyNodeIcon(_ config: ProxyConfiguration) -> String {
+        switch config.nodeType {
+        case .anthropicDirect:
+            return config.usePassthroughProxy ? "bolt.shield.fill" : "bolt.horizontal.fill"
+        case .openaiProxy:
+            return "arrow.triangle.swap"
+        }
+    }
+
+    private func proxyNodeTypeColor(_ config: ProxyConfiguration) -> Color {
+        switch config.nodeType {
+        case .anthropicDirect: return Color(red: 0.85, green: 0.45, blue: 0.25)
+        case .openaiProxy: return Color(red: 0.40, green: 0.78, blue: 0.55)
+        }
+    }
+
+    private func proxyCostCell(cost: Double, requests: Int) -> some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 4) {
+                Image(systemName: "dollarsign.circle.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                Text(formatCostCompact(cost))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(cost > 0 ? .orange : .primary)
+                if requests > 0 {
+                    Text("·")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                    Text("\(requests)")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Text(L("Proxy Cost", "代理费用"))
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func summaryStatCell(value: String, label: String, icon: String, valueColor: Color? = nil) -> some View {

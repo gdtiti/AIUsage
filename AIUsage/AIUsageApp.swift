@@ -98,6 +98,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if UserDefaults.standard.bool(forKey: DefaultsKey.hideDockIcon) {
             NSApp.setActivationPolicy(.accessory)
         }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            AppState.shared.refreshAllProviders()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

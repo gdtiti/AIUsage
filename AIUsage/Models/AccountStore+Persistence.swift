@@ -171,6 +171,7 @@ private struct AccountRegistryRefreshSnapshot {
                     }
                     if let normalizedNewAccountId, let storedAccountId = $0.normalizedAccountId,
                        storedAccountId != normalizedNewAccountId {
+                        if isMultiWs { return $0.normalizedEmail == normalizedNewEmail }
                         return false
                     }
                     return $0.normalizedEmail == normalizedNewEmail
@@ -325,14 +326,23 @@ private struct AccountRegistryRefreshSnapshot {
 
         if let storedAccountId = stored.normalizedAccountId,
            let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank {
-            if storedAccountId != liveAccountId { return false }
+            if storedAccountId == liveAccountId {
+                if Self.multiWorkspaceProviders.contains(stored.providerId.lowercased()) {
+                    let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+                    if let liveEmail, !stored.normalizedEmail.isEmpty {
+                        return stored.normalizedEmail == liveEmail
+                    }
+                }
+                return true
+            }
             if Self.multiWorkspaceProviders.contains(stored.providerId.lowercased()) {
                 let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
-                if let liveEmail, !stored.normalizedEmail.isEmpty {
-                    return stored.normalizedEmail == liveEmail
+                if let liveEmail, !stored.normalizedEmail.isEmpty,
+                   stored.normalizedEmail == liveEmail {
+                    return true
                 }
             }
-            return true
+            return false
         }
 
         if let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
@@ -390,11 +400,16 @@ private struct AccountRegistryRefreshSnapshot {
 
     nonisolated func storedAccountIdentityKey(_ account: StoredProviderAccount) -> String {
         let providerId = account.providerId.lowercased()
-        if let accountId = account.normalizedAccountId {
-            if Self.multiWorkspaceProviders.contains(providerId),
-               !account.normalizedEmail.isEmpty {
-                return "\(providerId):account:\(accountId):email:\(account.normalizedEmail)"
+        if Self.multiWorkspaceProviders.contains(providerId) {
+            if let credentialId = account.credentialId?.lowercased().nilIfBlank {
+                return "\(providerId):cred:\(credentialId)"
             }
+            if !account.normalizedEmail.isEmpty {
+                return "\(providerId):email:\(account.normalizedEmail)"
+            }
+            return "\(providerId):stored:\(account.id.lowercased())"
+        }
+        if let accountId = account.normalizedAccountId {
             return "\(providerId):account:\(accountId)"
         }
         if !account.normalizedEmail.isEmpty {
@@ -808,11 +823,16 @@ extension AccountStore {
 
     func storedAccountIdentityKey(_ account: StoredProviderAccount) -> String {
         let providerId = account.providerId.lowercased()
-        if let accountId = account.normalizedAccountId {
-            if Self.multiWorkspaceProviders.contains(providerId),
-               !account.normalizedEmail.isEmpty {
-                return "\(providerId):account:\(accountId):email:\(account.normalizedEmail)"
+        if Self.multiWorkspaceProviders.contains(providerId) {
+            if let credentialId = account.credentialId?.lowercased().nilIfBlank {
+                return "\(providerId):cred:\(credentialId)"
             }
+            if !account.normalizedEmail.isEmpty {
+                return "\(providerId):email:\(account.normalizedEmail)"
+            }
+            return "\(providerId):stored:\(account.id.lowercased())"
+        }
+        if let accountId = account.normalizedAccountId {
             return "\(providerId):account:\(accountId)"
         }
         if !account.normalizedEmail.isEmpty {

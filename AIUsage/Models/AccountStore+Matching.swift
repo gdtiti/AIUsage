@@ -99,14 +99,23 @@ extension AccountStore {
 
         if let storedAccountId = stored.normalizedAccountId,
            let liveAccountId = normalizedLiveAccountID(for: provider) {
-            if storedAccountId != liveAccountId { return false }
+            if storedAccountId == liveAccountId {
+                if Self.multiWorkspaceProviders.contains(stored.providerId.lowercased()) {
+                    let liveEmail = normalizedAccountIdentifier(for: provider)
+                    if let liveEmail, !stored.normalizedEmail.isEmpty {
+                        return stored.normalizedEmail == liveEmail
+                    }
+                }
+                return true
+            }
             if Self.multiWorkspaceProviders.contains(stored.providerId.lowercased()) {
                 let liveEmail = normalizedAccountIdentifier(for: provider)
-                if let liveEmail, !stored.normalizedEmail.isEmpty {
-                    return stored.normalizedEmail == liveEmail
+                if let liveEmail, !stored.normalizedEmail.isEmpty,
+                   stored.normalizedEmail == liveEmail {
+                    return true
                 }
             }
-            return true
+            return false
         }
 
         if let liveEmail = normalizedAccountIdentifier(for: provider),

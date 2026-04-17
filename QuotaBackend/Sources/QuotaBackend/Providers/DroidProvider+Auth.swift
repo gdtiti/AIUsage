@@ -88,11 +88,21 @@ extension DroidProvider {
             guard let session = loadSessionFile(at: path) else {
                 throw ProviderError("not_logged_in", "Could not read the Droid auth file.")
             }
-            return try await resolveStoredSession(
-                session,
-                source: SourceInfo(mode: "manual", type: "auth-file"),
-                persistencePath: path
-            )
+            do {
+                return try await resolveStoredSession(
+                    session,
+                    source: SourceInfo(mode: "manual", type: "auth-file"),
+                    persistencePath: path
+                )
+            } catch {
+                if let freshAuth = try await resyncFromOriginalSource(
+                    credential: credential,
+                    managedPath: path
+                ) {
+                    return freshAuth
+                }
+                throw error
+            }
 
         case .auto:
             return try await resolveAuth()
@@ -277,6 +287,39 @@ extension DroidProvider {
             userId: claims["sub"] as? String,
             source: source
         )
+    }
+
+    // MARK: - Managed Copy Resync
+
+    func resyncFromOriginalSource(
+        credential: AccountCredential,
+        managedPath: String
+    ) async throws -> DroidAuth? {
+        guard let sourcePath = credential.metadata["sourcePath"]?.nilIfBlank else { return nil }
+
+        let expandedSource = NSString(string: sourcePath).expandingTildeInPath
+        guard expandedSource != managedPath,
+              FileManager.default.fileExists(atPath: expandedSource) else { return nil }
+
+        guard let freshSession = loadSessionFile(at: expandedSource) else { return nil }
+
+        let auth = try await resolveStoredSession(
+            freshSession,
+            source: SourceInfo(mode: "manual", type: "auth-file"),
+            persistencePath: managedPath
+        )
+
+        persistSessionFile(
+            SessionFile(
+                accessToken: auth.bearerToken,
+                refreshToken: auth.refreshToken,
+                organizationId: auth.organizationId,
+                cookieHeader: auth.cookieHeader
+            ),
+            to: managedPath
+        )
+
+        return auth
     }
 
     func shouldRefreshAccessToken(_ token: String, refreshToken: String?) -> Bool {

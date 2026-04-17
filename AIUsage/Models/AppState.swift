@@ -230,14 +230,14 @@ class AppState: ObservableObject {
         if isEnabled {
             guard !selectedProviderIds.contains(providerId) else { return }
             selectedProviderIds.insert(providerId)
+            saveSelectedProviderIds()
+            refreshProvider(providerId)
         } else {
             guard selectedProviderIds.contains(providerId) else { return }
             selectedProviderIds.remove(providerId)
             refreshCoordinator.removeProviders(matchingBaseProviderId: providerId)
+            saveSelectedProviderIds()
         }
-
-        saveSelectedProviderIds()
-        refreshAllProviders()
     }
 
     func saveAccount(
@@ -329,7 +329,12 @@ class AppState: ObservableObject {
 
                 let sortedEntries = entries.sorted { lhs, rhs in
                     if lhs.isConnected != rhs.isConnected { return lhs.isConnected && !rhs.isConnected }
-                    return (lhs.accountEmail ?? "").localizedCaseInsensitiveCompare(rhs.accountEmail ?? "") == .orderedAscending
+                    let emailCmp = (lhs.accountEmail ?? "").localizedCaseInsensitiveCompare(rhs.accountEmail ?? "")
+                    if emailCmp != .orderedSame { return emailCmp == .orderedAscending }
+                    let lhsWs = lhs.workspaceLabel ?? ""
+                    let rhsWs = rhs.workspaceLabel ?? ""
+                    if lhsWs != rhsWs { return lhsWs < rhsWs }
+                    return (lhs.storedAccount?.accountId ?? lhs.id) < (rhs.storedAccount?.accountId ?? rhs.id)
                 }
 
                 return ProviderAccountGroup(

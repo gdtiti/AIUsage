@@ -463,12 +463,7 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         usage.accountEmail = stringValue(json["email"]) ?? fallbackEmail
 
         let rawAccountId = stringValue(json["account_id"]) ?? accountId
-        let userScopedEmail = usage.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if let rawAccountId, let userScopedEmail, !userScopedEmail.isEmpty {
-            usage.usageAccountId = "\(rawAccountId):\(userScopedEmail)"
-        } else {
-            usage.usageAccountId = rawAccountId
-        }
+        usage.usageAccountId = rawAccountId
 
         let apiPlan = stringValue(json["plan_type"])
         usage.accountPlan = apiPlan ?? jwtPlanType

@@ -40,6 +40,17 @@ extension AccountStore {
         excluding reservedStoredIDs: Set<String>,
         allowUnseenCredentialFallback: Bool
     ) -> Int? {
+        let liveAccountId = normalizedLiveAccountID(for: provider)
+        if let liveAccountId {
+            if let accountIdMatch = accountRegistry.firstIndex(where: {
+                !reservedStoredIDs.contains($0.id) && !$0.isHidden &&
+                $0.providerId == provider.baseProviderId &&
+                $0.normalizedAccountId == liveAccountId
+            }) {
+                return accountIdMatch
+            }
+        }
+
         if let exactIndex = accountRegistry.firstIndex(where: {
             !reservedStoredIDs.contains($0.id) && !$0.isHidden && storedAccountMatchesLive($0, provider: provider)
         }) {
@@ -85,15 +96,8 @@ extension AccountStore {
         }
 
         if let storedAccountId = stored.normalizedAccountId,
-           let liveAccountId = normalizedLiveAccountID(for: provider),
-           storedAccountId == liveAccountId {
-            return true
-        }
-
-        if let storedAccountId = stored.normalizedAccountId,
-           let liveAccountId = normalizedLiveAccountID(for: provider),
-           storedAccountId != liveAccountId {
-            return false
+           let liveAccountId = normalizedLiveAccountID(for: provider) {
+            return storedAccountId == liveAccountId
         }
 
         if let liveEmail = normalizedAccountIdentifier(for: provider),

@@ -341,15 +341,16 @@ public actor ProviderEngine {
             switch fetchResult.result {
             case .success(let rawUsage):
                 var usage = rawUsage
-                usage.usageAccountId = acctId
+                let effectiveId = usage.usageAccountId?.nilIfBlank ?? acctId
+                usage.usageAccountId = effectiveId
                 var summary = UsageNormalizer.normalize(provider: provider, usage: usage)
                 summary.id = uniqueId
                 summary.providerId = provider.id
-                summary.accountId = acctId
+                summary.accountId = effectiveId
                 return ProviderResult(
                     id: uniqueId,
                     providerId: provider.id,
-                    accountId: acctId,
+                    accountId: effectiveId,
                     ok: true,
                     usage: usage,
                     summary: summary

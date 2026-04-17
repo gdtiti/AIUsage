@@ -91,12 +91,8 @@ final class ProviderActivationManager: ObservableObject {
             return entryAccountId == activeId
         }
 
-        let emailCandidates = [
-            entry.storedAccount?.email,
-            entry.liveProvider?.accountLabel,
-            entry.accountEmail
-        ].compactMap { $0?.lowercased().nilIfBlank }
-        return emailCandidates.contains(activeId)
+        let email = entry.accountEmail?.lowercased().nilIfBlank
+        return email != nil && email == activeId
     }
 
     func isActiveCodexAccount(_ entry: ProviderAccountEntry) -> Bool {
@@ -129,8 +125,7 @@ final class ProviderActivationManager: ObservableObject {
 
         try writeAuthFileWithBackup(targetDir: codexDir, targetPath: targetPath, data: nativeData, fm: fm)
 
-        let newActiveId = accountId ?? email
-        activeProviderAccountIds["codex"] = newActiveId
+        activeProviderAccountIds["codex"] = accountId ?? email
         persistActiveIds()
 
         let label = email ?? accountId ?? "Codex"
@@ -393,40 +388,67 @@ final class ProviderActivationManager: ObservableObject {
         providerActivationLog.info("Cleared active \(providerId, privacy: .public) account detection: \(reason, privacy: .public)")
     }
 
+    private func jwtEmailFromToken(_ token: String?) -> String? {
+        guard let token, token.contains(".") else { return nil }
+        let segments = token.split(separator: ".")
+        guard segments.count >= 2 else { return nil }
+        var payload = String(segments[1])
+        let remainder = payload.count % 4
+        if remainder > 0 { payload += String(repeating: "=", count: 4 - remainder) }
+        guard let decoded = Data(base64Encoded: payload),
+              let claims = try? JSONSerialization.jsonObject(with: decoded) as? [String: Any],
+              let email = claims["email"] as? String else {
+            return nil
+        }
+        return email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+    }
+
     func detectActiveCodexAccount() {
         let authPath = NSString(string: "~/.codex/auth.json").expandingTildeInPath
-        guard let data = FileManager.default.contents(atPath: authPath) else {
-            applyDetectedActiveId(nil, for: "codex", reason: "auth file missing")
-            return
-        }
-
-        let json: [String: Any]
-        do {
-            guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                applyDetectedActiveId(nil, for: "codex", reason: "auth file root object is not a dictionary")
-                return
-            }
-            json = object
-        } catch {
-            providerActivationLog.error("Failed to decode Codex auth file: \(String(describing: error), privacy: .public)")
-            applyDetectedActiveId(nil, for: "codex", reason: "auth file contains invalid JSON")
+        guard let data = FileManager.default.contents(atPath: authPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            applyDetectedActiveId(nil, for: "codex", reason: "auth file missing or invalid")
             return
         }
 
         let tokens = json["tokens"] as? [String: Any]
-        let rawAccountId = (tokens?["account_id"] as? String)
-            ?? (tokens?["accountId"] as? String)
-            ?? (json["account_id"] as? String)
-            ?? (json["accountId"] as? String)
-        let email = (json["email"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+        let fileWorkspaceId = ((tokens?["account_id"] as? String)
+            ?? (json["account_id"] as? String))?.nilIfBlank
+        let fileEmail = (json["email"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+            ?? jwtEmailFromToken(tokens?["id_token"] as? String)
+            ?? jwtEmailFromToken(json["id_token"] as? String)
 
-        let detectedId: String?
-        if let rawAccountId, let email {
-            detectedId = "\(rawAccountId):\(email)"
-        } else {
-            detectedId = rawAccountId ?? email
+        let codexAccounts = accountStore.accountRegistry.filter { $0.providerId == "codex" }
+
+        if let fileEmail {
+            let emailMatches = codexAccounts.filter { $0.email.lowercased() == fileEmail }
+            if emailMatches.count == 1, let match = emailMatches.first {
+                applyDetectedActiveId(match.accountId ?? match.email, for: "codex", reason: "matched by email")
+                return
+            }
+            if let fileWorkspaceId {
+                for candidate in emailMatches {
+                    if let credId = candidate.credentialId,
+                       let cred = AccountCredentialStore.shared.loadCredentials(for: "codex").first(where: { $0.id == credId }),
+                       let sourcePath = cred.metadata["sourcePath"]?.nilIfBlank,
+                       let sourceJson = Self.loadJSON(atPath: sourcePath),
+                       let sourceWorkspaceId = (sourceJson["account_id"] as? String
+                           ?? (sourceJson["tokens"] as? [String: Any])?["account_id"] as? String)?.nilIfBlank,
+                       sourceWorkspaceId == fileWorkspaceId {
+                        applyDetectedActiveId(candidate.accountId ?? candidate.email, for: "codex", reason: "matched by workspace id")
+                        return
+                    }
+                }
+            }
         }
-        applyDetectedActiveId(detectedId, for: "codex", reason: "auth file has no detectable active account")
+
+        applyDetectedActiveId(fileEmail ?? fileWorkspaceId, for: "codex", reason: "no stored account matched")
+    }
+
+    private static func loadJSON(atPath path: String) -> [String: Any]? {
+        let expanded = NSString(string: path).expandingTildeInPath
+        guard let data = FileManager.default.contents(atPath: expanded) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 
     func detectActiveGeminiAccount() {

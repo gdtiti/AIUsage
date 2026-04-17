@@ -55,6 +55,9 @@ dist/
 Pods/
 Carthage/
 
+# === Internal planning docs ===
+docs/NEXT_VERSION_TODO.md
+
 # === Misc ===
 *.log
 *.tmp

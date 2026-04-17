@@ -196,7 +196,7 @@ extension DroidProvider {
         guard let cookieHeader else { return nil }
         let pairs = cookiePairs(from: cookieHeader)
 
-        for preferredName in ["access-token", "__Secure-next-auth.session-token", "next-auth.session-token", "__Secure-authjs.session-token", "authjs.session-token", "session"] {
+        for preferredName in ["access-token", "wos-session", "__Secure-next-auth.session-token", "next-auth.session-token", "__Secure-authjs.session-token", "authjs.session-token", "session"] {
             guard let pair = pairs.first(where: { $0.name == preferredName }) else {
                 continue
             }
@@ -228,6 +228,15 @@ extension DroidProvider {
             return nil
         }
         return json["email"] as? String
+    }
+
+    static func base64URLSafeToStandard(_ input: String) -> String {
+        var result = input
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = result.count % 4
+        if remainder > 0 { result += String(repeating: "=", count: 4 - remainder) }
+        return result
     }
 
     static func isCookieSafeASCII(_ string: String) -> Bool {

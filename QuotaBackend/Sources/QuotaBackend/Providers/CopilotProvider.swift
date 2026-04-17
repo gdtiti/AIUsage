@@ -26,6 +26,9 @@ public struct CopilotProvider: ProviderFetcher, CredentialAcceptingProvider {
     }
 
     public func fetchUsage(with credential: AccountCredential) async throws -> ProviderUsage {
+        guard supportedAuthMethods.contains(credential.authMethod) else {
+            throw ProviderError("unsupported_auth_method", "Copilot does not support \(credential.authMethod) credentials.")
+        }
         let token = credential.credential.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else {
             throw ProviderError("missing_token", "GitHub token is empty.")
@@ -275,12 +278,14 @@ public struct CopilotProvider: ProviderFetcher, CredentialAcceptingProvider {
             if let monthly = payload["monthly_quotas"] as? [String: Any],
                let limited = payload["limited_user_quotas"] as? [String: Any] {
                 if let mChat = monthly["chat"] as? Int, let lChat = limited["chat"] as? Int {
+                    let pct = mChat > 0 ? Double(lChat) / Double(mChat) * 100 : 0
                     result.chat = ["entitlement": mChat, "remaining": lChat,
-                                   "percent_remaining": Double(lChat) / Double(mChat) * 100]
+                                   "percent_remaining": pct]
                 }
                 if let mComp = monthly["completions"] as? Int, let lComp = limited["completions"] as? Int {
+                    let pct = mComp > 0 ? Double(lComp) / Double(mComp) * 100 : 0
                     result.completions = ["entitlement": mComp, "remaining": lComp,
-                                          "percent_remaining": Double(lComp) / Double(mComp) * 100]
+                                          "percent_remaining": pct]
                 }
             }
         }

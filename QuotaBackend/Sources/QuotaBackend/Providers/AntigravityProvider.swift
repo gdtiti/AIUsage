@@ -123,8 +123,20 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
             }
         }
 
-        let subscription = await loadCodeAssist(accessToken: accessToken)
-        let quotaResponse = try await fetchAvailableModels(accessToken: accessToken, projectId: subscription.projectId)
+        var subscription = await loadCodeAssist(accessToken: accessToken)
+        let quotaResponse: [String: Any]
+        do {
+            quotaResponse = try await fetchAvailableModels(accessToken: accessToken, projectId: subscription.projectId)
+        } catch let error as ProviderError where error.code == "unauthorized" {
+            guard let refreshToken = authFile.refreshToken, !refreshToken.isEmpty else { throw error }
+            let refreshed = try await refreshAccessToken(refreshToken: refreshToken)
+            accessToken = refreshed.accessToken
+            authFile.accessToken = refreshed.accessToken
+            authFile.expired = iso8601String(refreshed.expiryDate)
+            persistRefreshedToken(at: authContext.url, originalData: originalData, refreshed: refreshed)
+            subscription = await loadCodeAssist(accessToken: accessToken)
+            quotaResponse = try await fetchAvailableModels(accessToken: accessToken, projectId: subscription.projectId)
+        }
         return buildUsage(
             authContext: authContext,
             authFile: authFile,
@@ -326,7 +338,7 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
         json["timestamp"] = Int(Date().timeIntervalSince1970 * 1000)
 
         guard let updated = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]) else { return }
-        try? updated.write(to: url)
+        try? updated.write(to: url, options: .atomic)
     }
 
     private func formURLEncodedBody(_ params: [String: String]) -> Data? {

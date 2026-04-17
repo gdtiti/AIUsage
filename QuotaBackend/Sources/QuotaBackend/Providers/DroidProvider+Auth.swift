@@ -255,13 +255,13 @@ extension DroidProvider {
             accessToken: refreshed.accessToken,
             refreshToken: refreshed.refreshToken ?? refreshToken,
             organizationId: refreshed.organizationId ?? currentSession.organizationId,
-            cookieHeader: nil
+            cookieHeader: currentSession.cookieHeader
         )
         if let persistencePath {
             persistSessionFile(updatedSession, to: persistencePath)
         }
         return makeAuth(
-            cookieHeader: nil,
+            cookieHeader: updatedSession.cookieHeader,
             accessToken: updatedSession.accessToken,
             refreshToken: updatedSession.refreshToken,
             organizationId: updatedSession.organizationId,
@@ -417,7 +417,7 @@ extension DroidProvider {
             .nilIfBlank else {
             return nil
         }
-        return Data(base64Encoded: rawKey)
+        return Data(base64Encoded: Self.base64URLSafeToStandard(rawKey))
     }
 
     func loadFactoryKeyringKey() -> Data? {
@@ -442,7 +442,7 @@ extension DroidProvider {
         let rawKey = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let rawKey = rawKey.nilIfBlank else { return nil }
-        return Data(base64Encoded: rawKey)
+        return Data(base64Encoded: Self.base64URLSafeToStandard(rawKey))
     }
 
     func decryptFactoryCredentials(payload: Data, key: Data) -> String? {
@@ -451,9 +451,9 @@ extension DroidProvider {
         }
         let components = text.split(separator: ":").map(String.init)
         guard components.count == 3,
-              let nonceData = Data(base64Encoded: components[0]),
-              let tagData = Data(base64Encoded: components[1]),
-              let ciphertext = Data(base64Encoded: components[2]) else {
+              let nonceData = Data(base64Encoded: Self.base64URLSafeToStandard(components[0])),
+              let tagData = Data(base64Encoded: Self.base64URLSafeToStandard(components[1])),
+              let ciphertext = Data(base64Encoded: Self.base64URLSafeToStandard(components[2])) else {
             return nil
         }
 

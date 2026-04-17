@@ -59,12 +59,7 @@ public struct GeminiProvider: ProviderFetcher, CredentialAcceptingProvider {
         let expanded = NSString(string: originalPath).expandingTildeInPath
         guard expanded != managedPath, FileManager.default.fileExists(atPath: expanded) else { return nil }
 
-        let expectedEmail = credential.accountLabel?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        if let expectedEmail, !expectedEmail.isEmpty,
-           let originalCreds = try? loadCredentials(from: expanded) {
-            let originalEmail = originalCreds.accountEmail?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-            guard originalEmail == expectedEmail else { return nil }
-        }
+        
 
         let dir = (managedPath as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
@@ -419,7 +414,7 @@ public struct GeminiProvider: ProviderFetcher, CredentialAcceptingProvider {
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, http.statusCode == 401 {
+        if let http = response as? HTTPURLResponse, (http.statusCode == 401 || http.statusCode == 403) {
             throw ProviderError("not_logged_in", "Gemini OAuth token is invalid or expired. Re-authenticate with `gemini`.")
         }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -467,6 +462,7 @@ public struct GeminiProvider: ProviderFetcher, CredentialAcceptingProvider {
 
         var usage = ProviderUsage(provider: "gemini", label: "Gemini CLI")
         usage.accountEmail = creds.accountEmail
+        usage.usageAccountId = projectId ?? creds.accountEmail
         usage.accountPlan = parsePlan(tierId, email: creds.accountEmail)
         usage.primary   = selectGeminiWindow(from: proModels)
         usage.secondary = selectGeminiWindow(from: flashModels)

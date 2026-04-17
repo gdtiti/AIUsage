@@ -123,7 +123,8 @@ extension KiroProvider {
 
         var expiresAt = stringValue(json["expires_at"]) ?? stringValue(json["expiresAt"]) ?? stringValue(json["expiry"])
         if expiresAt == nil, let numericExpiry = doubleValue(json["expires_at"] ?? json["expiresAt"] ?? json["expiry"]) {
-            expiresAt = iso8601String(Date(timeIntervalSince1970: numericExpiry))
+            let epoch = numericExpiry > 1e12 ? numericExpiry / 1000 : numericExpiry
+            expiresAt = iso8601String(Date(timeIntervalSince1970: epoch))
         }
 
         let authProvider = stringValue(json["provider"])
@@ -259,7 +260,7 @@ extension KiroProvider {
 
         persistRefreshedToken(at: authContext.url, originalData: originalData, refreshed: refreshed, sourceType: authContext.sourceType)
         if authContext.sourceType != "kiro-ide-auth-file" {
-            syncToKiroIDEAuthFile(refreshed: refreshed)
+            syncToKiroIDEAuthFile(refreshed: refreshed, authContext: authContext)
         }
 
         return refreshed
@@ -344,11 +345,17 @@ extension KiroProvider {
         try? updated.write(to: url, options: .atomic)
     }
 
-    func syncToKiroIDEAuthFile(refreshed: RefreshedToken) {
+    func syncToKiroIDEAuthFile(refreshed: RefreshedToken, authContext: AuthContext) {
         let ideAuthURL = URL(fileURLWithPath: "\(homeDirectory)/.aws/sso/cache/kiro-auth-token.json")
         guard FileManager.default.fileExists(atPath: ideAuthURL.path),
               let data = FileManager.default.contents(atPath: ideAuthURL.path),
               var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+
+        let ideProfileArn = json["profileArn"] as? String ?? json["profile_arn"] as? String
+        let ctxProfileArn = authContext.tokenData.profileArn
+        if let ideArn = ideProfileArn, let ctxArn = ctxProfileArn, ideArn != ctxArn {
             return
         }
 

@@ -75,6 +75,9 @@ public struct CursorProvider: ProviderFetcher, CredentialAcceptingProvider {
 
     /// Fetch with externally provided credential (e.g. pasted cookie, WebView session)
     public func fetchUsage(with credential: AccountCredential) async throws -> ProviderUsage {
+        guard supportedAuthMethods.contains(credential.authMethod) else {
+            throw ProviderError("unsupported_auth_method", "Cursor does not support \(credential.authMethod) credentials.")
+        }
         let source: SourceInfo
         switch credential.authMethod {
         case .cookie:
@@ -141,8 +144,14 @@ public struct CursorProvider: ProviderFetcher, CredentialAcceptingProvider {
 
     private static func extractCookies(dbPath: String, keychainService: String) -> String? {
         let tempPath = NSTemporaryDirectory() + "cursor_\(ProcessInfo.processInfo.processIdentifier)_\(Int.random(in: 10000...99999)).db"
-        defer { try? FileManager.default.removeItem(atPath: tempPath) }
+        defer {
+            try? FileManager.default.removeItem(atPath: tempPath)
+            try? FileManager.default.removeItem(atPath: tempPath + "-wal")
+            try? FileManager.default.removeItem(atPath: tempPath + "-shm")
+        }
         do { try FileManager.default.copyItem(atPath: dbPath, toPath: tempPath) } catch { return nil }
+        try? FileManager.default.copyItem(atPath: dbPath + "-wal", toPath: tempPath + "-wal")
+        try? FileManager.default.copyItem(atPath: dbPath + "-shm", toPath: tempPath + "-shm")
 
         // Read encrypted cookie blobs via sqlite3
         let domainSQL = Self.cookieDomains.map { "'\($0)'" }.joined(separator: ",")
@@ -169,20 +178,13 @@ public struct CursorProvider: ProviderFetcher, CredentialAcceptingProvider {
 
     // Query sqlite3 binary-safe using Process, returns rows as [[String]]
     private static func querySQLite(db: String, sql: String) -> [[String]]? {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        // -separator uses tab to avoid splitting on | in cookie values
-        task.arguments = ["-separator", "\t", db, sql]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
-        do { try task.run(); task.waitUntilExit() } catch { return nil }
+        let domainSQL = Self.cookieDomains.map { "'\($0)'" }.joined(separator: ",")
+        let nameSQL   = Self.sessionCookieNames.map { "'\($0)'" }.joined(separator: ",")
+        let hexSQL = "SELECT name, hex(encrypted_value) FROM cookies WHERE host_key IN (\(domainSQL)) AND name IN (\(nameSQL)) LIMIT 10;"
 
-        // For binary data we can't use text — use a hex dump approach
-        // Re-query using hex() wrapper
         let hexTask = Process()
         hexTask.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        hexTask.arguments = [db, "SELECT name, hex(encrypted_value) FROM cookies WHERE host_key IN (\(Self.cookieDomains.map { "'\($0)'" }.joined(separator: ","))) AND name IN (\(Self.sessionCookieNames.map { "'\($0)'" }.joined(separator: ","))) LIMIT 10;"]
+        hexTask.arguments = [db, hexSQL]
         let hexPipe = Pipe()
         hexTask.standardOutput = hexPipe
         hexTask.standardError = Pipe()
@@ -341,6 +343,8 @@ public struct CursorProvider: ProviderFetcher, CredentialAcceptingProvider {
         let planPercentUsed: Double
         if let t = totalPercent { planPercentUsed = t }
         else if let a = autoPercent, let ap = apiPercent { planPercentUsed = (a + ap) / 2 }
+        else if let a = autoPercent { planPercentUsed = a }
+        else if let ap = apiPercent { planPercentUsed = ap }
         else if planLimitRaw > 0 { planPercentUsed = min(100, planUsedRaw / planLimitRaw * 100) }
         else { planPercentUsed = 0 }
 

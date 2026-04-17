@@ -31,7 +31,8 @@ public struct ClaudeProvider: ProviderFetcher {
             throw ProviderError("logs_not_found", "No Claude JSONL logs found")
         }
 
-        let rows = try await scanFiles(files)
+        let scanResult = try await scanFiles(files)
+        let rows = scanResult.rows
         if rows.isEmpty {
             throw ProviderError("no_usage_data", "Claude logs found but no usage data present")
         }
@@ -44,7 +45,8 @@ public struct ClaudeProvider: ProviderFetcher {
         let today        = aggregate(rows: rows) { $0.dayKey == todayKey }
         let currentWeek  = aggregate(rows: rows) { weekRange.dayKeys.contains($0.dayKey) }
         let currentMonth = aggregate(rows: rows) { $0.monthKey == monthKey }
-        let overall      = aggregate(rows: rows) { _ in true }
+        var overall      = aggregate(rows: rows) { _ in true }
+        overall.duplicatesRemoved = scanResult.duplicatesRemoved
 
         var extra: [String: AnyCodable] = [:]
 
@@ -155,14 +157,16 @@ public struct ClaudeProvider: ProviderFetcher {
 
     // MARK: - Scanning
 
-    private func scanFiles(_ files: [String]) async throws -> [ClaudeRow] {
+    private func scanFiles(_ files: [String]) async throws -> (rows: [ClaudeRow], duplicatesRemoved: Int) {
         var winners: [String: ClaudeRow] = [:]
         var unkeyed: [ClaudeRow] = []
+        var totalKeyed = 0
 
         for file in files {
             let parsed = parseFile(file)
             for row in parsed {
                 if let key = canonicalKey(row) {
+                    totalKeyed += 1
                     if let existing = winners[key] {
                         if shouldReplace(existing, with: row) { winners[key] = row }
                     } else {
@@ -174,13 +178,29 @@ public struct ClaudeProvider: ProviderFetcher {
             }
         }
 
-        return (Array(winners.values) + unkeyed).sorted { $0.timestamp < $1.timestamp }
+        let deduped = (Array(winners.values) + unkeyed).sorted { $0.timestamp < $1.timestamp }
+        return (deduped, totalKeyed - winners.count)
     }
 
     private func parseFile(_ path: String) -> [ClaudeRow] {
-        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }
+        guard let handle = FileHandle(forReadingAtPath: path) else { return [] }
+        defer { handle.closeFile() }
         var rows: [ClaudeRow] = []
-        for line in content.components(separatedBy: "\n") {
+        var buffer = Data()
+        let chunkSize = 64 * 1024
+        while true {
+            let chunk = handle.readData(ofLength: chunkSize)
+            if chunk.isEmpty { break }
+            buffer.append(chunk)
+            while let newlineRange = buffer.range(of: Data([0x0A])) {
+                let lineData = buffer.subdata(in: buffer.startIndex..<newlineRange.lowerBound)
+                buffer.removeSubrange(buffer.startIndex...newlineRange.lowerBound)
+                if let line = String(data: lineData, encoding: .utf8), let row = parseLine(line, filePath: path) {
+                    rows.append(row)
+                }
+            }
+        }
+        if !buffer.isEmpty, let line = String(data: buffer, encoding: .utf8) {
             if let row = parseLine(line, filePath: path) {
                 rows.append(row)
             }

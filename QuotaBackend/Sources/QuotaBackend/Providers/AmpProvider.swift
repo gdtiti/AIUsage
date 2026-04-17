@@ -67,6 +67,9 @@ public struct AmpProvider: ProviderFetcher, CredentialAcceptingProvider {
     }
 
     public func fetchUsage(with credential: AccountCredential) async throws -> ProviderUsage {
+        guard supportedAuthMethods.contains(credential.authMethod) else {
+            throw ProviderError("unsupported_auth_method", "Amp does not support \(credential.authMethod) credentials.")
+        }
         let source = SourceInfo(mode: "manual", type: "pasted-cookie")
         return try await fetchWithCookie(credential.credential, source: source)
     }
@@ -354,8 +357,14 @@ public struct AmpProvider: ProviderFetcher, CredentialAcceptingProvider {
 
     private static func extractAmpCookie(dbPath: String, keychainService: String) -> String? {
         let tempPath = NSTemporaryDirectory() + "amp_\(ProcessInfo.processInfo.processIdentifier)_\(Int.random(in: 10000...99999)).db"
-        defer { try? FileManager.default.removeItem(atPath: tempPath) }
+        defer {
+            try? FileManager.default.removeItem(atPath: tempPath)
+            try? FileManager.default.removeItem(atPath: tempPath + "-wal")
+            try? FileManager.default.removeItem(atPath: tempPath + "-shm")
+        }
         do { try FileManager.default.copyItem(atPath: dbPath, toPath: tempPath) } catch { return nil }
+        try? FileManager.default.copyItem(atPath: dbPath + "-wal", toPath: tempPath + "-wal")
+        try? FileManager.default.copyItem(atPath: dbPath + "-shm", toPath: tempPath + "-shm")
 
         // Query using hex() for binary safety
         let domainSQL = Self.cookieDomains.map { "'\($0)'" }.joined(separator: ",")

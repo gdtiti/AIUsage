@@ -61,23 +61,13 @@ extension AccountStore {
             return liveIndex
         }
 
-        // Codex multi-workspace: same email can legitimately belong to different workspaces.
-        // Only allow stable-identifier fallback (credentialId / accountId), never email alone.
         if AccountIdentityPolicy.isMultiWorkspace(entry.providerId) {
-            let stableTokens = Set([
-                entry.storedAccount?.credentialId?.lowercased().nilIfBlank,
-                entry.storedAccount?.normalizedAccountId,
-                entry.liveProvider?.accountId?.lowercased().nilIfBlank
-            ].compactMap { $0 })
-            guard !stableTokens.isEmpty else { return nil }
-            return accountRegistry.firstIndex { stored in
-                guard stored.providerId == entry.providerId else { return false }
-                let storedStable = Set([
-                    stored.credentialId?.lowercased().nilIfBlank,
-                    stored.normalizedAccountId
-                ].compactMap { $0 })
-                return !stableTokens.isDisjoint(with: storedStable)
-            }
+            let livePath = entry.liveProvider?.sourceFilePath ?? entry.storedAccount?.sourceFilePath
+            guard let livePath else { return nil }
+            return accountRegistry.firstIndex(where: {
+                $0.providerId == entry.providerId &&
+                AccountIdentityPolicy.sourceFilePathsMatch($0.sourceFilePath, livePath)
+            })
         }
 
         let normalizedTokens = Set([
@@ -122,7 +112,8 @@ extension AccountStore {
             credentialId: entry.storedAccount?.credentialId,
             createdAt: entry.storedAccount?.createdAt ?? now,
             lastSeenAt: lastSeenAt ?? entry.storedAccount?.lastSeenAt,
-            isHidden: isHidden
+            isHidden: isHidden,
+            sourceFilePath: entry.liveProvider?.sourceFilePath ?? entry.storedAccount?.sourceFilePath
         )
     }
 
@@ -137,21 +128,8 @@ extension AccountStore {
 
         let credentials = AccountCredentialStore.shared.loadCredentials(for: entry.providerId)
 
-        // Codex: credentialId path above is the only safe direct match.
-        // For token fallback, require stable identifier (accountId) — email alone
-        // would cross-match different workspaces sharing the same login email.
         if AccountIdentityPolicy.isMultiWorkspace(entry.providerId) {
-            let stableTokens = Set([
-                entry.storedAccount?.normalizedAccountId,
-                entry.liveProvider?.accountId?.lowercased().nilIfBlank
-            ].compactMap { $0 })
-            guard !stableTokens.isEmpty else { return [] }
-            return credentials.filter { credential in
-                guard let credAccountId = credential.metadata["accountId"]?.lowercased().nilIfBlank else {
-                    return false
-                }
-                return stableTokens.contains(credAccountId)
-            }
+            return []
         }
 
         let identityTokens = accountIdentityTokens(for: entry)
@@ -183,19 +161,10 @@ extension AccountStore {
         }
 
         if AccountIdentityPolicy.isMultiWorkspace(entry.providerId) {
-            // Codex: restrict to stable identifiers so deletion cannot fan out by email.
-            let stableTokens = Set([
-                entry.storedAccount?.credentialId?.lowercased().nilIfBlank,
-                entry.storedAccount?.normalizedAccountId,
-                entry.liveProvider?.accountId?.lowercased().nilIfBlank
-            ].compactMap { $0 })
-            if !stableTokens.isEmpty {
+            let livePath = entry.liveProvider?.sourceFilePath ?? entry.storedAccount?.sourceFilePath
+            if let livePath {
                 for (index, stored) in accountRegistry.enumerated() where stored.providerId == entry.providerId {
-                    let storedStable = Set([
-                        stored.credentialId?.lowercased().nilIfBlank,
-                        stored.normalizedAccountId
-                    ].compactMap { $0 })
-                    if !stableTokens.isDisjoint(with: storedStable) {
+                    if AccountIdentityPolicy.sourceFilePathsMatch(stored.sourceFilePath, livePath) {
                         indices.insert(index)
                     }
                 }

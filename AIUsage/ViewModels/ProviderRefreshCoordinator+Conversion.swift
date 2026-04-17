@@ -69,7 +69,8 @@ extension ProviderRefreshCoordinator {
                         )
                     }
                 )
-            }
+            },
+            sourceFilePath: s.sourceFilePath
         )
     }
 
@@ -164,7 +165,8 @@ extension ProviderRefreshCoordinator {
                     modelBreakdownOverall: summary.modelBreakdownOverall,
                     modelTimelines: summary.modelTimelines
                 )
-            }
+            },
+            sourceFilePath: provider.sourceFilePath
         )
     }
 

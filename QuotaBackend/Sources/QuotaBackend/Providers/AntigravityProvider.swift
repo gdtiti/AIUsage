@@ -68,18 +68,21 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
 
         if allContexts.count == 1 {
             let ctx = allContexts[0]
+            let filePath = ctx.url.path
             do {
                 let usage = try await fetchForAuthContext(ctx)
                 return [AccountFetchResult(
                     accountId: ctx.authFile.email ?? ctx.url.lastPathComponent,
                     accountLabel: ctx.authFile.email,
-                    result: .success(usage)
+                    result: .success(usage),
+                    sourceFilePath: filePath
                 )]
             } catch {
                 return [AccountFetchResult(
                     accountId: ctx.authFile.email ?? ctx.url.lastPathComponent,
                     accountLabel: ctx.authFile.email,
-                    result: .failure(error)
+                    result: .failure(error),
+                    sourceFilePath: filePath
                 )]
             }
         }
@@ -88,11 +91,12 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
             for ctx in allContexts {
                 group.addTask {
                     let accountId = ctx.authFile.email ?? ctx.url.lastPathComponent
+                    let filePath = ctx.url.path
                     do {
                         let usage = try await fetchForAuthContext(ctx)
-                        return AccountFetchResult(accountId: accountId, accountLabel: ctx.authFile.email, result: .success(usage))
+                        return AccountFetchResult(accountId: accountId, accountLabel: ctx.authFile.email, result: .success(usage), sourceFilePath: filePath)
                     } catch {
-                        return AccountFetchResult(accountId: accountId, accountLabel: ctx.authFile.email, result: .failure(error))
+                        return AccountFetchResult(accountId: accountId, accountLabel: ctx.authFile.email, result: .failure(error), sourceFilePath: filePath)
                     }
                 }
             }

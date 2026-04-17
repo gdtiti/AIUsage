@@ -63,26 +63,28 @@ public struct KiroProvider: MultiAccountProviderFetcher, CredentialAcceptingProv
 
         if allContexts.count == 1 {
             let ctx = allContexts[0]
+            let filePath = ctx.url.path
             do {
                 let usage = try await fetchForAuthContext(ctx)
                 let accountId = stableAccountId(usage: usage, context: ctx)
-                return [AccountFetchResult(accountId: accountId, accountLabel: usage.accountEmail ?? ctx.tokenData.email, result: .success(usage))]
+                return [AccountFetchResult(accountId: accountId, accountLabel: usage.accountEmail ?? ctx.tokenData.email, result: .success(usage), sourceFilePath: filePath)]
             } catch {
                 let accountId = fallbackAccountId(for: ctx)
-                return [AccountFetchResult(accountId: accountId, accountLabel: ctx.tokenData.email, result: .failure(error))]
+                return [AccountFetchResult(accountId: accountId, accountLabel: ctx.tokenData.email, result: .failure(error), sourceFilePath: filePath)]
             }
         }
 
         return await withTaskGroup(of: AccountFetchResult.self) { group in
             for ctx in allContexts {
                 group.addTask {
+                    let filePath = ctx.url.path
                     do {
                         let usage = try await fetchForAuthContext(ctx)
                         let accountId = stableAccountId(usage: usage, context: ctx)
-                        return AccountFetchResult(accountId: accountId, accountLabel: usage.accountEmail ?? ctx.tokenData.email, result: .success(usage))
+                        return AccountFetchResult(accountId: accountId, accountLabel: usage.accountEmail ?? ctx.tokenData.email, result: .success(usage), sourceFilePath: filePath)
                     } catch {
                         let accountId = fallbackAccountId(for: ctx)
-                        return AccountFetchResult(accountId: accountId, accountLabel: ctx.tokenData.email, result: .failure(error))
+                        return AccountFetchResult(accountId: accountId, accountLabel: ctx.tokenData.email, result: .failure(error), sourceFilePath: filePath)
                     }
                 }
             }

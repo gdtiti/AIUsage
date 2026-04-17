@@ -39,6 +39,7 @@ struct StoredProviderAccount: Identifiable, Codable, Hashable, Sendable {
     let createdAt: String
     var lastSeenAt: String?
     var isHidden: Bool
+    var sourceFilePath: String?
 
     nonisolated init(
         id: String,
@@ -51,7 +52,8 @@ struct StoredProviderAccount: Identifiable, Codable, Hashable, Sendable {
         credentialId: String?,
         createdAt: String,
         lastSeenAt: String?,
-        isHidden: Bool = false
+        isHidden: Bool = false,
+        sourceFilePath: String? = nil
     ) {
         self.id = id
         self.providerId = providerId
@@ -64,6 +66,7 @@ struct StoredProviderAccount: Identifiable, Codable, Hashable, Sendable {
         self.createdAt = createdAt
         self.lastSeenAt = lastSeenAt
         self.isHidden = isHidden
+        self.sourceFilePath = sourceFilePath
     }
 
     nonisolated init(from decoder: Decoder) throws {
@@ -79,6 +82,7 @@ struct StoredProviderAccount: Identifiable, Codable, Hashable, Sendable {
         createdAt = try container.decode(String.self, forKey: .createdAt)
         lastSeenAt = try container.decodeIfPresent(String.self, forKey: .lastSeenAt)
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
+        sourceFilePath = try container.decodeIfPresent(String.self, forKey: .sourceFilePath)
     }
 
     nonisolated var normalizedEmail: String {
@@ -238,6 +242,7 @@ struct ProviderData: Identifiable, Codable, Sendable {
     let spotlight: String?
     let models: [ModelInfo]?
     let costSummary: CostSummary?
+    let sourceFilePath: String?
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -267,9 +272,10 @@ struct ProviderData: Identifiable, Codable, Sendable {
         spotlight = try container.decodeIfPresent(String.self, forKey: .spotlight)
         models = try container.decodeIfPresent([ModelInfo].self, forKey: .models)
         costSummary = try container.decodeIfPresent(CostSummary.self, forKey: .costSummary)
+        sourceFilePath = try container.decodeIfPresent(String.self, forKey: .sourceFilePath)
     }
 
-    init(id: String, providerId: String, accountId: String?, name: String, label: String, description: String, category: String, channel: String?, status: ProviderStatus, statusLabel: String, theme: ProviderTheme, sourceLabel: String, sourceType: String, fetchedAt: String?, accountLabel: String?, membershipLabel: String?, workspaceLabel: String? = nil, headline: Headline, metrics: [Metric], windows: [QuotaWindow], remainingPercent: Double?, nextResetAt: String?, nextResetLabel: String?, spotlight: String?, models: [ModelInfo]?, costSummary: CostSummary?) {
+    init(id: String, providerId: String, accountId: String?, name: String, label: String, description: String, category: String, channel: String?, status: ProviderStatus, statusLabel: String, theme: ProviderTheme, sourceLabel: String, sourceType: String, fetchedAt: String?, accountLabel: String?, membershipLabel: String?, workspaceLabel: String? = nil, headline: Headline, metrics: [Metric], windows: [QuotaWindow], remainingPercent: Double?, nextResetAt: String?, nextResetLabel: String?, spotlight: String?, models: [ModelInfo]?, costSummary: CostSummary?, sourceFilePath: String? = nil) {
         self.id = id
         self.providerId = providerId
         self.accountId = accountId
@@ -296,6 +302,7 @@ struct ProviderData: Identifiable, Codable, Sendable {
         self.spotlight = spotlight
         self.models = models
         self.costSummary = costSummary
+        self.sourceFilePath = sourceFilePath
     }
     
     var remainingPercentValue: Double {

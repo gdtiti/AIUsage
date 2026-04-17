@@ -32,6 +32,7 @@ public struct ProviderSummary: Codable, Sendable {
     public var spotlight: String
     public var unpricedModels: [String]?
     public var raw: ProviderUsage?
+    public var sourceFilePath: String?
 }
 
 public struct ThemeInfo: Codable, Sendable {

@@ -347,6 +347,7 @@ public actor ProviderEngine {
                 summary.id = uniqueId
                 summary.providerId = provider.id
                 summary.accountId = effectiveId
+                summary.sourceFilePath = fetchResult.sourceFilePath ?? usage.source?.roots?.first
                 return ProviderResult(
                     id: uniqueId,
                     providerId: provider.id,
@@ -360,6 +361,7 @@ public actor ProviderEngine {
                 summary.id = uniqueId
                 summary.providerId = provider.id
                 summary.accountId = acctId
+                summary.sourceFilePath = fetchResult.sourceFilePath
                 if let label = fetchResult.accountLabel {
                     summary.accountLabel = label
                 }

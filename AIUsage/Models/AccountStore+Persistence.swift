@@ -41,6 +41,17 @@ enum AccountIdentityPolicy {
         normalizedLookupValue(provider.accountLabel)
     }
 
+    static func normalizedSourceFilePath(_ path: String?) -> String? {
+        guard let path = path?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else { return nil }
+        return AccountCredentialStore.normalizedAuthFilePath(path)
+    }
+
+    static func sourceFilePathsMatch(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let a = normalizedSourceFilePath(lhs),
+              let b = normalizedSourceFilePath(rhs) else { return false }
+        return a == b
+    }
+
     static func maxTimestampString(_ values: String?...) -> String? {
         values
             .compactMap { $0?.nilIfBlank }
@@ -58,8 +69,8 @@ enum AccountIdentityPolicy {
             if let credentialId = account.credentialId?.lowercased().nilIfBlank {
                 return "\(providerId):cred:\(credentialId)"
             }
-            if let accountId = account.normalizedAccountId, !account.normalizedEmail.isEmpty {
-                return "\(providerId):account:\(accountId):email:\(account.normalizedEmail)"
+            if let normalized = normalizedSourceFilePath(account.sourceFilePath) {
+                return "\(providerId):path:\(normalized)"
             }
             return "\(providerId):stored:\(account.id.lowercased())"
         }
@@ -137,6 +148,9 @@ enum AccountIdentityPolicy {
         if merged.providerResultId?.nilIfBlank == nil {
             merged.providerResultId = secondary.providerResultId?.nilIfBlank
         }
+        if merged.sourceFilePath?.nilIfBlank == nil {
+            merged.sourceFilePath = secondary.sourceFilePath?.nilIfBlank
+        }
         merged.lastSeenAt = maxTimestampString(preferred.lastSeenAt, secondary.lastSeenAt)
         merged.isHidden = preferred.isHidden && secondary.isHidden
         return merged
@@ -155,6 +169,13 @@ enum AccountIdentityPolicy {
             }
         }
 
+        if isMultiWorkspace(stored.providerId) {
+            if sourceFilePathsMatch(stored.sourceFilePath, provider.sourceFilePath) {
+                return true
+            }
+            return false
+        }
+
         if let storedResultId = stored.normalizedProviderResultId {
             let liveId = provider.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             if storedResultId == liveId {
@@ -168,19 +189,12 @@ enum AccountIdentityPolicy {
         if let storedAccountId = stored.normalizedAccountId,
            let liveAccountId = normalizedLiveAccountID(for: provider) {
             if storedAccountId == liveAccountId {
-                if isMultiWorkspace(stored.providerId) {
-                    let liveEmail = normalizedAccountIdentifier(for: provider)
-                    if let liveEmail, !stored.normalizedEmail.isEmpty {
-                        return stored.normalizedEmail == liveEmail
-                    }
-                }
                 return true
             }
             return false
         }
 
-        if !isMultiWorkspace(stored.providerId),
-           let liveEmail = normalizedAccountIdentifier(for: provider),
+        if let liveEmail = normalizedAccountIdentifier(for: provider),
            stored.normalizedEmail == liveEmail {
             return true
         }
@@ -207,26 +221,33 @@ enum AccountIdentityPolicy {
             }
         }
 
-        // Step 1: accountId 精确匹配（Codex 追加 email 校验）
-        let liveAccountId = normalizedLiveAccountID(for: provider)
+        // Step 0.5: sourceFilePath 归一化路径匹配（仅 multi-workspace provider）
         let liveIsMultiWs = isMultiWorkspace(provider.baseProviderId)
+        if liveIsMultiWs {
+            if let livePath = provider.sourceFilePath {
+                return registry.firstIndex(where: {
+                    !reservedStoredIDs.contains($0.id) && !$0.isHidden &&
+                    $0.providerId == provider.baseProviderId &&
+                    sourceFilePathsMatch($0.sourceFilePath, livePath)
+                })
+            }
+            return nil
+        }
+
+        // Step 1: accountId 精确匹配
+        let liveAccountId = normalizedLiveAccountID(for: provider)
         if let liveAccountId {
             if let accountIdMatch = registry.firstIndex(where: {
                 guard !reservedStoredIDs.contains($0.id), !$0.isHidden,
                       $0.providerId == provider.baseProviderId,
                       $0.normalizedAccountId == liveAccountId else { return false }
-                if liveIsMultiWs,
-                   let liveEmail = normalizedAccountIdentifier(for: provider),
-                   !$0.normalizedEmail.isEmpty {
-                    return $0.normalizedEmail == liveEmail
-                }
                 return true
             }) {
                 return accountIdMatch
             }
         }
 
-        // Step 2: providerResultId / email 模糊匹配（multi-ws 在 matchesLive 内部已禁用 email 回退）
+        // Step 2: providerResultId / email 模糊匹配
         if let exactIndex = registry.firstIndex(where: {
             !reservedStoredIDs.contains($0.id) && !$0.isHidden && matchesLive(stored: $0, provider: provider)
         }) {
@@ -234,7 +255,6 @@ enum AccountIdentityPolicy {
         }
 
         guard allowUnseenCredentialFallback,
-              !liveIsMultiWs,
               extractCredentialId(from: provider.id) != nil else {
             return nil
         }
@@ -262,25 +282,17 @@ enum AccountIdentityPolicy {
             return directMatch
         }
 
+        if isMultiWorkspace(account.providerId) {
+            return nil
+        }
+
         let normalizedAccountId = account.normalizedAccountId
-        let isMultiWs = isMultiWorkspace(account.providerId)
 
         if let normalizedAccountId,
            let accountIDMatch = candidates.first(where: {
-               guard normalizedLookupValue($0.metadata["accountId"]) == normalizedAccountId else { return false }
-               if isMultiWs {
-                   let credEmail = normalizedLookupValue(
-                       $0.metadata["accountEmail"] ?? $0.metadata["accountHandle"] ?? $0.accountLabel
-                   )
-                   return !account.normalizedEmail.isEmpty && credEmail == account.normalizedEmail
-               }
-               return true
+               normalizedLookupValue($0.metadata["accountId"]) == normalizedAccountId
            }) {
             return accountIDMatch
-        }
-
-        if isMultiWs {
-            return nil
         }
 
         if !account.normalizedEmail.isEmpty,
@@ -471,6 +483,10 @@ private struct AccountRegistryRefreshSnapshot {
                     hidden.credentialId = inferredCredentialId
                     didChange = true
                 }
+                if let livePath = provider.sourceFilePath, hidden.sourceFilePath != livePath {
+                    hidden.sourceFilePath = livePath
+                    didChange = true
+                }
                 if hidden.lastSeenAt != now {
                     hidden.lastSeenAt = now
                     didChange = true
@@ -504,6 +520,10 @@ private struct AccountRegistryRefreshSnapshot {
                     updated.credentialId = inferredCredentialId
                     didChange = true
                 }
+                if let livePath = provider.sourceFilePath, updated.sourceFilePath != livePath {
+                    updated.sourceFilePath = livePath
+                    didChange = true
+                }
                 if updated.lastSeenAt != now {
                     updated.lastSeenAt = now
                     didChange = true
@@ -524,10 +544,7 @@ private struct AccountRegistryRefreshSnapshot {
                         if let inferredCredentialId {
                             return $0.credentialId == inferredCredentialId
                         }
-                        if let normalizedNewAccountId, $0.normalizedAccountId == normalizedNewAccountId {
-                            return true
-                        }
-                        return false
+                        return AccountIdentityPolicy.sourceFilePathsMatch($0.sourceFilePath, provider.sourceFilePath)
                     }
                     if let normalizedNewAccountId, $0.normalizedAccountId == normalizedNewAccountId {
                         return true
@@ -551,6 +568,10 @@ private struct AccountRegistryRefreshSnapshot {
                         existing.credentialId = inferredCredentialId
                         didChange = true
                     }
+                    if let livePath = provider.sourceFilePath, existing.sourceFilePath != livePath {
+                        existing.sourceFilePath = livePath
+                        didChange = true
+                    }
                     if existing.lastSeenAt != now {
                         existing.lastSeenAt = now
                         didChange = true
@@ -569,7 +590,8 @@ private struct AccountRegistryRefreshSnapshot {
                         credentialId: inferredCredentialId,
                         createdAt: now,
                         lastSeenAt: now,
-                        isHidden: false
+                        isHidden: false,
+                        sourceFilePath: provider.sourceFilePath
                     )
                     accountRegistry.append(stored)
                     reservedStoredIDs.insert(stored.id)
@@ -852,6 +874,13 @@ extension AccountStore {
             }
             if let accountId, account.accountId != accountId {
                 account.accountId = accountId
+                didChange = true
+            }
+            let credSourcePath = credential.metadata["sourceIdentifier"]?.nilIfBlank
+                ?? credential.credential.nilIfBlank
+            if account.sourceFilePath == nil, let credSourcePath,
+               credential.authMethod == .authFile {
+                account.sourceFilePath = credSourcePath
                 didChange = true
             }
             if account.providerResultId != expectedResultId {

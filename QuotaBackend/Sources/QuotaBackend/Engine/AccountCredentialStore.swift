@@ -442,7 +442,7 @@ public final class AccountCredentialStore: @unchecked Sendable {
     ///   pointing at the same underlying file dedupe.
     /// - Lowercased because macOS default FS (APFS) is case-insensitive; case-sensitive
     ///   volumes accept a false positive here but that is preferable to a missed merge.
-    static func normalizedAuthFilePath(_ rawPath: String) -> String {
+    public static func normalizedAuthFilePath(_ rawPath: String) -> String {
         let expanded = NSString(string: rawPath).expandingTildeInPath
         let url = URL(fileURLWithPath: expanded)
             .resolvingSymlinksInPath()

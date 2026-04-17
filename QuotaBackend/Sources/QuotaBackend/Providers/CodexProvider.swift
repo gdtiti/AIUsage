@@ -122,18 +122,21 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                     let accountId = context.creds.accountId
                         ?? context.creds.accountEmail
                         ?? context.url.lastPathComponent
+                    let filePath = context.url.path
                     do {
                         let usage = try await fetchForAuthContext(context)
                         return AccountFetchResult(
                             accountId: accountId,
                             accountLabel: context.creds.accountEmail,
-                            result: .success(usage)
+                            result: .success(usage),
+                            sourceFilePath: filePath
                         )
                     } catch {
                         return AccountFetchResult(
                             accountId: accountId,
                             accountLabel: context.creds.accountEmail,
-                            result: .failure(error)
+                            result: .failure(error),
+                            sourceFilePath: filePath
                         )
                     }
                 }

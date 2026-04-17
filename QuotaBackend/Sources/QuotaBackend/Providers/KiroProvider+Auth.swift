@@ -355,9 +355,7 @@ extension KiroProvider {
 
         let ideProfileArn = json["profileArn"] as? String ?? json["profile_arn"] as? String
         let ctxProfileArn = authContext.tokenData.profileArn
-        if let ideArn = ideProfileArn, let ctxArn = ctxProfileArn, ideArn != ctxArn {
-            return
-        }
+        if ideProfileArn != ctxProfileArn { return }
 
         json["accessToken"] = refreshed.accessToken
         if let refreshToken = refreshed.refreshToken {

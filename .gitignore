@@ -57,6 +57,7 @@ Carthage/
 
 # === Internal planning docs ===
 docs/NEXT_VERSION_TODO.md
+docs/PROVIDER_AUDIT_PLAN.md
 
 # === Misc ===
 *.log

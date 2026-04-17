@@ -266,6 +266,17 @@ private struct AccountRegistryRefreshSnapshot {
         excluding reservedStoredIDs: Set<String>,
         allowUnseenCredentialFallback: Bool
     ) -> Int? {
+        let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+        if let liveAccountId {
+            if let accountIdMatch = accountRegistry.firstIndex(where: {
+                !reservedStoredIDs.contains($0.id) && !$0.isHidden &&
+                $0.providerId == provider.baseProviderId &&
+                $0.normalizedAccountId == liveAccountId
+            }) {
+                return accountIdMatch
+            }
+        }
+
         if let exactIndex = accountRegistry.firstIndex(where: {
             !reservedStoredIDs.contains($0.id) && !$0.isHidden && storedAccountMatchesLive($0, provider: provider)
         }) {
@@ -311,15 +322,8 @@ private struct AccountRegistryRefreshSnapshot {
         }
 
         if let storedAccountId = stored.normalizedAccountId,
-           let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
-           storedAccountId == liveAccountId {
-            return true
-        }
-
-        if let storedAccountId = stored.normalizedAccountId,
-           let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
-           storedAccountId != liveAccountId {
-            return false
+           let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank {
+            return storedAccountId == liveAccountId
         }
 
         if let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
@@ -470,7 +474,12 @@ extension AccountStore {
         if normalizeAccountRegistryAgainstCredentials() {
             didChange = true
         }
-
+        if stripCompositeAccountIds() {
+            didChange = true
+        }
+        if removeAutoDiscoveredDuplicates() {
+            didChange = true
+        }
         let beforeDedup = accountRegistry.count
         deduplicateAccountRegistry()
         if accountRegistry.count != beforeDedup {
@@ -482,6 +491,59 @@ extension AccountStore {
         }
 
         cleanupManagedCredentialArtifacts()
+    }
+
+    private func stripCompositeAccountIds() -> Bool {
+        var didChange = false
+        for index in accountRegistry.indices {
+            guard let accountId = accountRegistry[index].accountId?.nilIfBlank,
+                  accountId.contains(":") else { continue }
+            let parts = accountId.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let rawId = String(parts[0])
+            let emailPart = String(parts[1]).lowercased()
+            let storedEmail = accountRegistry[index].email.lowercased().nilIfBlank
+            if storedEmail == emailPart || emailPart.contains("@") {
+                accountRegistry[index].accountId = rawId
+                didChange = true
+            }
+        }
+        return didChange
+    }
+
+    /// Remove redundant accounts: non-credentialed when a credentialed account
+    /// exists for the same email, and accounts with invalid emails when a valid
+    /// account exists for the same provider.
+    private func removeAutoDiscoveredDuplicates() -> Bool {
+        var credentialedEmails: [String: Set<String>] = [:]
+        var providersWithValidEmail: Set<String> = []
+        for account in accountRegistry where !account.isHidden {
+            let key = account.providerId.lowercased()
+            let email = account.email.lowercased()
+            if account.credentialId != nil {
+                credentialedEmails[key, default: []].insert(email)
+            }
+            if email.contains("@") {
+                providersWithValidEmail.insert(key)
+            }
+        }
+        let before = accountRegistry.count
+        accountRegistry.removeAll { account in
+            guard !account.isHidden else { return false }
+            let key = account.providerId.lowercased()
+            let email = account.email.lowercased()
+            if account.credentialId == nil,
+               credentialedEmails[key]?.contains(email) == true {
+                return true
+            }
+            if !email.contains("@"),
+               providersWithValidEmail.contains(key),
+               account.normalizedAccountId == nil {
+                return true
+            }
+            return false
+        }
+        return accountRegistry.count != before
     }
 
     @discardableResult

@@ -355,11 +355,19 @@ public final class AccountCredentialStore: @unchecked Sendable {
         return (canonical, remappedIDs)
     }
 
+    private static let multiWorkspaceProviders: Set<String> = ["codex"]
+
     private func credentialIdentityKey(_ credential: AccountCredential) -> String {
         let provider = credential.providerId.lowercased()
 
         if let accountId = normalizedLookup(credential.metadata["accountId"]) {
             return "\(provider):account:\(accountId)"
+        }
+
+        if credential.authMethod == .authFile,
+           Self.multiWorkspaceProviders.contains(provider) {
+            let path = NSString(string: credential.credential).expandingTildeInPath
+            return "\(provider):authfile:\(path.lowercased())"
         }
 
         if let handle = normalizedLookup(

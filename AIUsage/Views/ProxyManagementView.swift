@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import QuotaBackend
 
 // MARK: - Proxy Management View
@@ -10,6 +11,8 @@ struct ProxyManagementView: View {
     @State private var editingConfig: ProxyConfiguration?
     @State private var selectedConfigId: String?
     @State private var pendingDeletionConfig: ProxyConfiguration?
+    @State private var draggingConfigId: String?
+    @State private var dropTargetIndex: Int?
     var body: some View {
         VStack(spacing: 0) {
             if viewModel.configurations.isEmpty {
@@ -181,10 +184,22 @@ struct ProxyManagementView: View {
                 Spacer()
             }
 
-            VStack(spacing: 8) {
-                ForEach(viewModel.configurations) { config in
-                    configurationCard(config)
+            VStack(spacing: 0) {
+                ForEach(Array(viewModel.configurations.enumerated()), id: \.element.id) { index, config in
+                    VStack(spacing: 0) {
+                        dropIndicator(at: index)
+                        configurationCard(config)
+                            .opacity(draggingConfigId == config.id ? 0.3 : 1.0)
+                            .onDrop(of: [.text], delegate: CardDropDelegate(
+                                targetIndex: index,
+                                draggingId: $draggingConfigId,
+                                dropTarget: $dropTargetIndex,
+                                viewModel: viewModel
+                            ))
+                            .padding(.vertical, 4)
+                    }
                 }
+                dropIndicator(at: viewModel.configurations.count)
             }
         }
         .padding(16)
@@ -198,6 +213,25 @@ struct ProxyManagementView: View {
         )
     }
 
+    // MARK: - Drag & Drop Helpers
+
+    private func dropIndicator(at index: Int) -> some View {
+        let isActive = dropTargetIndex == index
+        return HStack(spacing: 0) {
+            if isActive {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 6, height: 6)
+            }
+            Rectangle()
+                .fill(isActive ? Color.accentColor : Color.clear)
+                .frame(height: isActive ? 2 : 0)
+        }
+        .frame(height: isActive ? 6 : 2)
+        .padding(.horizontal, 4)
+        .animation(.easeInOut(duration: 0.15), value: isActive)
+    }
+
     private func configurationCard(_ config: ProxyConfiguration) -> some View {
         let isActive = viewModel.activatedConfigId == config.id
         let isBusy = viewModel.isOperationInProgress(config.id)
@@ -207,7 +241,21 @@ struct ProxyManagementView: View {
         let brandColor: Color = config.nodeType == .anthropicDirect ? Self.anthropicBrand : Self.openAIBrand
 
         return VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.quaternary)
+                    .frame(width: 16, height: 28)
+                    .contentShape(Rectangle())
+                    .onHover { hovering in
+                        if hovering { NSCursor.openHand.push() }
+                        else { NSCursor.pop() }
+                    }
+                    .onDrag {
+                        draggingConfigId = config.id
+                        return NSItemProvider(object: config.id as NSString)
+                    }
+
                 Circle()
                     .fill(isActive ? brandColor : Color.gray.opacity(0.4))
                     .frame(width: 10, height: 10)
@@ -696,6 +744,48 @@ struct ProxyManagementView: View {
         case .responses:
             return "Responses"
         }
+    }
+}
+
+// MARK: - Drag & Drop Delegate
+
+private struct CardDropDelegate: DropDelegate {
+    let targetIndex: Int
+    @Binding var draggingId: String?
+    @Binding var dropTarget: Int?
+    let viewModel: ProxyViewModel
+
+    func dropEntered(info: DropInfo) {
+        guard draggingId != nil else { return }
+        withAnimation(.easeInOut(duration: 0.15)) {
+            dropTarget = targetIndex
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTarget == targetIndex {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                dropTarget = nil
+            }
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let id = draggingId else { return false }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+            viewModel.moveConfiguration(fromId: id, toIndex: targetIndex)
+        }
+        draggingId = nil
+        dropTarget = nil
+        return true
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingId != nil
     }
 }
 

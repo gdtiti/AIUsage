@@ -396,6 +396,7 @@ public struct ClaudeProvider: ProviderFetcher {
         "claude-haiku-4-5":          Pricing(1e-6, 5e-6, 1.25e-6, 1e-7),
         "claude-opus-4-5":           Pricing(5e-6, 2.5e-5, 6.25e-6, 5e-7),
         "claude-opus-4-6":           Pricing(5e-6, 2.5e-5, 6.25e-6, 5e-7),
+        "claude-opus-4-7":           Pricing(5e-6, 2.5e-5, 6.25e-6, 5e-7),
         "claude-sonnet-4-5":         Pricing(3e-6, 1.5e-5, 3.75e-6, 3e-7, threshold: 200_000, iA: 6e-6, oA: 2.25e-5, ccA: 7.5e-6, crA: 6e-7),
         "claude-sonnet-4-6":         Pricing(3e-6, 1.5e-5, 3.75e-6, 3e-7, threshold: 200_000, iA: 6e-6, oA: 2.25e-5, ccA: 7.5e-6, crA: 6e-7),
         "claude-opus-4-20250514":    Pricing(1.5e-5, 7.5e-5, 1.875e-5, 1.5e-6),

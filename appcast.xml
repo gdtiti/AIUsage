@@ -6,11 +6,12 @@
       <title>Version 0.4.14</title>
       <sparkle:version>0.4.14</sparkle:version>
       <sparkle:shortVersionString>0.4.14</sparkle:shortVersionString>
-      <pubDate>Fri, 17 Apr 2026 12:03:46 +0000</pubDate>
+      <pubDate>Fri, 17 Apr 2026 12:07:52 +0000</pubDate>
       <enclosure
         url="https://github.com/sylearn/AIUsage/releases/download/v0.4.14/AIUsage-0.4.14-macOS.zip"
         type="application/octet-stream"
-        length="6680162"
+        sparkle:edSignature="xpWuLgVzDBTa7w2/7oR5osfAUOZNs50Nh46q6NDKGxBXX+/EwpcjrnFWd7QXRjU+FAqvOXXCf3G5IboLcfSMCQ=="
+        length="6735223"
       />
     </item>
   </channel>

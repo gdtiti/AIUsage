@@ -160,6 +160,17 @@ final class AppSettings: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
+    func pruneMenuBarPinnedIds(validQuotaIds: Set<String>, validCostIds: Set<String>) {
+        let cleanedQuota = menuBarPinnedQuotaAccountIds.intersection(validQuotaIds)
+        let cleanedCost = menuBarPinnedCostSourceIds.intersection(validCostIds)
+        if cleanedQuota != menuBarPinnedQuotaAccountIds {
+            menuBarPinnedQuotaAccountIds = cleanedQuota
+        }
+        if cleanedCost != menuBarPinnedCostSourceIds {
+            menuBarPinnedCostSourceIds = cleanedCost
+        }
+    }
+
     private init() {
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
         claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)

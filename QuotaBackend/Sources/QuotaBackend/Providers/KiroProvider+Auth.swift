@@ -47,7 +47,7 @@ extension KiroProvider {
                     sourceType: sourceType(for: url)
                 )
             }
-        return enrichEmailHints(in: contexts)
+        return enrichEmailHints(in: deduplicateByProfile(contexts))
     }
 
     /// Legacy single-file resolution (picks latest modified)
@@ -57,6 +57,16 @@ extension KiroProvider {
             throw ProviderError("not_logged_in", "No valid Kiro auth files found.")
         }
         return first
+    }
+
+    /// Keep only the newest auth context per profileArn.
+    /// Contexts without profileArn are always kept (cannot determine identity).
+    func deduplicateByProfile(_ contexts: [AuthContext]) -> [AuthContext] {
+        var seenProfiles = Set<String>()
+        return contexts.filter { ctx in
+            guard let arn = ctx.tokenData.profileArn?.lowercased(), !arn.isEmpty else { return true }
+            return seenProfiles.insert(arn).inserted
+        }
     }
 
     func sourceType(for url: URL) -> String {

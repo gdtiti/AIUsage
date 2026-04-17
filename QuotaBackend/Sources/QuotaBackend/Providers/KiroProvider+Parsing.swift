@@ -1,6 +1,25 @@
 import CryptoKit
 import Foundation
 
+// MARK: - Account Identity
+
+extension KiroProvider {
+    /// Stable accountId derived from API response (email) → token email → profileArn.
+    /// Avoids using filenames which differ per auth source.
+    func stableAccountId(usage: ProviderUsage, context: AuthContext) -> String {
+        usage.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+            ?? context.tokenData.email?.nilIfBlank
+            ?? context.tokenData.profileArn?.nilIfBlank
+            ?? context.url.lastPathComponent
+    }
+
+    func fallbackAccountId(for context: AuthContext) -> String {
+        context.tokenData.email?.nilIfBlank
+            ?? context.tokenData.profileArn?.nilIfBlank
+            ?? context.url.lastPathComponent
+    }
+}
+
 // MARK: - Normalize Usage
 
 extension KiroProvider {
@@ -204,6 +223,22 @@ extension KiroProvider {
         case let v as NSNumber: return v.doubleValue
         case let v as String: return Double(v)
         default: return nil
+        }
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private extension Optional where Wrapped == String {
+    var nilIfBlank: String? {
+        switch self {
+        case .some(let value): return value.nilIfBlank
+        case .none: return nil
         }
     }
 }

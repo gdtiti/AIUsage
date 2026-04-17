@@ -437,13 +437,25 @@ public final class AccountCredentialStore: @unchecked Sendable {
 
     private static let multiWorkspaceProviders: Set<String> = ["codex"]
 
+    /// Normalize an auth-file path for identity comparison.
+    /// - Expands `~`, removes `//` / `.` / `..`, resolves symlinks so two credentials
+    ///   pointing at the same underlying file dedupe.
+    /// - Lowercased because macOS default FS (APFS) is case-insensitive; case-sensitive
+    ///   volumes accept a false positive here but that is preferable to a missed merge.
+    static func normalizedAuthFilePath(_ rawPath: String) -> String {
+        let expanded = NSString(string: rawPath).expandingTildeInPath
+        let url = URL(fileURLWithPath: expanded)
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+        return url.path.lowercased()
+    }
+
     private func credentialIdentityKey(_ credential: AccountCredential) -> String {
         let provider = credential.providerId.lowercased()
 
         if Self.multiWorkspaceProviders.contains(provider) {
             if credential.authMethod == .authFile {
-                let path = NSString(string: credential.credential).expandingTildeInPath
-                return "\(provider):authfile:\(path.lowercased())"
+                return "\(provider):authfile:\(Self.normalizedAuthFilePath(credential.credential))"
             }
             if let accountId = normalizedLookup(credential.metadata["accountId"]) {
                 let handle = normalizedLookup(
@@ -472,8 +484,7 @@ public final class AccountCredentialStore: @unchecked Sendable {
         }
 
         if credential.authMethod == .authFile {
-            let path = NSString(string: credential.credential).expandingTildeInPath
-            return "\(provider):authfile:\(path.lowercased())"
+            return "\(provider):authfile:\(Self.normalizedAuthFilePath(credential.credential))"
         }
 
         return "\(provider):raw:\(credential.id.lowercased())"

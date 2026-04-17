@@ -287,6 +287,13 @@ extension SettingsView {
         )
     }
 
+    private func pruneStaleMenuBarPins() {
+        let allEntries = appState.providerAccountGroups.flatMap(\.accounts)
+        let quotaIds = Set(allEntries.filter { $0.liveProvider?.category != "local-cost" }.map(\.id))
+        let costIds = Set(allEntries.filter { $0.liveProvider?.category == "local-cost" }.map(\.id))
+        settings.pruneMenuBarPinnedIds(validQuotaIds: quotaIds, validCostIds: costIds)
+    }
+
     private var menuBarSettingsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(L("Menu Bar Display", "菜单栏显示"))
@@ -339,6 +346,7 @@ extension SettingsView {
                 .foregroundStyle(.orange)
             }
         }
+        .onAppear { pruneStaleMenuBarPins() }
     }
 
     private var menuBarQuotaAccountsPicker: some View {
@@ -432,7 +440,27 @@ extension SettingsView {
     }
 
     private var totalPinnedCount: Int {
-        settings.menuBarPinnedQuotaAccountIds.count + settings.menuBarPinnedCostSourceIds.count
+        let validQuotaIds = validPinnedQuotaIds
+        let validCostIds = validPinnedCostIds
+        return validQuotaIds.count + validCostIds.count
+    }
+
+    private var validPinnedQuotaIds: Set<String> {
+        let allEntryIds = Set(
+            appState.providerAccountGroups.flatMap { $0.accounts }
+                .filter { $0.liveProvider?.category != "local-cost" }
+                .map(\.id)
+        )
+        return settings.menuBarPinnedQuotaAccountIds.intersection(allEntryIds)
+    }
+
+    private var validPinnedCostIds: Set<String> {
+        let allEntryIds = Set(
+            appState.providerAccountGroups.flatMap { $0.accounts }
+                .filter { $0.liveProvider?.category == "local-cost" }
+                .map(\.id)
+        )
+        return settings.menuBarPinnedCostSourceIds.intersection(allEntryIds)
     }
 
     private func pinnedAccountList(

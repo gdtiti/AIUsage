@@ -36,8 +36,41 @@ public struct GeminiProvider: ProviderFetcher, CredentialAcceptingProvider {
         }
 
         let path = NSString(string: credential.credential).expandingTildeInPath
+
+        if !FileManager.default.fileExists(atPath: path) {
+            if let resynced = resyncFromOriginalSource(credential: credential, managedPath: path) {
+                let creds = try loadCredentials(from: resynced)
+                return try await fetchUsageWithRetry(creds: creds, source: SourceInfo(mode: "manual", type: "auth-file"), credentialPath: resynced)
+            }
+        }
+
         let creds = try loadCredentials(from: path)
         return try await fetchUsageWithRetry(creds: creds, source: SourceInfo(mode: "manual", type: "auth-file"), credentialPath: path)
+    }
+
+    private func resyncFromOriginalSource(credential: AccountCredential, managedPath: String) -> String? {
+        let originalPath: String
+        if let sourceId = credential.metadata["sourceIdentifier"], sourceId.hasPrefix("file:") {
+            originalPath = String(sourceId.dropFirst("file:".count))
+        } else {
+            originalPath = "\(homeDirectory)/.gemini/oauth_creds.json"
+        }
+
+        let expanded = NSString(string: originalPath).expandingTildeInPath
+        guard expanded != managedPath, FileManager.default.fileExists(atPath: expanded) else { return nil }
+
+        let expectedEmail = credential.accountLabel?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if let expectedEmail, !expectedEmail.isEmpty,
+           let originalCreds = try? loadCredentials(from: expanded) {
+            let originalEmail = originalCreds.accountEmail?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            guard originalEmail == expectedEmail else { return nil }
+        }
+
+        let dir = (managedPath as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try? FileManager.default.copyItem(atPath: expanded, toPath: managedPath)
+
+        return FileManager.default.fileExists(atPath: managedPath) ? managedPath : expanded
     }
 
     private func fetchUsageWithRetry(creds: GeminiCredentials, source: SourceInfo, credentialPath: String) async throws -> ProviderUsage {

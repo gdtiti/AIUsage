@@ -471,7 +471,7 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         let effectivePlan = apiPlan ?? jwtPlanType
         let wsType = Self.workspaceType(fromPlan: effectivePlan)
         usage.extra["workspaceType"] = AnyCodable(wsType)
-        if let accountId { usage.extra["workspaceId"] = AnyCodable(accountId) }
+        if let rawAccountId { usage.extra["workspaceId"] = AnyCodable(rawAccountId) }
         if let jwtUserId { usage.extra["userId"] = AnyCodable(jwtUserId) }
 
         usage.primary = parseWindow(rateLimit["primary_window"] as? [String: Any])

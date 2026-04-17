@@ -37,7 +37,7 @@ public struct KiroProvider: MultiAccountProviderFetcher, CredentialAcceptingProv
 
         let authContext = try resolveCredentialAuthContext(credential)
         var usage = try await fetchForAuthContext(authContext)
-        usage.usageAccountId = authContext.tokenData.email ?? authContext.url.lastPathComponent
+        usage.usageAccountId = stableAccountId(usage: usage, context: authContext)
         if usage.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
             usage.accountEmail = credential.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -65,10 +65,10 @@ public struct KiroProvider: MultiAccountProviderFetcher, CredentialAcceptingProv
             let ctx = allContexts[0]
             do {
                 let usage = try await fetchForAuthContext(ctx)
-                let accountId = ctx.tokenData.email ?? ctx.url.lastPathComponent
-                return [AccountFetchResult(accountId: accountId, accountLabel: ctx.tokenData.email, result: .success(usage))]
+                let accountId = stableAccountId(usage: usage, context: ctx)
+                return [AccountFetchResult(accountId: accountId, accountLabel: usage.accountEmail ?? ctx.tokenData.email, result: .success(usage))]
             } catch {
-                let accountId = ctx.tokenData.email ?? ctx.url.lastPathComponent
+                let accountId = fallbackAccountId(for: ctx)
                 return [AccountFetchResult(accountId: accountId, accountLabel: ctx.tokenData.email, result: .failure(error))]
             }
         }
@@ -76,11 +76,12 @@ public struct KiroProvider: MultiAccountProviderFetcher, CredentialAcceptingProv
         return await withTaskGroup(of: AccountFetchResult.self) { group in
             for ctx in allContexts {
                 group.addTask {
-                    let accountId = ctx.tokenData.email ?? ctx.url.lastPathComponent
                     do {
                         let usage = try await fetchForAuthContext(ctx)
-                        return AccountFetchResult(accountId: accountId, accountLabel: ctx.tokenData.email, result: .success(usage))
+                        let accountId = stableAccountId(usage: usage, context: ctx)
+                        return AccountFetchResult(accountId: accountId, accountLabel: usage.accountEmail ?? ctx.tokenData.email, result: .success(usage))
                     } catch {
+                        let accountId = fallbackAccountId(for: ctx)
                         return AccountFetchResult(accountId: accountId, accountLabel: ctx.tokenData.email, result: .failure(error))
                     }
                 }

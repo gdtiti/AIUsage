@@ -127,6 +127,8 @@ extension ProviderAuthManager {
         }
     }
 
+    private static let kiroFingerprintKeys = ["email", "userId", "accountEmail", "profile_arn", "profileArn"]
+
     internal static func kiroCandidates() -> [ProviderAuthCandidate] {
         var candidates = authFileCandidates(providerId: "kiro", directory: "~/.cli-proxy-api", prefix: "kiro-") { url, json in
             let email = stringValue(json["email"])
@@ -136,7 +138,7 @@ extension ProviderAuthManager {
                 id: "kiro:\(canonicalPath(url.path))",
                 providerId: "kiro",
                 sourceIdentifier: "file:\(canonicalPath(url.path))",
-                sessionFingerprint: sessionFingerprint(from: json, preferredKeys: ["email", "userId", "accountEmail"]),
+                sessionFingerprint: sessionFingerprint(from: json, preferredKeys: kiroFingerprintKeys),
                 title: title,
                 subtitle: "CLI Proxy API",
                 detail: compactDetail(parts: [displayPath(url.path), formattedDate(modificationDate(for: url))]),
@@ -158,7 +160,7 @@ extension ProviderAuthManager {
                     id: "kiro:\(canonicalPath(ideURL.path))",
                     providerId: "kiro",
                     sourceIdentifier: "file:\(canonicalPath(ideURL.path))",
-                    sessionFingerprint: sessionFingerprint(from: json, preferredKeys: ["email", "userId", "accountEmail"]),
+                    sessionFingerprint: sessionFingerprint(from: json, preferredKeys: kiroFingerprintKeys),
                     title: "Kiro (\(provider))",
                     subtitle: "IDE session cache",
                     detail: compactDetail(parts: [displayPath(ideURL.path), formattedDate(modificationDate(for: ideURL))]),

@@ -515,13 +515,18 @@ struct MenuBarAccountRow: View {
     }
 
     private var secondaryLabel: String? {
-        if let ws = entry.workspaceLabel, ws != "Personal" {
-            if let note = entry.accountNote?.nilIfBlank {
-                return "\(ws) · \(note)"
-            }
-            return ws
+        if let note = entry.accountNote?.nilIfBlank {
+            return note
         }
-        return entry.accountNote?.nilIfBlank
+        return nil
+    }
+
+    private var membershipBadge: String? {
+        entry.liveProvider?.membershipLabel?.nilIfBlank
+    }
+
+    private var membershipColor: Color {
+        membershipBadgeTint(for: membershipBadge)
     }
 
     var body: some View {
@@ -595,10 +600,29 @@ struct MenuBarAccountRow: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(primaryLabel)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text(primaryLabel)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+
+                    if let badge = membershipBadge {
+                        Text(badge)
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(membershipColor.opacity(0.85))
+                            .clipShape(Capsule())
+                    }
+
+                    if isPinnedToStatusBar {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 7))
+                            .foregroundStyle(accentColor.opacity(0.5))
+                            .rotationEffect(.degrees(45))
+                    }
+                }
 
                 if let secondary = secondaryLabel {
                     Text(secondary)
@@ -609,13 +633,6 @@ struct MenuBarAccountRow: View {
             }
 
             Spacer(minLength: 4)
-
-            if isPinnedToStatusBar {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 8))
-                    .foregroundStyle(accentColor.opacity(0.6))
-                    .rotationEffect(.degrees(45))
-            }
 
             if isCostProvider, let usd = costMonthUsd {
                 Text(MenuBarHelpers.formatCostCompact(usd))

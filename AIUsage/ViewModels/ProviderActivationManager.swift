@@ -85,14 +85,18 @@ final class ProviderActivationManager: ObservableObject {
 
     func isActiveAccount(_ entry: ProviderAccountEntry) -> Bool {
         guard let activeId = activeProviderAccountIds[entry.providerId]?.lowercased() else { return false }
-        let candidates = [
-            entry.storedAccount?.accountId,
+
+        let entryAccountId = (entry.storedAccount?.accountId ?? entry.liveProvider?.accountId)?.lowercased().nilIfBlank
+        if let entryAccountId {
+            return entryAccountId == activeId
+        }
+
+        let emailCandidates = [
             entry.storedAccount?.email,
-            entry.liveProvider?.accountId,
             entry.liveProvider?.accountLabel,
             entry.accountEmail
         ].compactMap { $0?.lowercased().nilIfBlank }
-        return candidates.contains(activeId)
+        return emailCandidates.contains(activeId)
     }
 
     func isActiveCodexAccount(_ entry: ProviderAccountEntry) -> Bool {
@@ -125,7 +129,7 @@ final class ProviderActivationManager: ObservableObject {
 
         try writeAuthFileWithBackup(targetDir: codexDir, targetPath: targetPath, data: nativeData, fm: fm)
 
-        let newActiveId = email ?? accountId
+        let newActiveId = accountId ?? email
         activeProviderAccountIds["codex"] = newActiveId
         persistActiveIds()
 
@@ -303,8 +307,13 @@ final class ProviderActivationManager: ObservableObject {
     private func resolveCliProxyOrManagedSource(prefix: String, email: String?, entry: ProviderAccountEntry) -> String? {
         let fm = FileManager.default
         let proxyDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
+        let entryAccountId = entry.storedAccount?.accountId ?? entry.liveProvider?.accountId
 
         if let email {
+            if let entryAccountId,
+               let exactPath = proxyFileMatchingAccountId(dir: proxyDir, prefix: prefix, email: email, accountId: entryAccountId, fm: fm) {
+                return exactPath
+            }
             if let freshPath = freshestCliProxyFile(dir: proxyDir, prefix: prefix, email: email, fm: fm) {
                 return freshPath
             }
@@ -347,6 +356,24 @@ final class ProviderActivationManager: ObservableObject {
         return best?.path
     }
 
+    private func proxyFileMatchingAccountId(dir: String, prefix: String, email: String, accountId: String, fm: FileManager) -> String? {
+        guard let files = try? fm.contentsOfDirectory(atPath: dir) else { return nil }
+        let emailLower = email.lowercased()
+        let rawAccountId = accountId.lowercased().components(separatedBy: ":").first ?? accountId.lowercased()
+        let matching = files.filter {
+            $0.hasPrefix("\(prefix)-") && $0.hasSuffix(".json") && $0.lowercased().contains(emailLower)
+        }
+        for file in matching {
+            let fullPath = "\(dir)/\(file)"
+            guard let data = fm.contents(atPath: fullPath),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            let fileAccountId = (json["account_id"] as? String)?.lowercased()
+                ?? ((json["tokens"] as? [String: Any])?["account_id"] as? String)?.lowercased()
+            if fileAccountId == rawAccountId { return fullPath }
+        }
+        return nil
+    }
+
     // MARK: Detection
 
     private func applyDetectedActiveId(_ detectedId: String?, for providerId: String, reason: String) {
@@ -386,34 +413,20 @@ final class ProviderActivationManager: ObservableObject {
             return
         }
 
-        var email = json["email"] as? String
         let tokens = json["tokens"] as? [String: Any]
-        let accountId = (tokens?["account_id"] as? String)
+        let rawAccountId = (tokens?["account_id"] as? String)
             ?? (tokens?["accountId"] as? String)
             ?? (json["account_id"] as? String)
             ?? (json["accountId"] as? String)
+        let email = (json["email"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
 
-        if email == nil, let uuid = accountId {
-            email = resolveCodexEmailFromProxy(accountId: uuid)
+        let detectedId: String?
+        if let rawAccountId, let email {
+            detectedId = "\(rawAccountId):\(email)"
+        } else {
+            detectedId = rawAccountId ?? email
         }
-
-        let detectedId = email ?? accountId
         applyDetectedActiveId(detectedId, for: "codex", reason: "auth file has no detectable active account")
-    }
-
-    private func resolveCodexEmailFromProxy(accountId: String) -> String? {
-        let proxyDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
-        guard let files = try? FileManager.default.contentsOfDirectory(atPath: proxyDir) else { return nil }
-        for file in files where file.hasPrefix("codex-") && file.hasSuffix(".json") {
-            let path = "\(proxyDir)/\(file)"
-            guard let data = FileManager.default.contents(atPath: path),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let fileAccountId = json["account_id"] as? String,
-                  fileAccountId == accountId,
-                  let email = json["email"] as? String else { continue }
-            return email
-        }
-        return nil
     }
 
     func detectActiveGeminiAccount() {

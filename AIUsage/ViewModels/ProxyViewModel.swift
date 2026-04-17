@@ -103,6 +103,16 @@ class ProxyViewModel: ObservableObject {
         UserDefaults.standard.set(activatedConfigId, forKey: DefaultsKey.proxyActivatedConfigId)
     }
 
+    func moveConfiguration(fromId: String, toIndex: Int) {
+        guard let fromIndex = configurations.firstIndex(where: { $0.id == fromId }) else { return }
+        let clampedTarget = min(max(toIndex, 0), configurations.count)
+        guard fromIndex != clampedTarget, fromIndex != clampedTarget - 1 else { return }
+        let item = configurations.remove(at: fromIndex)
+        let insertAt = clampedTarget > fromIndex ? clampedTarget - 1 : clampedTarget
+        configurations.insert(item, at: insertAt)
+        saveConfigurations()
+    }
+
     func addConfiguration(_ config: ProxyConfiguration) {
         configurations.append(config)
         if config.nodeType == .openaiProxy {

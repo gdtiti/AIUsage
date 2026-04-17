@@ -166,8 +166,14 @@ private struct AccountRegistryRefreshSnapshot {
                 let isMultiWs = Self.multiWorkspaceProviders.contains(provider.baseProviderId.lowercased())
                 if let dupeIndex = accountRegistry.firstIndex(where: {
                     guard $0.providerId == provider.baseProviderId, !$0.isHidden else { return false }
-                    if isMultiWs, let inferredCredentialId {
-                        return $0.credentialId == inferredCredentialId
+                    if isMultiWs {
+                        if let inferredCredentialId {
+                            return $0.credentialId == inferredCredentialId
+                        }
+                        if let normalizedNewAccountId, $0.normalizedAccountId == normalizedNewAccountId {
+                            return true
+                        }
+                        return false
                     }
                     if let normalizedNewAccountId, $0.normalizedAccountId == normalizedNewAccountId {
                         return true
@@ -287,13 +293,20 @@ private struct AccountRegistryRefreshSnapshot {
             }
         }
 
-        // Step 1: accountId 精确匹配
+        // Step 1: accountId 精确匹配（Codex 追加 email 校验）
         let liveAccountId = provider.accountId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank
+        let liveIsMultiWs = Self.multiWorkspaceProviders.contains(provider.baseProviderId.lowercased())
         if let liveAccountId {
             if let accountIdMatch = accountRegistry.firstIndex(where: {
-                !reservedStoredIDs.contains($0.id) && !$0.isHidden &&
-                $0.providerId == provider.baseProviderId &&
-                $0.normalizedAccountId == liveAccountId
+                guard !reservedStoredIDs.contains($0.id), !$0.isHidden,
+                      $0.providerId == provider.baseProviderId,
+                      $0.normalizedAccountId == liveAccountId else { return false }
+                if liveIsMultiWs,
+                   let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
+                   !$0.normalizedEmail.isEmpty {
+                    return $0.normalizedEmail == liveEmail
+                }
+                return true
             }) {
                 return accountIdMatch
             }
@@ -307,6 +320,7 @@ private struct AccountRegistryRefreshSnapshot {
         }
 
         guard allowUnseenCredentialFallback,
+              !liveIsMultiWs,
               extractCredentialId(from: provider.id) != nil else {
             return nil
         }
@@ -358,7 +372,8 @@ private struct AccountRegistryRefreshSnapshot {
             return false
         }
 
-        if let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
+        if !Self.multiWorkspaceProviders.contains(stored.providerId.lowercased()),
+           let liveEmail = provider.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfBlank,
            stored.normalizedEmail == liveEmail {
             return true
         }
@@ -576,6 +591,7 @@ extension AccountStore {
             let key = account.providerId.lowercased()
             let email = account.email.lowercased()
             if account.credentialId == nil,
+               !Self.multiWorkspaceProviders.contains(key),
                credentialedEmails[key]?.contains(email) == true {
                 return true
             }
@@ -659,6 +675,14 @@ extension AccountStore {
                 return false
             }
 
+            let isMultiWs = Self.multiWorkspaceProviders.contains(providerId.lowercased())
+            if isMultiWs {
+                guard let normalizedAccountId,
+                      normalizedAccountLookupValue(credential.metadata["accountId"]) == normalizedAccountId else {
+                    return false
+                }
+            }
+
             return normalizedAccountLookupValue(
                 credential.metadata["accountEmail"]
                     ?? credential.metadata["accountHandle"]
@@ -732,6 +756,11 @@ extension AccountStore {
 
             guard let credentialId = resolvedCredentialId else { continue }
             guard let credential = credentialLookup[credentialId] else {
+                if account.credentialId != nil {
+                    account.credentialId = nil
+                    account.providerResultId = nil
+                    didChange = true
+                }
                 accountRegistry[index] = account
                 continue
             }

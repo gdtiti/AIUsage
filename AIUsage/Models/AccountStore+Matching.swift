@@ -58,11 +58,18 @@ extension AccountStore {
         }
 
         let liveAccountId = normalizedLiveAccountID(for: provider)
+        let liveIsMultiWs = Self.multiWorkspaceProviders.contains(provider.baseProviderId.lowercased())
         if let liveAccountId {
             if let accountIdMatch = accountRegistry.firstIndex(where: {
-                !reservedStoredIDs.contains($0.id) && !$0.isHidden &&
-                $0.providerId == provider.baseProviderId &&
-                $0.normalizedAccountId == liveAccountId
+                guard !reservedStoredIDs.contains($0.id), !$0.isHidden,
+                      $0.providerId == provider.baseProviderId,
+                      $0.normalizedAccountId == liveAccountId else { return false }
+                if liveIsMultiWs,
+                   let liveEmail = normalizedAccountIdentifier(for: provider),
+                   !$0.normalizedEmail.isEmpty {
+                    return $0.normalizedEmail == liveEmail
+                }
+                return true
             }) {
                 return accountIdMatch
             }
@@ -75,6 +82,7 @@ extension AccountStore {
         }
 
         guard allowUnseenCredentialFallback,
+              !liveIsMultiWs,
               extractCredentialId(from: provider.id) != nil else {
             return nil
         }
@@ -126,7 +134,8 @@ extension AccountStore {
             return false
         }
 
-        if let liveEmail = normalizedAccountIdentifier(for: provider),
+        if !Self.multiWorkspaceProviders.contains(stored.providerId.lowercased()),
+           let liveEmail = normalizedAccountIdentifier(for: provider),
            stored.normalizedEmail == liveEmail {
             return true
         }

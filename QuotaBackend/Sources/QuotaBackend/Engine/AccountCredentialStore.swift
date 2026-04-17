@@ -440,10 +440,23 @@ public final class AccountCredentialStore: @unchecked Sendable {
     private func credentialIdentityKey(_ credential: AccountCredential) -> String {
         let provider = credential.providerId.lowercased()
 
-        if credential.authMethod == .authFile,
-           Self.multiWorkspaceProviders.contains(provider) {
-            let path = NSString(string: credential.credential).expandingTildeInPath
-            return "\(provider):authfile:\(path.lowercased())"
+        if Self.multiWorkspaceProviders.contains(provider) {
+            if credential.authMethod == .authFile {
+                let path = NSString(string: credential.credential).expandingTildeInPath
+                return "\(provider):authfile:\(path.lowercased())"
+            }
+            if let accountId = normalizedLookup(credential.metadata["accountId"]) {
+                let handle = normalizedLookup(
+                    credential.metadata["accountEmail"]
+                        ?? credential.metadata["accountHandle"]
+                        ?? credential.accountLabel
+                )
+                if let handle {
+                    return "\(provider):account:\(accountId):handle:\(handle)"
+                }
+                return "\(provider):account:\(accountId)"
+            }
+            return "\(provider):raw:\(credential.id.lowercased())"
         }
 
         if let accountId = normalizedLookup(credential.metadata["accountId"]) {

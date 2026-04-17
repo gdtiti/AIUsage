@@ -447,7 +447,7 @@ public final class AccountCredentialStore: @unchecked Sendable {
         let url = URL(fileURLWithPath: expanded)
             .resolvingSymlinksInPath()
             .standardizedFileURL
-        return url.path.lowercased()
+        return url.path.precomposedStringWithCanonicalMapping.lowercased()
     }
 
     private func credentialIdentityKey(_ credential: AccountCredential) -> String {

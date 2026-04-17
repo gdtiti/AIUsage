@@ -475,7 +475,8 @@ private struct AccountRegistryRefreshSnapshot {
                     hidden.providerResultId = provider.id
                     didChange = true
                 }
-                if hidden.accountId != provider.accountId {
+                let isLiveSuccess = provider.status != .error
+                if isLiveSuccess, hidden.accountId != provider.accountId {
                     hidden.accountId = provider.accountId
                     didChange = true
                 }
@@ -643,7 +644,8 @@ extension AccountStore {
         var didChange = false
         for index in accountRegistry.indices {
             guard let accountId = accountRegistry[index].accountId?.nilIfBlank,
-                  accountId.contains(":") else { continue }
+                  accountId.contains(":"),
+                  !AccountIdentityPolicy.isMultiWorkspace(accountRegistry[index].providerId) else { continue }
             let parts = accountId.split(separator: ":", maxSplits: 1)
             guard parts.count == 2 else { continue }
             let rawId = String(parts[0])
@@ -684,6 +686,7 @@ extension AccountStore {
                 return true
             }
             if !email.contains("@"),
+               !AccountIdentityPolicy.isMultiWorkspace(key),
                providersWithValidEmail.contains(key),
                account.normalizedAccountId == nil {
                 return true
@@ -757,7 +760,11 @@ extension AccountStore {
             if let normalizedAccountId,
                normalizedAccountLookupValue(credential.metadata["accountId"]) == normalizedAccountId {
                 if isMultiWs {
-                    return normalizedAccountLookupValue(credential.metadata["sourceIdentifier"]) == normalizedSourceIdentifier
+                    guard let normalizedSourceIdentifier,
+                          let credSourceId = normalizedAccountLookupValue(credential.metadata["sourceIdentifier"]) else {
+                        return false
+                    }
+                    return credSourceId == normalizedSourceIdentifier
                 }
                 return true
             }

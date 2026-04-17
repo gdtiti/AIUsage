@@ -213,10 +213,10 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         return candidates
             .sorted { modificationDate(for: $0) > modificationDate(for: $1) }
             .compactMap { url in
-                let standardized = url.standardizedFileURL.path
-                guard seen.insert(standardized).inserted else { return nil }
-                guard let creds = try? loadCredentials(from: standardized) else { return nil }
-                return AuthContext(url: URL(fileURLWithPath: standardized), creds: creds)
+                let resolved = url.resolvingSymlinksInPath().standardizedFileURL.path
+                guard seen.insert(resolved).inserted else { return nil }
+                guard let creds = try? loadCredentials(from: resolved) else { return nil }
+                return AuthContext(url: URL(fileURLWithPath: resolved), creds: creds)
             }
     }
 

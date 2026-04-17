@@ -337,7 +337,13 @@ public actor ProviderEngine {
 
         let results = accountResults.map { fetchResult in
             let acctId: String = fetchResult.accountId
-            let uniqueId = "\(provider.id):auto:\(acctId)"
+            let uniqueId: String
+            if let path = fetchResult.sourceFilePath?.nilIfBlank {
+                let normalized = AccountCredentialStore.normalizedAuthFilePath(path)
+                uniqueId = "\(provider.id):auto:\(acctId):path:\(normalized)"
+            } else {
+                uniqueId = "\(provider.id):auto:\(acctId)"
+            }
             switch fetchResult.result {
             case .success(let rawUsage):
                 var usage = rawUsage
@@ -437,7 +443,20 @@ public actor ProviderEngine {
         }
     }
 
+    private static let multiWorkspaceProviders: Set<String> = ["codex"]
+
     private func identityKey(for result: ProviderResult, providerId: String) -> String {
+        if Self.multiWorkspaceProviders.contains(providerId.lowercased()) {
+            if let path = result.summary?.sourceFilePath?.nilIfBlank {
+                let normalized = AccountCredentialStore.normalizedAuthFilePath(path)
+                return "\(providerId):path:\(normalized)"
+            }
+            if let credentialId = extractCredentialId(from: result.id) {
+                return "\(providerId):cred:\(credentialId)"
+            }
+            return "\(providerId):generic:\(result.id)"
+        }
+
         if let accountId = normalizedIdentity(result.resultAccountId)
             ?? normalizedIdentity(result.summary?.accountId)
             ?? normalizedIdentity(result.usage?.usageAccountId) {
@@ -452,6 +471,11 @@ public actor ProviderEngine {
         }
 
         return "\(providerId):generic:\(result.id)"
+    }
+
+    private func extractCredentialId(from resultId: String) -> String? {
+        guard resultId.contains(":cred:") else { return nil }
+        return resultId.components(separatedBy: ":cred:").last?.nilIfBlank
     }
 
     private func normalizedIdentity(_ value: String?) -> String? {

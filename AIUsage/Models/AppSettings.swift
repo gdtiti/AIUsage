@@ -44,6 +44,45 @@ enum MenuBarMetricType: String, CaseIterable {
     var showsCost: Bool { self == .cost || self == .both }
 }
 
+// MARK: - Menu bar cost source config (per-source period + metric)
+
+enum MenuBarCostPeriod: String, CaseIterable, Codable {
+    case today
+    case week
+    case month
+    case overall
+}
+
+enum MenuBarCostMetric: String, CaseIterable, Codable {
+    case cost
+    case tokens
+}
+
+struct MenuBarCostSourceConfig: Codable, Equatable {
+    var period: MenuBarCostPeriod
+    var metric: MenuBarCostMetric
+
+    static let `default` = MenuBarCostSourceConfig(period: .month, metric: .cost)
+}
+
+extension MenuBarCostPeriod {
+    /// Lower bound for filtering timestamped data, or nil for "all time".
+    func sinceDate(calendar: Calendar = .current, now: Date = Date()) -> Date? {
+        switch self {
+        case .today:
+            return calendar.startOfDay(for: now)
+        case .week:
+            return calendar.dateInterval(of: .weekOfYear, for: now)?.start
+                ?? calendar.date(byAdding: .day, value: -7, to: calendar.startOfDay(for: now))
+        case .month:
+            return calendar.dateInterval(of: .month, for: now)?.start
+                ?? calendar.date(byAdding: .day, value: -30, to: calendar.startOfDay(for: now))
+        case .overall:
+            return nil
+        }
+    }
+}
+
 // MARK: - UserDefaults keys
 
 /// Central namespace for `UserDefaults` / `@AppStorage` keys (values must stay stable for migration).
@@ -67,6 +106,7 @@ enum DefaultsKey {
     static let menuBarMetricType = "menuBarMetricType"
     static let menuBarPinnedQuotaAccountIds = "menuBarPinnedQuotaAccountIds"
     static let menuBarPinnedCostSourceIds = "menuBarPinnedCostSourceIds"
+    static let menuBarCostSourceConfigs = "menuBarCostSourceConfigs"
     static let proxyActivatedConfigId = "proxyActivatedConfigId"
     static let proxyConfigurations = "proxyConfigurations"
     static let proxyLogRetentionDays = "proxyLogRetentionDays"
@@ -153,6 +193,23 @@ final class AppSettings: ObservableObject {
         let stored = UserDefaults.standard.stringArray(forKey: DefaultsKey.menuBarPinnedCostSourceIds) ?? []
         return Set(stored)
     }()
+    @Published var menuBarCostSourceConfigs: [String: MenuBarCostSourceConfig] = {
+        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.menuBarCostSourceConfigs),
+              let decoded = try? JSONDecoder().decode([String: MenuBarCostSourceConfig].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }()
+
+    func costSourceConfig(for id: String) -> MenuBarCostSourceConfig {
+        menuBarCostSourceConfigs[id] ?? .default
+    }
+
+    func setCostSourceConfig(_ config: MenuBarCostSourceConfig, for id: String) {
+        var next = menuBarCostSourceConfigs
+        next[id] = config
+        menuBarCostSourceConfigs = next
+    }
 
     @Published var backendMode: String = UserDefaults.standard.string(forKey: DefaultsKey.backendMode) ?? "local"
     @Published var remoteHost: String = UserDefaults.standard.string(forKey: DefaultsKey.remoteHost) ?? "127.0.0.1"
@@ -190,6 +247,10 @@ final class AppSettings: ObservableObject {
         $menuBarMetricType.dropFirst().sink { defaults.set($0.rawValue, forKey: DefaultsKey.menuBarMetricType) }.store(in: &cancellables)
         $menuBarPinnedQuotaAccountIds.dropFirst().sink { defaults.set(Array($0), forKey: DefaultsKey.menuBarPinnedQuotaAccountIds) }.store(in: &cancellables)
         $menuBarPinnedCostSourceIds.dropFirst().sink { defaults.set(Array($0), forKey: DefaultsKey.menuBarPinnedCostSourceIds) }.store(in: &cancellables)
+        $menuBarCostSourceConfigs.dropFirst().sink { configs in
+            guard let data = try? JSONEncoder().encode(configs) else { return }
+            defaults.set(data, forKey: DefaultsKey.menuBarCostSourceConfigs)
+        }.store(in: &cancellables)
         $backendMode.dropFirst().sink { defaults.set($0, forKey: DefaultsKey.backendMode) }.store(in: &cancellables)
         $autoRefreshInterval.dropFirst().sink { [weak self] val in
             let normalized = Self.normalizedAutoRefreshInterval(val)

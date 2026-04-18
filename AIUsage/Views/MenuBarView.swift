@@ -7,6 +7,7 @@ struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
     @ObservedObject var proxyVM = ProxyViewModel.shared
+    @ObservedObject private var settings = AppSettings.shared
     @State private var activationMessage: String?
     @State private var activationSuccess = true
 
@@ -102,7 +103,6 @@ struct MenuBarView: View {
         let totalAccounts = groups.reduce(0) { $0 + $1.accounts.count }
         let connectedAccounts = groups.reduce(0) { $0 + $1.connectedCount }
 
-        let proxyStats = proxyVM.overallStats(nodeFilter: nil, modelFilter: nil)
         let activeNode = proxyVM.configurations.first { $0.id == proxyVM.activatedConfigId }
 
         return HStack(spacing: 0) {
@@ -118,7 +118,7 @@ struct MenuBarView: View {
 
             summaryStatDivider
 
-            proxyCostCell(cost: proxyStats.cost, requests: proxyStats.requests)
+            proxyCostCell()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -226,29 +226,106 @@ struct MenuBarView: View {
         }
     }
 
-    private func proxyCostCell(cost: Double, requests: Int) -> some View {
-        VStack(spacing: 3) {
-            HStack(spacing: 4) {
-                Image(systemName: "dollarsign.circle.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
-                Text(formatCostCompact(cost))
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(cost > 0 ? .orange : .primary)
-                if requests > 0 {
-                    Text("·")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                    Text("\(requests)")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
+    private func proxyCostCell() -> some View {
+        let config = settings.costSourceConfig(for: "proxy-stats")
+        let stats = proxyVM.overallStats(nodeFilter: nil, modelFilter: nil, since: config.period.sinceDate())
+        let primaryLabel = proxyCostLabel(period: config.period, metric: config.metric)
+
+        return Menu {
+            Section(L("Period", "周期")) {
+                ForEach(MenuBarCostPeriod.allCases, id: \.self) { period in
+                    Button {
+                        var next = config
+                        next.period = period
+                        settings.setCostSourceConfig(next, for: "proxy-stats")
+                    } label: {
+                        Label {
+                            Text(periodLabel(period))
+                        } icon: {
+                            Image(systemName: period == config.period ? "checkmark.circle.fill" : "circle")
+                        }
+                    }
                 }
             }
-            Text(L("Proxy Cost", "代理费用"))
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.secondary)
+            Section(L("Metric", "指标")) {
+                ForEach(MenuBarCostMetric.allCases, id: \.self) { metric in
+                    Button {
+                        var next = config
+                        next.metric = metric
+                        settings.setCostSourceConfig(next, for: "proxy-stats")
+                    } label: {
+                        Label {
+                            Text(metricLabel(metric))
+                        } icon: {
+                            Image(systemName: metric == config.metric ? "checkmark.circle.fill" : "circle")
+                        }
+                    }
+                }
+            }
+        } label: {
+            VStack(spacing: 3) {
+                HStack(spacing: 4) {
+                    Image(systemName: config.metric == .cost ? "dollarsign.circle.fill" : "bolt.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                    Text(proxyCostValueText(stats: stats, metric: config.metric))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(proxyCostTint(stats: stats, metric: config.metric))
+                    if stats.requests > 0 {
+                        Text("·")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                        Text("\(stats.requests)")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(primaryLabel)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity)
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+    }
+
+    private func periodLabel(_ period: MenuBarCostPeriod) -> String {
+        switch period {
+        case .today:   return L("Today", "今日")
+        case .week:    return L("This Week", "本周")
+        case .month:   return L("This Month", "本月")
+        case .overall: return L("All Time", "全部")
+        }
+    }
+
+    private func metricLabel(_ metric: MenuBarCostMetric) -> String {
+        switch metric {
+        case .cost:   return L("Cost", "费用")
+        case .tokens: return L("Tokens", "Tokens")
+        }
+    }
+
+    private func proxyCostLabel(period: MenuBarCostPeriod, metric: MenuBarCostMetric) -> String {
+        let metricText = metric == .cost ? L("Proxy Cost", "代理费用") : L("Proxy Tokens", "代理 Tokens")
+        if period == .overall { return metricText }
+        return "\(periodLabel(period)) · \(metricText)"
+    }
+
+    private func proxyCostValueText(stats: (cost: Double, tokens: Int, requests: Int, successRate: Double), metric: MenuBarCostMetric) -> String {
+        switch metric {
+        case .cost:   return formatCostCompact(stats.cost)
+        case .tokens: return formatCompactNumber(Double(stats.tokens))
+        }
+    }
+
+    private func proxyCostTint(stats: (cost: Double, tokens: Int, requests: Int, successRate: Double), metric: MenuBarCostMetric) -> Color {
+        switch metric {
+        case .cost:   return stats.cost > 0 ? .orange : .primary
+        case .tokens: return stats.tokens > 0 ? .purple : .primary
+        }
     }
 
     private func summaryStatCell(value: String, label: String, icon: String, valueColor: Color? = nil) -> some View {

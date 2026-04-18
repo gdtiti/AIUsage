@@ -389,45 +389,57 @@ extension SettingsView {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(costEntries, id: \.entry.id) { pair in
                     let isSelected = settings.menuBarPinnedCostSourceIds.contains(pair.entry.id)
+                    HStack(spacing: 8) {
+                        Button {
+                            var ids = settings.menuBarPinnedCostSourceIds
+                            if isSelected { ids.remove(pair.entry.id) } else { ids.insert(pair.entry.id) }
+                            settings.menuBarPinnedCostSourceIds = ids
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(isSelected ? Color.orange : Color.secondary)
+                                    .font(.system(size: 14))
+                                ProviderIconView(pair.group.providerId, size: 14)
+                                Text(pair.entry.accountEmail ?? pair.entry.accountDisplayName ?? pair.entry.providerTitle)
+                                    .font(.caption).lineLimit(1)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        if isSelected {
+                            costSourceConfigMenu(for: pair.entry.id)
+                        }
+                    }
+                }
+
+                let proxySelected = settings.menuBarPinnedCostSourceIds.contains("proxy-stats")
+                HStack(spacing: 8) {
                     Button {
                         var ids = settings.menuBarPinnedCostSourceIds
-                        if isSelected { ids.remove(pair.entry.id) } else { ids.insert(pair.entry.id) }
+                        if proxySelected { ids.remove("proxy-stats") } else { ids.insert("proxy-stats") }
                         settings.menuBarPinnedCostSourceIds = ids
                     } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(isSelected ? Color.orange : Color.secondary)
+                            Image(systemName: proxySelected ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(proxySelected ? Color.blue : Color.secondary)
                                 .font(.system(size: 14))
-                            ProviderIconView(pair.group.providerId, size: 14)
-                            Text(pair.entry.accountEmail ?? pair.entry.accountDisplayName ?? pair.entry.providerTitle)
+                            Image(systemName: "network")
+                                .font(.system(size: 12))
+                                .frame(width: 14, height: 14)
+                            Text(L("Proxy Stats", "代理统计"))
                                 .font(.caption).lineLimit(1)
                             Spacer()
                         }
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                }
 
-                let proxySelected = settings.menuBarPinnedCostSourceIds.contains("proxy-stats")
-                Button {
-                    var ids = settings.menuBarPinnedCostSourceIds
-                    if proxySelected { ids.remove("proxy-stats") } else { ids.insert("proxy-stats") }
-                    settings.menuBarPinnedCostSourceIds = ids
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: proxySelected ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(proxySelected ? Color.blue : Color.secondary)
-                            .font(.system(size: 14))
-                        Image(systemName: "network")
-                            .font(.system(size: 12))
-                            .frame(width: 14, height: 14)
-                        Text(L("Proxy Stats", "代理统计"))
-                            .font(.caption).lineLimit(1)
-                        Spacer()
+                    if proxySelected {
+                        costSourceConfigMenu(for: "proxy-stats")
                     }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
 
                 if costEntries.isEmpty && !proxySelected {
                     Text(L("No cost sources available", "暂无费用来源"))
@@ -436,6 +448,72 @@ extension SettingsView {
                 }
             }
             .padding(.vertical, 4)
+        }
+    }
+
+    @ViewBuilder
+    private func costSourceConfigMenu(for sourceId: String) -> some View {
+        let config = settings.costSourceConfig(for: sourceId)
+        HStack(spacing: 6) {
+            Menu {
+                ForEach(MenuBarCostPeriod.allCases, id: \.self) { period in
+                    Button {
+                        var next = config
+                        next.period = period
+                        settings.setCostSourceConfig(next, for: sourceId)
+                    } label: {
+                        Label {
+                            Text(periodDisplayLabel(period))
+                        } icon: {
+                            Image(systemName: period == config.period ? "checkmark" : "")
+                        }
+                    }
+                }
+            } label: {
+                Text(periodDisplayLabel(config.period))
+                    .font(.caption)
+                    .frame(minWidth: 44)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+
+            Menu {
+                ForEach(MenuBarCostMetric.allCases, id: \.self) { metric in
+                    Button {
+                        var next = config
+                        next.metric = metric
+                        settings.setCostSourceConfig(next, for: sourceId)
+                    } label: {
+                        Label {
+                            Text(metricDisplayLabel(metric))
+                        } icon: {
+                            Image(systemName: metric == config.metric ? "checkmark" : "")
+                        }
+                    }
+                }
+            } label: {
+                Text(metricDisplayLabel(config.metric))
+                    .font(.caption)
+                    .frame(minWidth: 44)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+    }
+
+    private func periodDisplayLabel(_ period: MenuBarCostPeriod) -> String {
+        switch period {
+        case .today:   return L("Today", "今日")
+        case .week:    return L("Week", "本周")
+        case .month:   return L("Month", "本月")
+        case .overall: return L("All", "全部")
+        }
+    }
+
+    private func metricDisplayLabel(_ metric: MenuBarCostMetric) -> String {
+        switch metric {
+        case .cost:   return L("Cost", "费用")
+        case .tokens: return L("Tokens", "Tokens")
         }
     }
 

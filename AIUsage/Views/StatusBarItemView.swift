@@ -41,8 +41,7 @@ struct StatusBarItemView: View {
                 all.append(StatusBarMetricItem(
                     id: entry.id,
                     providerId: group.providerId,
-                    quota: quota,
-                    cost: nil,
+                    kind: .quota(quota),
                     icon: nil
                 ))
             }
@@ -59,34 +58,60 @@ struct StatusBarItemView: View {
         for group in groups {
             for entry in group.accounts where entry.isConnected {
                 guard entry.liveProvider?.category == "local-cost" else { continue }
-                guard let cost = entry.liveProvider?.costSummary?.month?.usd else { continue }
+                guard pinnedCostIds.contains(entry.id) else { continue }
+                guard let summary = entry.liveProvider?.costSummary else { continue }
 
-                if pinnedCostIds.contains(entry.id) {
-                    all.append(StatusBarMetricItem(
-                        id: entry.id,
-                        providerId: group.providerId,
-                        quota: nil,
-                        cost: cost,
-                        icon: nil
-                    ))
-                }
+                let config = settings.costSourceConfig(for: entry.id)
+                guard let kind = costKindFromSummary(summary: summary, config: config) else { continue }
+
+                all.append(StatusBarMetricItem(
+                    id: entry.id,
+                    providerId: group.providerId,
+                    kind: kind,
+                    icon: nil
+                ))
             }
         }
 
         if pinnedCostIds.contains("proxy-stats") {
-            let proxyCost = ProxyViewModel.shared.overallStats(nodeFilter: nil, modelFilter: nil).cost
-            if proxyCost > 0 {
+            let config = settings.costSourceConfig(for: "proxy-stats")
+            let stats = ProxyViewModel.shared.overallStats(
+                nodeFilter: nil,
+                modelFilter: nil,
+                since: config.period.sinceDate()
+            )
+            let hasValue = config.metric == .cost ? stats.cost > 0 : stats.tokens > 0
+            if hasValue {
+                let kind: StatusBarMetricItem.Kind = config.metric == .cost
+                    ? .cost(stats.cost)
+                    : .tokens(stats.tokens)
                 all.append(StatusBarMetricItem(
                     id: "proxy-stats",
                     providerId: "proxy",
-                    quota: nil,
-                    cost: proxyCost,
+                    kind: kind,
                     icon: "network"
                 ))
             }
         }
 
         return all
+    }
+
+    private func costKindFromSummary(summary: CostSummary, config: MenuBarCostSourceConfig) -> StatusBarMetricItem.Kind? {
+        let period: CostPeriod?
+        switch config.period {
+        case .today:   period = summary.today
+        case .week:    period = summary.week
+        case .month:   period = summary.month
+        case .overall: period = summary.overall
+        }
+        guard let period else { return nil }
+        switch config.metric {
+        case .cost:   return .cost(period.usd)
+        case .tokens:
+            guard let tokens = period.tokens else { return nil }
+            return .tokens(tokens)
+        }
     }
 
     var body: some View {
@@ -130,14 +155,19 @@ struct StatusBarItemView: View {
             }
 
             if displayMode != .iconOnly {
-                if let quota = item.quota {
+                switch item.kind {
+                case .quota(let quota):
                     Text("\(Int(quota))%")
                         .font(.system(size: 12.5, weight: .medium, design: .rounded))
                         .foregroundStyle(quotaColor(quota))
-                } else if let cost = item.cost {
+                case .cost(let cost):
                     Text(formatCostCompact(cost))
                         .font(.system(size: 12.5, weight: .medium, design: .rounded))
                         .foregroundStyle(.orange)
+                case .tokens(let tokens):
+                    Text(formatCompactNumber(Double(tokens)))
+                        .font(.system(size: 12.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(.purple)
                 }
             }
         }
@@ -164,9 +194,14 @@ struct StatusBarItemView: View {
 private struct StatusBarMetricItem: Identifiable {
     let id: String
     let providerId: String
-    let quota: Double?
-    let cost: Double?
+    let kind: Kind
     let icon: String?
+
+    enum Kind {
+        case quota(Double)
+        case cost(Double)
+        case tokens(Int)
+    }
 }
 
 // MARK: - Status Bar Provider Icon

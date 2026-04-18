@@ -171,7 +171,12 @@ extension ProxyViewModel {
     }
 
     func overallStats(nodeFilter: String?, modelFilter: String?) -> (cost: Double, tokens: Int, requests: Int, successRate: Double) {
-        let logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
+        overallStats(nodeFilter: nodeFilter, modelFilter: modelFilter, since: nil)
+    }
+
+    func overallStats(nodeFilter: String?, modelFilter: String?, since: Date?) -> (cost: Double, tokens: Int, requests: Int, successRate: Double) {
+        var logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
+        if let since { logs = logs.filter { $0.timestamp >= since } }
         let cost = logs.reduce(0.0) { $0 + $1.estimatedCostUSD }
         let tokens = logs.reduce(0) { $0 + $1.tokensInput + $1.tokensOutput + $1.tokensCache }
         let successCount = logs.filter(\.success).count

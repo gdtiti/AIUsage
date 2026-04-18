@@ -65,6 +65,11 @@ struct MenuBarCostSourceConfig: Codable, Equatable {
     static let `default` = MenuBarCostSourceConfig(period: .month, metric: .cost)
 }
 
+enum MenuBarStatsSource: String, CaseIterable, Codable {
+    case proxy
+    case claudeCode
+}
+
 extension MenuBarCostPeriod {
     /// Lower bound for filtering timestamped data, or nil for "all time".
     func sinceDate(calendar: Calendar = .current, now: Date = Date()) -> Date? {
@@ -107,6 +112,7 @@ enum DefaultsKey {
     static let menuBarPinnedQuotaAccountIds = "menuBarPinnedQuotaAccountIds"
     static let menuBarPinnedCostSourceIds = "menuBarPinnedCostSourceIds"
     static let menuBarCostSourceConfigs = "menuBarCostSourceConfigs"
+    static let menuBarSummaryStatsSource = "menuBarSummaryStatsSource"
     static let proxyActivatedConfigId = "proxyActivatedConfigId"
     static let proxyConfigurations = "proxyConfigurations"
     static let proxyLogRetentionDays = "proxyLogRetentionDays"
@@ -201,6 +207,8 @@ final class AppSettings: ObservableObject {
         return decoded
     }()
 
+    @Published var menuBarSummaryStatsSource: MenuBarStatsSource = MenuBarStatsSource(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.menuBarSummaryStatsSource) ?? "") ?? .proxy
+
     func costSourceConfig(for id: String) -> MenuBarCostSourceConfig {
         menuBarCostSourceConfigs[id] ?? .default
     }
@@ -251,6 +259,7 @@ final class AppSettings: ObservableObject {
             guard let data = try? JSONEncoder().encode(configs) else { return }
             defaults.set(data, forKey: DefaultsKey.menuBarCostSourceConfigs)
         }.store(in: &cancellables)
+        $menuBarSummaryStatsSource.dropFirst().sink { defaults.set($0.rawValue, forKey: DefaultsKey.menuBarSummaryStatsSource) }.store(in: &cancellables)
         $backendMode.dropFirst().sink { defaults.set($0, forKey: DefaultsKey.backendMode) }.store(in: &cancellables)
         $autoRefreshInterval.dropFirst().sink { [weak self] val in
             let normalized = Self.normalizedAutoRefreshInterval(val)

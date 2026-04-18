@@ -303,13 +303,51 @@ CanonicalStop
 
 ```swift
 CanonicalUsage
-- inputTokens: Int?
+- inputTokens: Int?          // 未缓存的输入 token（不含 cacheRead/cacheCreation）
 - outputTokens: Int?
 - totalTokens: Int?
 - cacheCreationInputTokens: Int?
 - cacheReadInputTokens: Int?
 - reasoningTokens: Int?
 ```
+
+**语义约束**：`inputTokens` 仅包含**未命中缓存**的输入部分，与 `cacheReadInputTokens` 互斥不相交。下游 `ProxyConfiguration.ModelPricing.costForTokens` 对四项字段分别乘单价后相加，因此任何双计（例如把 cache-hit 同时计入 inputTokens 和 cacheReadInputTokens）都会直接放大账单。这与 Anthropic 原生 `message.usage.input_tokens` 语义一致。
+
+#### 上游字段形状归一化
+
+不同厂商对"缓存命中"的报告形状不同，归一化在 `OpenAIUsage` 模型上集中完成，`CanonicalResponseMapper` / `CanonicalOpenAIUpstreamStreamMapper` 只调用两个派生属性：
+
+| 上游形状 | 来源字段 | 含义 |
+|---|---|---|
+| DeepSeek flat | `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` | `prompt_tokens = hit + miss` |
+| OpenAI 2024-10+ nested | `prompt_tokens_details.cached_tokens` | `prompt_tokens` 包含 cached 子集（OpenRouter / Kimi 等镜像此结构） |
+| 无 cache 字段 | — | `prompt_tokens` 即完整输入 |
+
+派生属性（定义在 [`OpenAIUsage`](../QuotaBackend/Sources/QuotaBackend/ClaudeProxy/Models/OpenAIAPIModels.swift)）：
+
+```swift
+/// DeepSeek-flat 优先，回落到 OpenAI-nested；全部缺失时返回 nil（保留"未报告" vs "零命中"的区分）
+var effectiveCachedTokens: Int?
+
+/// 显式 miss 字段优先；否则 max(promptTokens - cachedTokens, 0)，防御上游返回 hit > prompt 的破损数据
+var effectiveInputTokens: Int
+```
+
+Mapper 端只剩一行：
+
+```swift
+CanonicalUsage(
+    inputTokens: u.effectiveInputTokens,
+    outputTokens: u.completionTokens,
+    totalTokens: u.totalTokens,
+    cacheCreationInputTokens: nil,          // OpenAI-compat 上游无写缓存语义
+    cacheReadInputTokens: u.effectiveCachedTokens
+)
+```
+
+Anthropic 原生 passthrough 走 [`QuotaHTTPServer+Passthrough.swift`](../QuotaBackend/Sources/QuotaServer/QuotaHTTPServer+Passthrough.swift)，直接从 `message.usage.cache_creation_input_tokens` / `cache_read_input_tokens` 读取，不经此归一化路径。
+
+回归锁：[`OpenAIUsageCacheNormalizationTests.swift`](../QuotaBackend/Tests/QuotaBackendTests/OpenAIUsageCacheNormalizationTests.swift) 针对三种上游形状、JSON 反序列化、以及 stream/non-stream 两条 mapper 路径共 11 个用例，任何回退到 `inputTokens: promptTokens` 的改动都会在 CI 失败。
 
 ---
 

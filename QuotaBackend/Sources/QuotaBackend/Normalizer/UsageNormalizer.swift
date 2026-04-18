@@ -454,7 +454,8 @@ public enum UsageNormalizer {
         if s.type == "browser-cookie" { return [s.browserName, s.profile].compactMap { $0 }.joined(separator: " · ").isEmpty ? "Browser session" : [s.browserName, s.profile].compactMap { $0 }.joined(separator: " · ") }
         let labels: [String: String] = [
             "app-cache": "Desktop cache",
-            "cli-proxy-auth-file": "CLIProxy auth file",
+            "cli-proxy-auth-file": "Imported auth file",
+            "imported-auth-file": "Imported auth file",
             "gh-cli": "GitHub CLI",
             "cli-auth-file": "Local CLI session",
             "claude-project-logs": "Local Claude logs",

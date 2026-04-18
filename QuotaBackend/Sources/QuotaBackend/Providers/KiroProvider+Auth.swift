@@ -12,18 +12,19 @@ extension KiroProvider {
             return [try loadAuthContext(url: url, fileCount: 1, sourceDirectory: url.deletingLastPathComponent().path, sourceType: sourceType(for: url))]
         }
 
-        let authDirectory = env["KIRO_AUTH_DIR"].map { NSString(string: $0).expandingTildeInPath }
-            ?? "\(homeDirectory)/.cli-proxy-api"
-        let directoryURL = URL(fileURLWithPath: authDirectory, isDirectory: true)
+        var matches: [URL] = []
+        if let authDirectoryRaw = env["KIRO_AUTH_DIR"], !authDirectoryRaw.isEmpty {
+            let authDirectory = NSString(string: authDirectoryRaw).expandingTildeInPath
+            let directoryURL = URL(fileURLWithPath: authDirectory, isDirectory: true)
+            let files = (try? FileManager.default.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
 
-        let files = (try? FileManager.default.contentsOfDirectory(
-            at: directoryURL,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        )) ?? []
-
-        let matches = files.filter {
-            $0.lastPathComponent.hasPrefix("kiro-") && $0.pathExtension == "json"
+            matches = files.filter {
+                $0.lastPathComponent.hasPrefix("kiro-") && $0.pathExtension == "json"
+            }
         }
 
         let ideAuthURL = URL(fileURLWithPath: "\(homeDirectory)/.aws/sso/cache/kiro-auth-token.json")
@@ -34,7 +35,7 @@ extension KiroProvider {
         }
 
         guard !candidates.isEmpty else {
-            throw ProviderError("not_logged_in", "No Kiro auth file found. Expected ~/.cli-proxy-api/kiro-*.json or ~/.aws/sso/cache/kiro-auth-token.json.")
+            throw ProviderError("not_logged_in", "No Kiro auth file found. Expected Kiro IDE session at ~/.aws/sso/cache/kiro-auth-token.json, or set KIRO_AUTH_DIR to a directory with kiro-*.json files.")
         }
 
         let contexts = candidates
@@ -70,7 +71,7 @@ extension KiroProvider {
     }
 
     func sourceType(for url: URL) -> String {
-        url.lastPathComponent == "kiro-auth-token.json" ? "kiro-ide-auth-file" : "cli-proxy-auth-file"
+        url.lastPathComponent == "kiro-auth-token.json" ? "kiro-ide-auth-file" : "imported-auth-file"
     }
 
     func loadAuthContext(url: URL, fileCount: Int, sourceDirectory: String, sourceType: String) throws -> AuthContext {

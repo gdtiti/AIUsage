@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - Codex Provider
-// Reads ~/.codex/auth.json and ~/.cli-proxy-api/codex-*.json, refreshes OAuth
+// Reads ~/.codex/auth.json, refreshes OAuth
 // when needed, and fetches ChatGPT Codex quota windows for one or many accounts.
 
 public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingProvider {
@@ -196,18 +196,19 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
             candidates.append(defaultAuthFile)
         }
 
-        let authDirectory = env["CODEX_AUTH_DIR"].map { NSString(string: $0).expandingTildeInPath }
-            ?? "\(homeDirectory)/.cli-proxy-api"
-        let directoryURL = URL(fileURLWithPath: authDirectory, isDirectory: true)
-        let files = (try? FileManager.default.contentsOfDirectory(
-            at: directoryURL,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        )) ?? []
+        if let authDirectoryRaw = env["CODEX_AUTH_DIR"], !authDirectoryRaw.isEmpty {
+            let authDirectory = NSString(string: authDirectoryRaw).expandingTildeInPath
+            let directoryURL = URL(fileURLWithPath: authDirectory, isDirectory: true)
+            let files = (try? FileManager.default.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
 
-        candidates.append(contentsOf: files.filter {
-            $0.lastPathComponent.hasPrefix("codex-") && $0.pathExtension == "json"
-        })
+            candidates.append(contentsOf: files.filter {
+                $0.lastPathComponent.hasPrefix("codex-") && $0.pathExtension == "json"
+            })
+        }
 
         var seen = Set<String>()
         return candidates
@@ -526,7 +527,7 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
         let defaultAuthPath = "\(homeDirectory)/.codex/auth.json"
         var info = SourceInfo(
             mode: mode,
-            type: url.path == defaultAuthPath ? "codex-auth-json" : "cli-proxy-auth-file"
+            type: url.path == defaultAuthPath ? "codex-auth-json" : "imported-auth-file"
         )
         info.roots = [url.path]
         return info

@@ -118,7 +118,7 @@ final class ProviderActivationManager: ObservableObject {
         let accountId = entry.storedAccount?.accountId
             ?? entry.liveProvider?.accountId
 
-        let resolved = resolveCliProxyOrManagedSource(prefix: "codex", email: email, entry: entry)
+        let resolved = resolveManagedSource(entry: entry)
         guard let resolved, fm.fileExists(atPath: resolved) else {
             let msg = settings.t("Auth file not found for this account.", "找不到该账号的认证文件")
             activationResult = .failure(msg)
@@ -157,8 +157,7 @@ final class ProviderActivationManager: ObservableObject {
             ?? entry.storedAccount?.email
             ?? entry.liveProvider?.accountLabel
 
-        let proxyPrefix = entry.providerId == "antigravity" ? "antigravity" : "gemini"
-        let resolved = resolveCliProxyOrManagedSource(prefix: proxyPrefix, email: email, entry: entry)
+        let resolved = resolveManagedSource(entry: entry)
 
         guard let resolved, fm.fileExists(atPath: resolved) else {
             let msg = settings.t("Auth file not found for this account.", "找不到该账号的认证文件")
@@ -310,7 +309,7 @@ final class ProviderActivationManager: ObservableObject {
         }
     }
 
-    private func resolveCliProxyOrManagedSource(prefix: String, email: String?, entry: ProviderAccountEntry) -> String? {
+    private func resolveManagedSource(entry: ProviderAccountEntry) -> String? {
         let fm = FileManager.default
 
         let credentials = accountStore.matchingCredentials(for: entry)
@@ -325,59 +324,6 @@ final class ProviderActivationManager: ObservableObject {
             }
         }
 
-        let proxyDir = NSString(string: "~/.cli-proxy-api").expandingTildeInPath
-        let entryAccountId = entry.storedAccount?.accountId ?? entry.liveProvider?.accountId
-
-        if let email {
-            if let entryAccountId,
-               let exactPath = proxyFileMatchingAccountId(dir: proxyDir, prefix: prefix, email: email, accountId: entryAccountId, fm: fm) {
-                return exactPath
-            }
-            if let freshPath = freshestCliProxyFile(dir: proxyDir, prefix: prefix, email: email, fm: fm) {
-                return freshPath
-            }
-        }
-
-        return nil
-    }
-
-    private func freshestCliProxyFile(dir: String, prefix: String, email: String, fm: FileManager) -> String? {
-        guard let files = try? fm.contentsOfDirectory(atPath: dir) else { return nil }
-        let emailLower = email.lowercased()
-        let matching = files.filter {
-            $0.hasPrefix("\(prefix)-") && $0.hasSuffix(".json") && $0.lowercased().contains(emailLower)
-        }
-        guard !matching.isEmpty else { return nil }
-
-        var best: (path: String, date: Date)?
-        for file in matching {
-            let fullPath = "\(dir)/\(file)"
-            guard let attrs = try? fm.attributesOfItem(atPath: fullPath),
-                  let modDate = attrs[.modificationDate] as? Date else { continue }
-            if let current = best, modDate > current.date {
-                best = (fullPath, modDate)
-            } else if best == nil {
-                best = (fullPath, modDate)
-            }
-        }
-        return best?.path
-    }
-
-    private func proxyFileMatchingAccountId(dir: String, prefix: String, email: String, accountId: String, fm: FileManager) -> String? {
-        guard let files = try? fm.contentsOfDirectory(atPath: dir) else { return nil }
-        let emailLower = email.lowercased()
-        let rawAccountId = accountId.lowercased().components(separatedBy: ":").first ?? accountId.lowercased()
-        let matching = files.filter {
-            $0.hasPrefix("\(prefix)-") && $0.hasSuffix(".json") && $0.lowercased().contains(emailLower)
-        }
-        for file in matching {
-            let fullPath = "\(dir)/\(file)"
-            guard let data = fm.contents(atPath: fullPath),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
-            let fileAccountId = (json["account_id"] as? String)?.lowercased()
-                ?? ((json["tokens"] as? [String: Any])?["account_id"] as? String)?.lowercased()
-            if fileAccountId == rawAccountId { return fullPath }
-        }
         return nil
     }
 

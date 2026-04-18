@@ -133,7 +133,7 @@ public enum BrowserDiscovery {
             supportedMethods: [.authFile, .oauth, .auto],
             cookieDomains: nil,
             cookieNames: nil,
-            instructions: "Auth files at ~/.cli-proxy-api/antigravity-*.json are discovered automatically. You can also specify a file path."
+            instructions: "Import an auth file or set ANTIGRAVITY_AUTH_DIR. You can also specify a file path directly."
         ),
         ProviderAuthCapability(
             providerId: "kiro",
@@ -141,7 +141,7 @@ public enum BrowserDiscovery {
             supportedMethods: [.authFile, .auto],
             cookieDomains: nil,
             cookieNames: nil,
-            instructions: "Auth files at ~/.cli-proxy-api/kiro-*.json are discovered automatically."
+            instructions: "Kiro IDE session cache is discovered automatically. You can also set KIRO_AUTH_DIR or import a file."
         ),
         ProviderAuthCapability(
             providerId: "codex",

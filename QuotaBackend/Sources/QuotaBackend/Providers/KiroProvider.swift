@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - Kiro Provider
-// 读取 ~/.cli-proxy-api/kiro-*.json 或 Kiro IDE 本地 auth，
+// Reads Kiro IDE local auth or imported auth files,
 // 必要时刷新 token，再调用 Kiro/AWS usage endpoint 获取用量。
 
 public struct KiroProvider: MultiAccountProviderFetcher, CredentialAcceptingProvider {

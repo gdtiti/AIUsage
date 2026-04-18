@@ -1,8 +1,9 @@
 import Foundation
 
 // MARK: - Antigravity Provider
-// 读取 ~/.cli-proxy-api/antigravity-*.json，必要时刷新 OAuth token，
-// 再调用 Google Cloud Code Assist API 获取可用模型配额。
+// Uses Keychain-imported credentials or env-configured auth files,
+// refreshes OAuth token when needed, and calls Google Cloud Code
+// Assist API for per-model quotas.
 
 public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAcceptingProvider {
     public let id = "antigravity"
@@ -205,8 +206,13 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
             return [try loadAuthContext(url: url, fileCount: 1, sourceDirectory: url.deletingLastPathComponent().path)]
         }
 
-        let authDirectory = env["ANTIGRAVITY_AUTH_DIR"].map { NSString(string: $0).expandingTildeInPath }
-            ?? "\(homeDirectory)/.cli-proxy-api"
+        guard let authDirectoryRaw = env["ANTIGRAVITY_AUTH_DIR"], !authDirectoryRaw.isEmpty else {
+            throw ProviderError(
+                "not_logged_in",
+                "No Antigravity auth directory configured. Set ANTIGRAVITY_AUTH_DIR or import an auth file."
+            )
+        }
+        let authDirectory = NSString(string: authDirectoryRaw).expandingTildeInPath
         let directoryURL = URL(fileURLWithPath: authDirectory, isDirectory: true)
 
         guard FileManager.default.fileExists(atPath: directoryURL.path) else {
@@ -530,7 +536,7 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
         usage.secondary = sortedModels.indices.contains(1) ? modelWindow(from: sortedModels[1]) : nil
         usage.tertiary = sortedModels.indices.contains(2) ? modelWindow(from: sortedModels[2]) : nil
 
-        var source = SourceInfo(mode: "oauth", type: "cli-proxy-auth-file")
+        var source = SourceInfo(mode: "oauth", type: "imported-auth-file")
         source.profile = authContext.url.lastPathComponent
         source.roots = [authContext.sourceDirectory]
         usage.source = source

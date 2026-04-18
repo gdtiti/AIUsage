@@ -5,29 +5,7 @@ extension ProviderAuthManager {
     // MARK: - Candidate Discovery
 
     internal static func codexCandidates() -> [ProviderAuthCandidate] {
-        var candidates = authFileCandidates(
-            providerId: "codex",
-            directory: "~/.cli-proxy-api",
-            prefix: "codex-"
-        ) { url, json in
-            let email = stringValue(json["email"])
-                ?? jwtEmail(from: stringValue(json["id_token"]))
-            return ProviderAuthCandidate(
-                id: "codex:\(canonicalPath(url.path))",
-                providerId: "codex",
-                sourceIdentifier: "file:\(canonicalPath(url.path))",
-                sessionFingerprint: sessionFingerprint(from: json),
-                title: email ?? readableFilename(url),
-                subtitle: "CLI Proxy API",
-                detail: compactDetail(parts: [displayPath(url.path), formattedDate(modificationDate(for: url))]),
-                modifiedAt: modificationDate(for: url),
-                authMethod: .authFile,
-                credentialValue: url.path,
-                sourcePath: url.path,
-                shouldCopyFile: true,
-                identityScope: .accountScoped
-            )
-        }
+        var candidates: [ProviderAuthCandidate] = []
 
         let defaultURL = URL(fileURLWithPath: expand("~/.codex/auth.json"))
         if FileManager.default.fileExists(atPath: defaultURL.path),
@@ -79,77 +57,17 @@ extension ProviderAuthManager {
             )
         }
 
-        candidates.append(contentsOf: authFileCandidates(
-            providerId: "copilot",
-            directory: "~/.cli-proxy-api",
-            prefix: "github-copilot-"
-        ) { url, json in
-            guard let token = stringValue(json["access_token"]) else { return nil }
-            let username = stringValue(json["username"]) ?? readableFilename(url)
-            return ProviderAuthCandidate(
-                id: "copilot:\(canonicalPath(url.path))",
-                providerId: "copilot",
-                sourceIdentifier: "file:\(canonicalPath(url.path))",
-                sessionFingerprint: sessionFingerprint(from: json, preferredKeys: ["username", "login"]),
-                title: username,
-                subtitle: "Saved token file",
-                detail: compactDetail(parts: [displayPath(url.path), formattedDate(modificationDate(for: url))]),
-                modifiedAt: modificationDate(for: url),
-                authMethod: .token,
-                credentialValue: token,
-                sourcePath: url.path,
-                shouldCopyFile: false,
-                identityScope: .accountScoped
-            )
-        })
-
         return deduplicated(candidates)
     }
 
     internal static func antigravityCandidates() -> [ProviderAuthCandidate] {
-        authFileCandidates(providerId: "antigravity", directory: "~/.cli-proxy-api", prefix: "antigravity-") { url, json in
-            let email = stringValue(json["email"]) ?? readableFilename(url)
-            return ProviderAuthCandidate(
-                id: "antigravity:\(canonicalPath(url.path))",
-                providerId: "antigravity",
-                sourceIdentifier: "file:\(canonicalPath(url.path))",
-                sessionFingerprint: sessionFingerprint(from: json, preferredKeys: ["email", "account_id"]),
-                title: email,
-                subtitle: "CLI Proxy API",
-                detail: compactDetail(parts: [displayPath(url.path), formattedDate(modificationDate(for: url))]),
-                modifiedAt: modificationDate(for: url),
-                authMethod: .authFile,
-                credentialValue: url.path,
-                sourcePath: url.path,
-                shouldCopyFile: true,
-                identityScope: .accountScoped
-            )
-        }
+        []
     }
 
     private static let kiroFingerprintKeys = ["email", "userId", "accountEmail", "profile_arn", "profileArn"]
 
     internal static func kiroCandidates() -> [ProviderAuthCandidate] {
-        var candidates = authFileCandidates(providerId: "kiro", directory: "~/.cli-proxy-api", prefix: "kiro-") { url, json in
-            let email = stringValue(json["email"])
-            let provider = stringValue(json["provider"])
-            let title = email ?? (provider.map { "Kiro (\($0))" }) ?? readableFilename(url)
-            return ProviderAuthCandidate(
-                id: "kiro:\(canonicalPath(url.path))",
-                providerId: "kiro",
-                sourceIdentifier: "file:\(canonicalPath(url.path))",
-                sessionFingerprint: sessionFingerprint(from: json, preferredKeys: kiroFingerprintKeys),
-                title: title,
-                subtitle: "CLI Proxy API",
-                detail: compactDetail(parts: [displayPath(url.path), formattedDate(modificationDate(for: url))]),
-                modifiedAt: modificationDate(for: url),
-                authMethod: .authFile,
-                credentialValue: url.path,
-                sourcePath: url.path,
-                shouldCopyFile: true,
-                identityScope: .accountScoped
-            )
-        }
+        var candidates: [ProviderAuthCandidate] = []
 
         let ideURL = URL(fileURLWithPath: expand("~/.aws/sso/cache/kiro-auth-token.json"))
         if FileManager.default.fileExists(atPath: ideURL.path),
@@ -323,26 +241,5 @@ extension ProviderAuthManager {
                 )
             }
         )
-    }
-
-    private static func authFileCandidates(
-        providerId: String,
-        directory: String,
-        prefix: String,
-        builder: (URL, [String: Any]) -> ProviderAuthCandidate?
-    ) -> [ProviderAuthCandidate] {
-        let directoryURL = URL(fileURLWithPath: expand(directory), isDirectory: true)
-        let urls = (try? FileManager.default.contentsOfDirectory(
-            at: directoryURL,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        )) ?? []
-
-        return urls
-            .filter { $0.lastPathComponent.hasPrefix(prefix) && $0.pathExtension == "json" }
-            .compactMap { url in
-                guard let json = loadJSONObject(at: url.path) else { return nil }
-                return builder(url, json)
-            }
     }
 }

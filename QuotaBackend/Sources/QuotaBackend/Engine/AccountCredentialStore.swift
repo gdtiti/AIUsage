@@ -28,6 +28,16 @@ public final class AccountCredentialStore: @unchecked Sendable {
     private let lock = NSLock()
     private var cachedCredentialsByStorageKey: [String: AccountCredential]?
 
+    // Ad-hoc signed builds can't satisfy the Data Protection Keychain's
+    // entitlement requirement, so DP writes always fail with -34018. Cache that
+    // state to avoid repeat warnings. All access goes through `lock`.
+    private var dpKeychainUnavailable = false
+    private func markDPKeychainUnavailableUnsafe(status: OSStatus) {
+        guard !dpKeychainUnavailable else { return }
+        dpKeychainUnavailable = true
+        credentialLog.info("Data Protection Keychain unavailable (OSStatus \(status)); using legacy keychain. Expected for ad-hoc signed builds.")
+    }
+
     private init() {}
 
     private struct CredentialIndex: Codable {
@@ -193,14 +203,16 @@ public final class AccountCredentialStore: @unchecked Sendable {
             return cachedCredentialsByStorageKey
         }
 
-        if let dpVault = loadVaultFromDataProtectionKeychainUnsafe() {
+        if !dpKeychainUnavailable, let dpVault = loadVaultFromDataProtectionKeychainUnsafe() {
             cachedCredentialsByStorageKey = dpVault
             return dpVault
         }
 
         if let legacyVault = loadVaultFromLegacyKeychainUnsafe() {
             cachedCredentialsByStorageKey = legacyVault
-            migrateVaultToDataProtectionKeychainUnsafe(legacyVault)
+            if !dpKeychainUnavailable {
+                migrateVaultToDataProtectionKeychainUnsafe(legacyVault)
+            }
             return legacyVault
         }
 
@@ -212,7 +224,9 @@ public final class AccountCredentialStore: @unchecked Sendable {
 
         guard !migratedVault.isEmpty else { return migratedVault }
 
-        migrateVaultToDataProtectionKeychainUnsafe(migratedVault)
+        if !dpKeychainUnavailable {
+            migrateVaultToDataProtectionKeychainUnsafe(migratedVault)
+        }
         for key in migratedVault.keys {
             deleteCredentialStorageKeyUnsafe(key)
         }
@@ -276,6 +290,8 @@ public final class AccountCredentialStore: @unchecked Sendable {
             )
             deleteLegacyVaultItemUnsafe()
             credentialLog.info("Migrated credential vault to Data Protection Keychain")
+        } catch CredentialStoreError.keychainWriteFailed(let status) where status == errSecMissingEntitlement {
+            markDPKeychainUnavailableUnsafe(status: status)
         } catch {
             credentialLog.warning("DP migration skipped (entitlement missing?), using legacy keychain")
         }
@@ -294,12 +310,17 @@ public final class AccountCredentialStore: @unchecked Sendable {
         let orderedCredentials = credentialsByStorageKey.values.sorted(by: credentialSort)
         let data = try JSONEncoder().encode(CredentialVault(credentials: orderedCredentials))
 
-        do {
-            try writeToDPKeychainUnsafe(data)
-        } catch {
-            credentialLog.warning("DP Keychain write failed, falling back to legacy: \(error.localizedDescription, privacy: .public)")
-            try writeToLegacyKeychainUnsafe(data)
+        if !dpKeychainUnavailable {
+            do {
+                try writeToDPKeychainUnsafe(data)
+                return
+            } catch CredentialStoreError.keychainWriteFailed(let status) where status == errSecMissingEntitlement {
+                markDPKeychainUnavailableUnsafe(status: status)
+            } catch {
+                credentialLog.warning("DP Keychain write failed, falling back to legacy: \(error.localizedDescription, privacy: .public)")
+            }
         }
+        try writeToLegacyKeychainUnsafe(data)
     }
 
     private func writeToDPKeychainUnsafe(_ data: Data) throws {

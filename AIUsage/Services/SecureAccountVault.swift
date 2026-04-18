@@ -10,17 +10,39 @@ final class SecureAccountVault: @unchecked Sendable {
     private let service = "com.aiusage.desktop.providerAccounts"
     private let account = "registry"
 
+    // Ad-hoc signed builds (no Apple Developer Team) can't satisfy the
+    // `keychain-access-groups` entitlement required by the Data Protection
+    // Keychain, so DP writes always fail with errSecMissingEntitlement (-34018).
+    // Track that state once per process to avoid spamming warnings on every save.
+    private let flagLock = NSLock()
+    private var _dpKeychainUnavailable = false
+    private var dpKeychainUnavailable: Bool {
+        flagLock.lock(); defer { flagLock.unlock() }
+        return _dpKeychainUnavailable
+    }
+    private func markDPKeychainUnavailable(status: OSStatus) {
+        flagLock.lock()
+        let alreadySet = _dpKeychainUnavailable
+        _dpKeychainUnavailable = true
+        flagLock.unlock()
+        if !alreadySet {
+            vaultLog.info("Data Protection Keychain unavailable (OSStatus \(status)); using legacy keychain. Expected for ad-hoc signed builds.")
+        }
+    }
+
     private init() {}
 
     // MARK: - Public API
 
     nonisolated func loadAccounts() -> [StoredProviderAccount] {
-        if let data = readFromDataProtectionKeychain() {
+        if !dpKeychainUnavailable, let data = readFromDataProtectionKeychain() {
             return decodeAccounts(data)
         }
         if let data = readFromLegacyKeychain() {
             let accounts = decodeAccounts(data)
-            migrateToDataProtectionKeychain(data)
+            if !dpKeychainUnavailable {
+                migrateToDataProtectionKeychain(data)
+            }
             return accounts
         }
         return []
@@ -28,12 +50,17 @@ final class SecureAccountVault: @unchecked Sendable {
 
     nonisolated func saveAccounts(_ accounts: [StoredProviderAccount]) throws {
         let data = try JSONEncoder().encode(accounts)
-        do {
-            try writeToDataProtectionKeychain(data)
-        } catch {
-            vaultLog.warning("DP Keychain write failed, falling back to legacy: \(error.localizedDescription, privacy: .public)")
-            try writeToLegacyKeychain(data)
+        if !dpKeychainUnavailable {
+            do {
+                try writeToDataProtectionKeychain(data)
+                return
+            } catch VaultError.osStatus(let status) where status == errSecMissingEntitlement {
+                markDPKeychainUnavailable(status: status)
+            } catch {
+                vaultLog.warning("DP Keychain write failed, falling back to legacy: \(error.localizedDescription, privacy: .public)")
+            }
         }
+        try writeToLegacyKeychain(data)
     }
 
     // MARK: - Data Protection Keychain
@@ -141,6 +168,8 @@ final class SecureAccountVault: @unchecked Sendable {
             try writeToDataProtectionKeychain(data)
             deleteLegacyKeychainItem()
             vaultLog.info("Migrated account registry to Data Protection Keychain")
+        } catch VaultError.osStatus(let status) where status == errSecMissingEntitlement {
+            markDPKeychainUnavailable(status: status)
         } catch {
             vaultLog.warning("DP migration skipped (entitlement missing?), using legacy keychain")
         }

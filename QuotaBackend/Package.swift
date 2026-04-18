@@ -34,7 +34,8 @@ let package = Package(
         .testTarget(
             name: "QuotaBackendTests",
             dependencies: ["QuotaBackend", "QuotaServerCore"],
-            path: "Tests/QuotaBackendTests"
+            path: "Tests/QuotaBackendTests",
+            resources: [.copy("Fixtures")]
         )
     ]
 )

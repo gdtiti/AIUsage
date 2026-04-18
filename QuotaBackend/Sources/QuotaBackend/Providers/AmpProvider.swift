@@ -193,12 +193,22 @@ public struct AmpProvider: ProviderFetcher, CredentialAcceptingProvider {
 
     // MARK: - HTML Parsing (mirrors parseAmpUsage.js)
 
+    /// Test hook that exposes the HTML parser directly, bypassing the network path.
+    internal func _parseSettingsHTMLForTesting(_ html: String) throws -> ProviderUsage {
+        try parseHTML(html, source: SourceInfo(mode: "manual", type: "fixture"))
+    }
+
     private func parseHTML(_ html: String, source: SourceInfo) throws -> ProviderUsage {
         guard let usage = extractFreeTierUsage(html) else {
             if html.lowercased().contains("sign in") || html.lowercased().contains("log in") {
                 throw ProviderError("not_logged_in", "Not logged in to Amp. Please log in at https://ampcode.com/settings.")
             }
-            throw ProviderError("parse_failed", "Could not parse Amp usage from settings page.")
+            let dumpPath = Self.dumpParseFailureHTML(html)
+            let hint = Self.paidAccountHint(in: html)
+            var message = "Could not parse Amp usage from settings page."
+            if let hint { message += " \(hint)" }
+            if let dumpPath { message += " Saved raw HTML to: \(dumpPath)" }
+            throw ProviderError("parse_failed", message)
         }
 
         let quota = max(0, usage.quota)
@@ -226,7 +236,7 @@ public struct AmpProvider: ProviderFetcher, CredentialAcceptingProvider {
         var usageResult = ProviderUsage(provider: "amp", label: "Amp")
         usageResult.accountEmail = accountEmail
         usageResult.usageAccountId = accountEmail?.lowercased()
-        usageResult.accountPlan = "Free"
+        usageResult.accountPlan = usage.plan
         usageResult.primary = window
         usageResult.source = source
 
@@ -245,16 +255,96 @@ public struct AmpProvider: ProviderFetcher, CredentialAcceptingProvider {
         let quota: Int
         let used: Int
         let hourlyReplenishment: Double
+        let plan: String
     }
 
     private func extractFreeTierUsage(_ html: String) -> FreeTierUsage? {
-        let tokens = ["freeTierUsage", "getFreeTierUsage"]
+        let tokens = [
+            "freeTierUsage",
+            "getFreeTierUsage",
+            "tierUsage",
+            "usageSummary",
+            "planUsage",
+        ]
         for token in tokens {
             guard let obj = extractObjectAfterToken(token, in: html) else { continue }
             if let quota = extractNumber("quota", from: obj),
                let used = extractNumber("used", from: obj),
                let hourly = extractDouble("hourlyReplenishment", from: obj) {
-                return FreeTierUsage(quota: Int(quota), used: Int(used), hourlyReplenishment: hourly)
+                return FreeTierUsage(quota: Int(quota), used: Int(used), hourlyReplenishment: hourly, plan: "Free")
+            }
+        }
+
+        // Fallback: locate the smallest object literal that contains all three
+        // required keys. Covers token renames where the surrounding key changed
+        // but the inner shape is still quota/used/hourlyReplenishment.
+        if let obj = extractObjectContainingAllKeys(["quota", "used", "hourlyReplenishment"], in: html),
+           let quota = extractNumber("quota", from: obj),
+           let used = extractNumber("used", from: obj),
+           let hourly = extractDouble("hourlyReplenishment", from: obj) {
+            return FreeTierUsage(quota: Int(quota), used: Int(used), hourlyReplenishment: hourly, plan: "Free")
+        }
+
+        // Credits model fallback: Amp paused Free Tier for many accounts and
+        // migrated to a prepaid balance (`credits:{free:{used,available},paid:{used,available}}`).
+        // Treat `used + available` as quota so usage percent renders consistently
+        // with the free-tier path.
+        if let credits = extractCreditsUsage(html) {
+            return credits
+        }
+        return nil
+    }
+
+    private func extractCreditsUsage(_ html: String) -> FreeTierUsage? {
+        guard let creditsObj = extractObjectAfterKey("credits", in: html) else { return nil }
+
+        let free = extractObjectAfterKey("free", in: creditsObj)
+        let paid = extractObjectAfterKey("paid", in: creditsObj)
+        guard free != nil || paid != nil else { return nil }
+
+        let freeUsed = free.flatMap { extractNumber("used", from: $0) } ?? 0
+        let freeAvail = free.flatMap { extractNumber("available", from: $0) } ?? 0
+        let paidUsed = paid.flatMap { extractNumber("used", from: $0) } ?? 0
+        let paidAvail = paid.flatMap { extractNumber("available", from: $0) } ?? 0
+
+        let used = freeUsed + paidUsed
+        let quota = used + freeAvail + paidAvail
+        return FreeTierUsage(quota: Int(quota), used: Int(used), hourlyReplenishment: 0, plan: "Credits")
+    }
+
+    /// Like `extractObjectAfterToken` but anchors on `key:` (optionally whitespace-padded)
+    /// so it doesn't false-match the key name when it appears inside prose or HTML text
+    /// (e.g. a "Purchase Credits" button vs. the `credits:` JS data key).
+    private func extractObjectAfterKey(_ key: String, in text: String) -> String? {
+        let pattern = "\\b\(NSRegularExpression.escapedPattern(for: key))\\s*:\\s*\\{"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let _ = Range(match.range, in: text) else { return nil }
+
+        // Locate the opening brace position and reuse the balanced-brace scan.
+        let fullMatch = text[Range(match.range, in: text)!]
+        guard let braceRange = fullMatch.range(of: "{") else { return nil }
+        let fromBrace = text[braceRange.lowerBound...]
+
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var endIndex = fromBrace.startIndex
+        for (i, char) in fromBrace.enumerated() {
+            endIndex = fromBrace.index(fromBrace.startIndex, offsetBy: i)
+            if inString {
+                if escaped { escaped = false }
+                else if char == "\\" { escaped = true }
+                else if char == "\"" { inString = false }
+                continue
+            }
+            if char == "\"" { inString = true; continue }
+            if char == "{" { depth += 1 }
+            else if char == "}" {
+                depth -= 1
+                if depth == 0 {
+                    return String(fromBrace[fromBrace.startIndex...endIndex])
+                }
             }
         }
         return nil
@@ -291,6 +381,40 @@ public struct AmpProvider: ProviderFetcher, CredentialAcceptingProvider {
         return nil
     }
 
+    /// Scans every `{…}` object in `text` and returns the smallest one containing all of `keys`.
+    /// Used as a token-name-agnostic fallback when Amp renames the surrounding wrapper.
+    private func extractObjectContainingAllKeys(_ keys: [String], in text: String) -> String? {
+        let chars = Array(text)
+        var stack: [Int] = []
+        var inString = false
+        var escaped = false
+        var best: String?
+        var bestLength = Int.max
+
+        for i in 0..<chars.count {
+            let char = chars[i]
+            if inString {
+                if escaped { escaped = false }
+                else if char == "\\" { escaped = true }
+                else if char == "\"" { inString = false }
+                continue
+            }
+            if char == "\"" { inString = true; continue }
+            if char == "{" { stack.append(i) }
+            else if char == "}" {
+                guard let start = stack.popLast() else { continue }
+                let length = i - start + 1
+                if length >= bestLength { continue }
+                let candidate = String(chars[start...i])
+                if keys.allSatisfy({ extractNumber($0, from: candidate) != nil }) {
+                    best = candidate
+                    bestLength = length
+                }
+            }
+        }
+        return best
+    }
+
     private func extractNumber(_ key: String, from text: String) -> Double? {
         let pattern = "\\b\(NSRegularExpression.escapedPattern(for: key))\\b\\s*:\\s*(-?[0-9]+(?:\\.[0-9]+)?)"
         guard let regex = try? NSRegularExpression(pattern: pattern),
@@ -316,6 +440,44 @@ public struct AmpProvider: ProviderFetcher, CredentialAcceptingProvider {
         let day = DateFormat.string(from: date, format: "MMM d")
         let time = DateFormat.string(from: date, format: "h:mma")
         return "Resets \(day) at \(time)"
+    }
+
+    // MARK: - Parse Failure Diagnostics
+
+    /// Writes the raw settings HTML to `~/Library/Logs/AIUsage/amp-parse-failed-latest.html`
+    /// so users can share it to help adapt the parser to a new page structure. Returns the
+    /// written path, or nil if writing failed.
+    static func dumpParseFailureHTML(_ html: String) -> String? {
+        guard let libraryURL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let logsDir = libraryURL.appendingPathComponent("Logs/AIUsage", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
+        } catch {
+            return nil
+        }
+        let fileURL = logsDir.appendingPathComponent("amp-parse-failed-latest.html")
+        do {
+            try html.write(to: fileURL, atomically: true, encoding: .utf8)
+            return fileURL.path
+        } catch {
+            return nil
+        }
+    }
+
+    /// Returns a short hint when the HTML indicates Amp Free is paused for this account.
+    /// The credits fallback parser handles the happy path; this only fires when even credits
+    /// data is missing, so the user gets actionable context instead of a generic parse error.
+    static func paidAccountHint(in html: String) -> String? {
+        let haystack = html.lowercased()
+        if haystack.contains("amp free isn't currently available for this account") ||
+           haystack.contains("freetierusage:null") {
+            return "Amp Free is paused for this account. Purchase credits at ampcode.com/settings, then retry."
+        }
+        let paidMarkers = ["teamusage", "team plan", "enterprise plan", "pro plan", "billing portal", "stripe.com/session"]
+        guard paidMarkers.contains(where: { haystack.contains($0) }) else { return nil }
+        return "This account looks like a paid/team plan — AIUsage currently only reads the free tier counter."
     }
 
     // MARK: - Cookie Import (mirrors importAmpSessionCookieFromBrowser in browserCookies.js)

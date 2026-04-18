@@ -89,16 +89,12 @@ public struct CanonicalOpenAIUpstreamStreamMapper {
             mappedEvents.append(.messageDelta(CanonicalStreamMessageDelta(
                 stop: finishReason.map { CanonicalStop(reason: canonicalStreamStopReasonFromOpenAI($0)) },
                 usage: usage.map { u in
-                    // DeepSeek: prompt_tokens = hit + miss. Use miss as input to avoid
-                    // billing cache-hit portion at both input and cache-read prices.
-                    let hit = u.promptCacheHitTokens ?? 0
-                    let input = u.promptCacheMissTokens ?? max(u.promptTokens - hit, 0)
-                    return CanonicalUsage(
-                        inputTokens: input,
+                    CanonicalUsage(
+                        inputTokens: u.effectiveInputTokens,
                         outputTokens: u.completionTokens,
                         totalTokens: u.totalTokens,
                         cacheCreationInputTokens: nil,
-                        cacheReadInputTokens: u.promptCacheHitTokens
+                        cacheReadInputTokens: u.effectiveCachedTokens
                     )
                 }
             )))

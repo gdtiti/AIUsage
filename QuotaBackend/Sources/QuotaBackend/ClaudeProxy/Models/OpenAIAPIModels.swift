@@ -437,6 +437,21 @@ public struct OpenAIUsage: Codable, Sendable {
     public let promptCacheHitTokens: Int?
     /// DeepSeek: prompt_cache_miss_tokens (tokens not served from cache)
     public let promptCacheMissTokens: Int?
+    /// OpenAI 2024-10+ and downstreams that mirror the official shape (e.g. OpenRouter, Kimi):
+    /// prompt cache info is nested under `prompt_tokens_details.cached_tokens`.
+    public let promptTokensDetails: PromptTokensDetails?
+
+    public struct PromptTokensDetails: Codable, Sendable {
+        public let cachedTokens: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case cachedTokens = "cached_tokens"
+        }
+
+        public init(cachedTokens: Int? = nil) {
+            self.cachedTokens = cachedTokens
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case promptTokens = "prompt_tokens"
@@ -444,6 +459,7 @@ public struct OpenAIUsage: Codable, Sendable {
         case totalTokens = "total_tokens"
         case promptCacheHitTokens = "prompt_cache_hit_tokens"
         case promptCacheMissTokens = "prompt_cache_miss_tokens"
+        case promptTokensDetails = "prompt_tokens_details"
     }
 
     public init(
@@ -451,13 +467,30 @@ public struct OpenAIUsage: Codable, Sendable {
         completionTokens: Int,
         totalTokens: Int,
         promptCacheHitTokens: Int? = nil,
-        promptCacheMissTokens: Int? = nil
+        promptCacheMissTokens: Int? = nil,
+        promptTokensDetails: PromptTokensDetails? = nil
     ) {
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
         self.totalTokens = totalTokens
         self.promptCacheHitTokens = promptCacheHitTokens
         self.promptCacheMissTokens = promptCacheMissTokens
+        self.promptTokensDetails = promptTokensDetails
+    }
+
+    /// Tokens served from the prompt cache, normalized across vendor shapes.
+    /// Returns nil when the upstream reports no cache signal at all (not 0,
+    /// so downstream billing can distinguish "no cache" from "0 hits").
+    public var effectiveCachedTokens: Int? {
+        promptCacheHitTokens ?? promptTokensDetails?.cachedTokens
+    }
+
+    /// Uncached prompt size. Prefers an explicit miss field (DeepSeek);
+    /// otherwise subtracts the cache-read portion from promptTokens so the
+    /// hit portion is not billed at both input and cache-read prices.
+    public var effectiveInputTokens: Int {
+        if let miss = promptCacheMissTokens { return miss }
+        return max(promptTokens - (effectiveCachedTokens ?? 0), 0)
     }
 }
 

@@ -111,14 +111,17 @@ struct MenuBarView: View {
                 label: L("Accounts", "账号"),
                 icon: "person.2.fill"
             )
+            .frame(maxWidth: .infinity)
 
             summaryStatDivider
 
             proxyNodeSwitcher(activeNode: activeNode)
+                .frame(maxWidth: .infinity)
 
             summaryStatDivider
 
             proxyCostCell()
+                .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -169,6 +172,8 @@ struct MenuBarView: View {
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(activeNode != nil ? .primary : .secondary)
                         .lineLimit(1)
+                        .truncationMode(.tail)
+                        .minimumScaleFactor(0.7)
                 }
                 if let node = activeNode {
                     Text(proxyNodeTypeLabel(node))
@@ -271,6 +276,8 @@ struct MenuBarView: View {
                     Text(proxyCostValueText(stats: stats, metric: config.metric))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(proxyCostTint(stats: stats, metric: config.metric))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     if stats.requests > 0 {
                         Text("·")
                             .font(.system(size: 10))
@@ -314,14 +321,14 @@ struct MenuBarView: View {
         return "\(periodLabel(period)) · \(metricText)"
     }
 
-    private func proxyCostValueText(stats: (cost: Double, tokens: Int, requests: Int, successRate: Double), metric: MenuBarCostMetric) -> String {
+    private func proxyCostValueText(stats: ProxyViewModel.OverallStats, metric: MenuBarCostMetric) -> String {
         switch metric {
         case .cost:   return formatCostCompact(stats.cost)
         case .tokens: return formatCompactNumber(Double(stats.tokens))
         }
     }
 
-    private func proxyCostTint(stats: (cost: Double, tokens: Int, requests: Int, successRate: Double), metric: MenuBarCostMetric) -> Color {
+    private func proxyCostTint(stats: ProxyViewModel.OverallStats, metric: MenuBarCostMetric) -> Color {
         switch metric {
         case .cost:   return stats.cost > 0 ? .orange : .primary
         case .tokens: return stats.tokens > 0 ? .purple : .primary
@@ -337,12 +344,13 @@ struct MenuBarView: View {
                 Text(value)
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(valueColor ?? .primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             Text(label)
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
     }
 
     private var summaryStatDivider: some View {

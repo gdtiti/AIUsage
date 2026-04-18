@@ -142,15 +142,17 @@ extension CostTrackingView {
     }
 
     func multiModelChartFor(_ allSeries: [ChartSeriesDescriptor]) -> some View {
-        Chart {
+        let colorMap = modelColorMap
+        return Chart {
             ForEach(allSeries, id: \.model) { series in
+                let color = modelColor(for: series.model, from: colorMap)
                 ForEach(series.points, id: \.bucket) { point in
                     LineMark(
                         x: .value("Time", point.date),
                         y: .value("Value", selectedMetric == .usd ? point.usd : Double(point.tokens)),
                         series: .value("Model", series.model)
                     )
-                    .foregroundStyle(modelColor(for: series.model))
+                    .foregroundStyle(color)
                     .interpolationMethod(.catmullRom)
                     .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round))
                 }
@@ -164,6 +166,7 @@ extension CostTrackingView {
     @ViewBuilder
     var chartLegendSection: some View {
         let series = displayedChartSeries(limit: maxVisibleChartModels)
+        let colorMap = modelColorMap
         if series.count > 1 {
             VStack(alignment: .leading, spacing: 8) {
                 if hiddenChartSeriesCount > 0 && selectedModels.isEmpty {
@@ -180,7 +183,7 @@ extension CostTrackingView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 8)], alignment: .leading, spacing: 8) {
                     ForEach(series, id: \.model) { series in
                         StatsLegendChip(
-                            color: modelColor(for: series.model),
+                            color: modelColor(for: series.model, from: colorMap),
                             title: series.model,
                             value: selectedMetric == .usd
                                 ? formatCurrency(series.totalUsd)

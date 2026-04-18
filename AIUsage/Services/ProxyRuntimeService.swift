@@ -297,7 +297,10 @@ final class ProxyRuntimeService {
             pricing[model.name] = [
                 "input_per_million": model.pricing.inputPerMillionUSD,
                 "output_per_million": model.pricing.outputPerMillionUSD,
-                "cache_per_million": model.pricing.cachePerMillionUSD,
+                "cache_creation_per_million": model.pricing.cacheCreatePerMillionUSD,
+                "cache_read_per_million": model.pricing.cacheReadPerMillionUSD,
+                // Emit legacy key too for older QuotaServer binaries that predate split pricing.
+                "cache_per_million": model.pricing.cacheReadPerMillionUSD,
             ]
         }
 

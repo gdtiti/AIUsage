@@ -21,11 +21,15 @@ extension CostTrackingView {
         let shareWidth = tableColumnWidth(.share, layout: layout)
         let trendWidth = tableColumnWidth(.trend, layout: layout)
 
+        let models = rankedDistributionModels
+        let colorMap = modelColorMap
+        let tokenTotal = models.reduce(0) { $0 + $1.totalTokens }
+
         return VStack(alignment: .leading, spacing: 12) {
             Text(L("Model Details", "模型详情"))
                 .font(.headline.weight(.bold))
 
-            if rankedDistributionModels.isEmpty {
+            if models.isEmpty {
                 Text(L("No model data", "暂无模型数据"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -46,19 +50,21 @@ extension CostTrackingView {
 
                     Divider()
 
-                    ForEach(Array(rankedDistributionModels.enumerated()), id: \.element.id) { index, model in
+                    ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
                         modelRow(
                             model,
                             index: index,
                             costWidth: costWidth,
                             tokensWidth: tokensWidth,
                             shareWidth: shareWidth,
-                            trendWidth: trendWidth
+                            trendWidth: trendWidth,
+                            colorMap: colorMap,
+                            tokenTotal: tokenTotal
                         )
                         if expandedModels.contains(model.model) {
-                            modelDetailRow(model, index: index)
+                            modelDetailRow(model, index: index, colorMap: colorMap)
                         }
-                        if index < rankedDistributionModels.count - 1 {
+                        if index < models.count - 1 {
                             Divider().padding(.horizontal, 12)
                         }
                     }
@@ -83,9 +89,11 @@ extension CostTrackingView {
         costWidth: CGFloat,
         tokensWidth: CGFloat,
         shareWidth: CGFloat,
-        trendWidth: CGFloat
+        trendWidth: CGFloat,
+        colorMap: [String: Color],
+        tokenTotal: Int
     ) -> some View {
-        let color = modelColor(for: model.model)
+        let color = modelColor(for: model.model, from: colorMap)
         let sparkValues = modelSparklineValues(model.model)
         let isExpanded = expandedModels.contains(model.model)
         return HStack(spacing: 0) {
@@ -112,7 +120,7 @@ extension CostTrackingView {
                 .foregroundStyle(.secondary)
                 .frame(width: tokensWidth, alignment: .trailing)
 
-            Text(String(format: "%.1f%%", distributionShare(for: model)))
+            Text(String(format: "%.1f%%", distributionShare(for: model, totalTokens: tokenTotal)))
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(color)
                 .frame(width: shareWidth, alignment: .trailing)
@@ -143,19 +151,25 @@ extension CostTrackingView {
         )
     }
 
-    func modelDetailRow(_ model: ModelCostBreakdown, index: Int) -> some View {
-        let color = modelColor(for: model.model)
-        let detailItems: [(String, Int, Color)] = [
-            (L("Input", "输入"), model.inputTokens, .blue),
-            (L("Output", "输出"), model.outputTokens, .green),
-            (L("Cache Read", "缓存读取"), model.cacheReadTokens, .orange),
-            (L("Cache Write", "缓存写入"), model.cacheCreateTokens, .purple)
+    func modelDetailRow(_ model: ModelCostBreakdown, index: Int, colorMap: [String: Color]) -> some View {
+        let color = modelColor(for: model.model, from: colorMap)
+        let cacheEligible = model.inputTokens + model.cacheReadTokens + model.cacheCreateTokens
+        let hitRate = cacheEligible > 0
+            ? Double(model.cacheReadTokens) / Double(cacheEligible) * 100
+            : 0
+        let hitRateText = cacheEligible > 0 ? String(format: "%.1f%%", hitRate) : "—"
+        let detailItems: [(String, String, Color)] = [
+            (L("Input", "输入"), formatCompactNumber(Double(model.inputTokens)), .blue),
+            (L("Output", "输出"), formatCompactNumber(Double(model.outputTokens)), .green),
+            (L("Cache Read", "缓存读取"), formatCompactNumber(Double(model.cacheReadTokens)), .orange),
+            (L("Cache Write", "缓存写入"), formatCompactNumber(Double(model.cacheCreateTokens)), .purple),
+            (L("Hit Rate", "命中率"), hitRateText, .teal)
         ]
 
         return VStack(alignment: .leading, spacing: 10) {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 8)], alignment: .leading, spacing: 8) {
                 ForEach(detailItems, id: \.0) { item in
-                    tokenBreakdownPill(label: item.0, tokens: item.1, color: item.2)
+                    tokenBreakdownPill(label: item.0, value: item.1, color: item.2)
                 }
             }
 
@@ -180,14 +194,16 @@ extension CostTrackingView {
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
-    func tokenBreakdownPill(label: String, tokens: Int, color: Color) -> some View {
+    func tokenBreakdownPill(label: String, value: String, color: Color) -> some View {
         VStack(spacing: 2) {
             Text(label)
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.secondary)
-            Text(formatCompactNumber(Double(tokens)))
+            Text(value)
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)

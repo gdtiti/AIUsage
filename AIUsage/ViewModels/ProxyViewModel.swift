@@ -48,9 +48,18 @@ class ProxyViewModel: ObservableObject {
     @Published var configurations: [ProxyConfiguration] = []
     @Published var activatedConfigId: String?
     @Published var statistics: [String: ProxyStatistics] = [:]
-    @Published var recentLogs: [String: [ProxyRequestLog]] = [:]
+    @Published var recentLogs: [String: [ProxyRequestLog]] = [:] {
+        didSet { _logCache.removeAll() }
+    }
     @Published var operationErrorMessage: String?
     @Published var operationInProgressConfigIds: Set<String> = []
+
+    struct LogCacheKey: Hashable {
+        let nodeFilter: String?
+        let modelFilter: String?
+    }
+
+    var _logCache: [LogCacheKey: [ProxyRequestLog]] = [:]
 
     let runtimeService: ProxyRuntimeService
 

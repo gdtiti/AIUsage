@@ -102,19 +102,21 @@ extension CostTrackingView {
 
     private static let modelPalette: [Color] = [.orange, .blue, .purple, .green, .pink, .cyan, .mint, .indigo, .teal, .red]
 
-    func modelColor(for model: String) -> Color {
+    var modelColorMap: [String: Color] {
         let palette = Self.modelPalette
-        let ranked = sortedChartSeries().map(\.model)
-        if let idx = ranked.firstIndex(of: model) {
-            return palette[idx % palette.count]
+        var map: [String: Color] = [:]
+        for (idx, series) in sortedChartSeries().enumerated() {
+            map[series.model] = palette[idx % palette.count]
         }
-        return palette[stablePaletteIndex(for: model, paletteCount: palette.count)]
+        return map
     }
 
-    func distributionShare(for model: ModelCostBreakdown) -> Double {
-        guard distributionMetric == .tokens else { return model.percentage }
+    func modelColor(for model: String, from colorMap: [String: Color]) -> Color {
+        colorMap[model] ?? Self.modelPalette[stablePaletteIndex(for: model, paletteCount: Self.modelPalette.count)]
+    }
 
-        let totalTokens = rankedDistributionModels.reduce(0) { $0 + $1.totalTokens }
+    func distributionShare(for model: ModelCostBreakdown, totalTokens: Int) -> Double {
+        guard distributionMetric == .tokens else { return model.percentage }
         guard totalTokens > 0 else { return 0 }
         return Double(model.totalTokens) / Double(totalTokens) * 100
     }

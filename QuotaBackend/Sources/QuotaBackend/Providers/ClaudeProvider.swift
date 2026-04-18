@@ -9,6 +9,9 @@ public struct ClaudeProvider: ProviderFetcher {
     public let displayName = "Claude Code"
     public let description = "Usage-derived Claude Code spend ledger from local logs"
 
+    /// Matches ProxyConfiguration.ModelPricing.defaultCacheWriteMultiplier
+    static let defaultCacheWriteMultiplier: Double = 1.25
+
     let homeDirectory: String
     let timeZone: TimeZone
 
@@ -437,8 +440,14 @@ public struct ClaudeProvider: ProviderFetcher {
         for (model, prices) in pricingDict {
             let input = (prices["input_per_million"] ?? 0) / 1_000_000
             let output = (prices["output_per_million"] ?? 0) / 1_000_000
-            let cache = (prices["cache_per_million"] ?? 0) / 1_000_000
-            overrides[model] = Pricing(input, output, cache * 1.25, cache)
+            let legacyCache = (prices["cache_per_million"] ?? 0) / 1_000_000
+            let readKey = prices["cache_read_per_million"].map { $0 / 1_000_000 }
+            let writeKey = prices["cache_creation_per_million"].map { $0 / 1_000_000 }
+
+            let cacheRead: Double = readKey ?? legacyCache
+            let cacheWrite: Double = writeKey ?? (legacyCache > 0 ? legacyCache * Self.defaultCacheWriteMultiplier : 0)
+
+            overrides[model] = Pricing(input, output, cacheWrite, cacheRead)
         }
         return overrides
     }

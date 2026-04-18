@@ -503,6 +503,20 @@ struct ProxyConfigEditorView: View {
                 Text(L("Pricing", "定价"))
                     .font(.subheadline.weight(.semibold))
                 Spacer()
+                Button {
+                    applyCacheAutoFill()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "wand.and.stars")
+                        Text(L("Auto-fill Cache (1.25× / 0.1×)", "自动填充缓存（1.25×/0.1×）"))
+                    }
+                    .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.borderless)
+                .help(L(
+                    "Set cache-write = 1.25× input and cache-read = 0.1× input for all three models.",
+                    "按输入价格自动计算三个模型的缓存写入（×1.25）与缓存读取（×0.1）单价。"
+                ))
                 Picker("", selection: $pricingCurrency) {
                     Text("USD ($)").tag(ProxyConfiguration.PricingCurrency.usd)
                     Text("CNY (¥)").tag(ProxyConfiguration.PricingCurrency.cny)
@@ -523,6 +537,13 @@ struct ProxyConfigEditorView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Text(L(
+                "Anthropic bills cache writes at ~1.25× input and cache reads at ~0.1× input (5-minute TTL). Adjust per upstream if your provider differs.",
+                "Anthropic 的缓存写入约为输入价格的 1.25×，缓存读取约为 0.1×（5 分钟 TTL）。如上游计费方式不同可自行调整。"
+            ))
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+
             // Table Header
             HStack(spacing: 0) {
                 Text("")
@@ -532,7 +553,9 @@ struct ProxyConfigEditorView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(L("Output", "输出"))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text(L("Cache", "缓存"))
+                Text(L("Cache Write", "缓存写入"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(L("Cache Read", "缓存读取"))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(L("/ M tokens", "/ 百万"))
                     .frame(width: 64, alignment: .trailing)
@@ -544,6 +567,17 @@ struct ProxyConfigEditorView: View {
             pricingRow(label: "Sonnet", pricing: $config.modelMapping.middleModel.pricing)
             pricingRow(label: "Haiku", pricing: $config.modelMapping.smallModel.pricing)
         }
+    }
+
+    private func applyCacheAutoFill() {
+        func fill(_ p: inout ProxyConfiguration.ModelPricing) {
+            guard p.inputPerMillion > 0 else { return }
+            p.cacheCreatePerMillion = p.inputPerMillion * ProxyConfiguration.ModelPricing.defaultCacheWriteMultiplier
+            p.cacheReadPerMillion = p.inputPerMillion * ProxyConfiguration.ModelPricing.defaultCacheReadMultiplier
+        }
+        fill(&config.modelMapping.bigModel.pricing)
+        fill(&config.modelMapping.middleModel.pricing)
+        fill(&config.modelMapping.smallModel.pricing)
     }
 
     private func pricingRow(label: String, pricing: Binding<ProxyConfiguration.ModelPricing>) -> some View {
@@ -569,7 +603,14 @@ struct ProxyConfigEditorView: View {
 
             Spacer().frame(width: 6)
 
-            TextField("0", value: pricing.cachePerMillion, format: .number.precision(.fractionLength(0...4)))
+            TextField("0", value: pricing.cacheCreatePerMillion, format: .number.precision(.fractionLength(0...4)))
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12, design: .monospaced))
+                .frame(maxWidth: .infinity)
+
+            Spacer().frame(width: 6)
+
+            TextField("0", value: pricing.cacheReadPerMillion, format: .number.precision(.fractionLength(0...4)))
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12, design: .monospaced))
                 .frame(maxWidth: .infinity)

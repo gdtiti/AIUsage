@@ -109,7 +109,8 @@ extension QuotaHTTPServer {
                 responseTimeMs: elapsed,
                 inputTokens: response.usage.inputTokens,
                 outputTokens: response.usage.outputTokens,
-                cacheTokens: (response.usage.cacheCreationInputTokens ?? 0) + (response.usage.cacheReadInputTokens ?? 0)
+                cacheCreationTokens: response.usage.cacheCreationInputTokens ?? 0,
+                cacheReadTokens: response.usage.cacheReadInputTokens ?? 0
             )
             return jsonResponse(encodable: response, headers: headers)
         } catch {
@@ -524,6 +525,9 @@ extension QuotaHTTPServer {
             let messageID = "msg_\(UUID().uuidString.prefix(24))"
             var outputTokens = 0
             var reportedOutputTokens: Int?
+            var reportedInputTokens: Int?
+            var reportedCacheCreation: Int?
+            var reportedCacheRead: Int?
             var hasAnyContentBlock = false
             var canonicalMapper = CanonicalOpenAIUpstreamStreamMapper()
             let canonicalBuilder = CanonicalClaudeStreamBuilder()
@@ -606,6 +610,12 @@ extension QuotaHTTPServer {
                         outputTokens += max(1, textDelta.count / 4)
                     }
 
+                    if case .messageDelta(let delta) = canonicalEvent, let usage = delta.usage {
+                        reportedInputTokens = usage.inputTokens ?? reportedInputTokens
+                        reportedCacheCreation = usage.cacheCreationInputTokens ?? reportedCacheCreation
+                        reportedCacheRead = usage.cacheReadInputTokens ?? reportedCacheRead
+                    }
+
                     let claudeEvents = canonicalBuilder.build(event: canonicalEvent)
                     for claudeEvent in claudeEvents {
                         if case .messageDelta(let payload) = claudeEvent {
@@ -624,7 +634,10 @@ extension QuotaHTTPServer {
                 upstreamModel: upstreamModel,
                 success: true,
                 responseTimeMs: elapsed,
-                outputTokens: finalOutputTokens
+                inputTokens: reportedInputTokens ?? 0,
+                outputTokens: finalOutputTokens,
+                cacheCreationTokens: reportedCacheCreation ?? 0,
+                cacheReadTokens: reportedCacheRead ?? 0
             )
 
         } catch {
@@ -656,7 +669,8 @@ extension QuotaHTTPServer {
         responseTimeMs: Double,
         inputTokens: Int = 0,
         outputTokens: Int = 0,
-        cacheTokens: Int = 0,
+        cacheCreationTokens: Int = 0,
+        cacheReadTokens: Int = 0,
         errorMessage: String? = nil
     ) {
         var parts = [
@@ -667,7 +681,9 @@ extension QuotaHTTPServer {
             "\"response_time_ms\":\(Int(responseTimeMs))",
             "\"input_tokens\":\(inputTokens)",
             "\"output_tokens\":\(outputTokens)",
-            "\"cache_tokens\":\(cacheTokens)"
+            "\"cache_creation_tokens\":\(cacheCreationTokens)",
+            "\"cache_read_tokens\":\(cacheReadTokens)",
+            "\"cache_tokens\":\(cacheCreationTokens + cacheReadTokens)"
         ]
         if let err = errorMessage {
             parts.append("\"error\":\(escapeJSON(err))")

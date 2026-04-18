@@ -39,7 +39,8 @@ extension ProxyViewModel {
         }
         stats.totalTokensInput += log.tokensInput
         stats.totalTokensOutput += log.tokensOutput
-        stats.totalTokensCache += log.tokensCache
+        stats.totalTokensCacheRead += log.tokensCacheRead
+        stats.totalTokensCacheCreation += log.tokensCacheCreation
         stats.estimatedCostUSD += log.estimatedCostUSD
         stats.lastRequestAt = log.timestamp
 
@@ -70,7 +71,12 @@ extension ProxyViewModel {
         for log in logs {
             if log.estimatedCostUSD == 0, log.tokensInput + log.tokensOutput + log.tokensCache > 0 {
                 let pricing = config.pricingForModel(log.upstreamModel)
-                let cost = pricing?.costForTokens(input: log.tokensInput, output: log.tokensOutput, cache: log.tokensCache) ?? 0
+                let cost = pricing?.costForTokens(
+                    input: log.tokensInput,
+                    output: log.tokensOutput,
+                    cacheRead: log.tokensCacheRead,
+                    cacheCreate: log.tokensCacheCreation
+                ) ?? 0
                 if cost > 0 {
                     changed = true
                     updatedLogs.append(ProxyRequestLog(
@@ -79,7 +85,9 @@ extension ProxyViewModel {
                         claudeModel: log.claudeModel, upstreamModel: log.upstreamModel,
                         success: log.success, responseTimeMs: log.responseTimeMs,
                         tokensInput: log.tokensInput, tokensOutput: log.tokensOutput,
-                        tokensCache: log.tokensCache, estimatedCostUSD: cost,
+                        tokensCacheRead: log.tokensCacheRead,
+                        tokensCacheCreation: log.tokensCacheCreation,
+                        estimatedCostUSD: cost,
                         errorMessage: log.errorMessage
                     ))
                     continue

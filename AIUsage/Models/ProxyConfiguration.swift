@@ -42,13 +42,17 @@ struct ProxyConfiguration: Codable, Identifiable {
     }
 
     struct ModelPricing: Codable {
-        var inputPerMillion: Double    // per 1M input tokens (in configured currency)
-        var outputPerMillion: Double   // per 1M output tokens
-        var cachePerMillion: Double    // per 1M cache hit tokens
+        var inputPerMillion: Double         // per 1M input tokens (in configured currency)
+        var outputPerMillion: Double        // per 1M output tokens
+        var cacheCreatePerMillion: Double   // per 1M cache write tokens (~1.25× input by default)
+        var cacheReadPerMillion: Double     // per 1M cache read tokens (~0.1× input by default)
         var currency: PricingCurrency
 
+        static let defaultCacheWriteMultiplier: Double = 1.25
+        static let defaultCacheReadMultiplier: Double = 0.1
+
         static var zero: ModelPricing {
-            ModelPricing(inputPerMillion: 0, outputPerMillion: 0, cachePerMillion: 0, currency: .usd)
+            ModelPricing(inputPerMillion: 0, outputPerMillion: 0, cacheCreatePerMillion: 0, cacheReadPerMillion: 0, currency: .usd)
         }
 
         /// Approximate USD/CNY rate for display purposes only. Not used for actual billing.
@@ -62,27 +66,76 @@ struct ProxyConfiguration: Codable, Identifiable {
         var outputPerMillionUSD: Double {
             currency == .usd ? outputPerMillion : outputPerMillion * Self.cnyToUsdRate
         }
-        var cachePerMillionUSD: Double {
-            currency == .usd ? cachePerMillion : cachePerMillion * Self.cnyToUsdRate
+        var cacheCreatePerMillionUSD: Double {
+            currency == .usd ? cacheCreatePerMillion : cacheCreatePerMillion * Self.cnyToUsdRate
+        }
+        var cacheReadPerMillionUSD: Double {
+            currency == .usd ? cacheReadPerMillion : cacheReadPerMillion * Self.cnyToUsdRate
         }
 
-        func costForTokens(input: Int, output: Int, cache: Int) -> Double {
-            (Double(input) * inputPerMillionUSD + Double(output) * outputPerMillionUSD + Double(cache) * cachePerMillionUSD) / 1_000_000
+        func costForTokens(input: Int, output: Int, cacheRead: Int, cacheCreate: Int) -> Double {
+            (Double(input) * inputPerMillionUSD
+             + Double(output) * outputPerMillionUSD
+             + Double(cacheCreate) * cacheCreatePerMillionUSD
+             + Double(cacheRead) * cacheReadPerMillionUSD) / 1_000_000
         }
 
-        init(inputPerMillion: Double = 0, outputPerMillion: Double = 0, cachePerMillion: Double = 0, currency: PricingCurrency = .usd) {
+        init(
+            inputPerMillion: Double = 0,
+            outputPerMillion: Double = 0,
+            cacheCreatePerMillion: Double = 0,
+            cacheReadPerMillion: Double = 0,
+            currency: PricingCurrency = .usd
+        ) {
             self.inputPerMillion = inputPerMillion
             self.outputPerMillion = outputPerMillion
-            self.cachePerMillion = cachePerMillion
+            self.cacheCreatePerMillion = cacheCreatePerMillion
+            self.cacheReadPerMillion = cacheReadPerMillion
             self.currency = currency
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case inputPerMillion
+            case outputPerMillion
+            case cachePerMillion             // legacy (combined cache)
+            case cacheCreatePerMillion
+            case cacheReadPerMillion
+            case currency
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             inputPerMillion = try container.decode(Double.self, forKey: .inputPerMillion)
             outputPerMillion = try container.decode(Double.self, forKey: .outputPerMillion)
-            cachePerMillion = try container.decode(Double.self, forKey: .cachePerMillion)
+
+            let legacy = try container.decodeIfPresent(Double.self, forKey: .cachePerMillion)
+            let splitWrite = try container.decodeIfPresent(Double.self, forKey: .cacheCreatePerMillion)
+            let splitRead = try container.decodeIfPresent(Double.self, forKey: .cacheReadPerMillion)
+
+            // Prefer split fields; fall back to legacy scalar: treat it as a blended cache price,
+            // then synthesize cache-read = legacy and cache-write = legacy × 1.25.
+            if splitWrite != nil || splitRead != nil {
+                cacheCreatePerMillion = splitWrite ?? ((legacy ?? 0) * Self.defaultCacheWriteMultiplier)
+                cacheReadPerMillion = splitRead ?? (legacy ?? 0)
+            } else if let legacy, legacy > 0 {
+                cacheReadPerMillion = legacy
+                cacheCreatePerMillion = legacy * Self.defaultCacheWriteMultiplier
+            } else {
+                cacheReadPerMillion = 0
+                cacheCreatePerMillion = 0
+            }
+
             currency = try container.decodeIfPresent(PricingCurrency.self, forKey: .currency) ?? .usd
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(inputPerMillion, forKey: .inputPerMillion)
+            try container.encode(outputPerMillion, forKey: .outputPerMillion)
+            try container.encode(cacheCreatePerMillion, forKey: .cacheCreatePerMillion)
+            try container.encode(cacheReadPerMillion, forKey: .cacheReadPerMillion)
+            try container.encode(cacheReadPerMillion, forKey: .cachePerMillion)
+            try container.encode(currency, forKey: .currency)
         }
     }
 
@@ -252,7 +305,8 @@ struct ProxyStatistics: Codable {
     var failedRequests: Int
     var totalTokensInput: Int
     var totalTokensOutput: Int
-    var totalTokensCache: Int
+    var totalTokensCacheRead: Int
+    var totalTokensCacheCreation: Int
     var estimatedCostUSD: Double
     var requestsByModel: [String: Int]
     var lastRequestAt: Date?
@@ -265,7 +319,8 @@ struct ProxyStatistics: Codable {
             failedRequests: 0,
             totalTokensInput: 0,
             totalTokensOutput: 0,
-            totalTokensCache: 0,
+            totalTokensCacheRead: 0,
+            totalTokensCacheCreation: 0,
             estimatedCostUSD: 0,
             requestsByModel: [:],
             lastRequestAt: nil,
@@ -278,8 +333,102 @@ struct ProxyStatistics: Codable {
         return Double(successfulRequests) / Double(totalRequests) * 100
     }
 
+    var totalTokensCache: Int { totalTokensCacheRead + totalTokensCacheCreation }
+
     var totalTokens: Int {
         totalTokensInput + totalTokensOutput + totalTokensCache
+    }
+
+    /// Cache hit rate: cache_read / (input + cache_read + cache_creation).
+    /// Measures how much of the billable input surface is served from cache.
+    var cacheHitRate: Double {
+        let denom = totalTokensInput + totalTokensCacheRead + totalTokensCacheCreation
+        guard denom > 0 else { return 0 }
+        return Double(totalTokensCacheRead) / Double(denom) * 100
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case totalRequests
+        case successfulRequests
+        case failedRequests
+        case totalTokensInput
+        case totalTokensOutput
+        case totalTokensCache             // legacy combined cache
+        case totalTokensCacheRead
+        case totalTokensCacheCreation
+        case estimatedCostUSD
+        case requestsByModel
+        case lastRequestAt
+        case averageResponseTime
+    }
+
+    init(
+        totalRequests: Int,
+        successfulRequests: Int,
+        failedRequests: Int,
+        totalTokensInput: Int,
+        totalTokensOutput: Int,
+        totalTokensCacheRead: Int,
+        totalTokensCacheCreation: Int,
+        estimatedCostUSD: Double,
+        requestsByModel: [String: Int],
+        lastRequestAt: Date?,
+        averageResponseTime: Double
+    ) {
+        self.totalRequests = totalRequests
+        self.successfulRequests = successfulRequests
+        self.failedRequests = failedRequests
+        self.totalTokensInput = totalTokensInput
+        self.totalTokensOutput = totalTokensOutput
+        self.totalTokensCacheRead = totalTokensCacheRead
+        self.totalTokensCacheCreation = totalTokensCacheCreation
+        self.estimatedCostUSD = estimatedCostUSD
+        self.requestsByModel = requestsByModel
+        self.lastRequestAt = lastRequestAt
+        self.averageResponseTime = averageResponseTime
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        totalRequests = try c.decode(Int.self, forKey: .totalRequests)
+        successfulRequests = try c.decode(Int.self, forKey: .successfulRequests)
+        failedRequests = try c.decode(Int.self, forKey: .failedRequests)
+        totalTokensInput = try c.decode(Int.self, forKey: .totalTokensInput)
+        totalTokensOutput = try c.decode(Int.self, forKey: .totalTokensOutput)
+
+        let legacyCache = try c.decodeIfPresent(Int.self, forKey: .totalTokensCache)
+        let splitRead = try c.decodeIfPresent(Int.self, forKey: .totalTokensCacheRead)
+        let splitCreate = try c.decodeIfPresent(Int.self, forKey: .totalTokensCacheCreation)
+
+        if splitRead != nil || splitCreate != nil {
+            totalTokensCacheRead = splitRead ?? 0
+            totalTokensCacheCreation = splitCreate ?? 0
+        } else {
+            // Legacy migration: attribute the old combined total to cache-read (no way to split historical data).
+            totalTokensCacheRead = legacyCache ?? 0
+            totalTokensCacheCreation = 0
+        }
+
+        estimatedCostUSD = try c.decode(Double.self, forKey: .estimatedCostUSD)
+        requestsByModel = try c.decode([String: Int].self, forKey: .requestsByModel)
+        lastRequestAt = try c.decodeIfPresent(Date.self, forKey: .lastRequestAt)
+        averageResponseTime = try c.decode(Double.self, forKey: .averageResponseTime)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(totalRequests, forKey: .totalRequests)
+        try c.encode(successfulRequests, forKey: .successfulRequests)
+        try c.encode(failedRequests, forKey: .failedRequests)
+        try c.encode(totalTokensInput, forKey: .totalTokensInput)
+        try c.encode(totalTokensOutput, forKey: .totalTokensOutput)
+        try c.encode(totalTokensCacheRead, forKey: .totalTokensCacheRead)
+        try c.encode(totalTokensCacheCreation, forKey: .totalTokensCacheCreation)
+        try c.encode(totalTokensCacheRead + totalTokensCacheCreation, forKey: .totalTokensCache)
+        try c.encode(estimatedCostUSD, forKey: .estimatedCostUSD)
+        try c.encode(requestsByModel, forKey: .requestsByModel)
+        try c.encodeIfPresent(lastRequestAt, forKey: .lastRequestAt)
+        try c.encode(averageResponseTime, forKey: .averageResponseTime)
     }
 }
 
@@ -297,9 +446,13 @@ struct ProxyRequestLog: Codable, Identifiable {
     let responseTimeMs: Double
     let tokensInput: Int
     let tokensOutput: Int
-    let tokensCache: Int
+    let tokensCacheRead: Int
+    let tokensCacheCreation: Int
     let estimatedCostUSD: Double
     let errorMessage: String?
+
+    /// Combined cache total (read + creation). Retained for display and aggregation convenience.
+    var tokensCache: Int { tokensCacheRead + tokensCacheCreation }
 
     init(
         id: String = UUID().uuidString,
@@ -313,7 +466,8 @@ struct ProxyRequestLog: Codable, Identifiable {
         responseTimeMs: Double,
         tokensInput: Int = 0,
         tokensOutput: Int = 0,
-        tokensCache: Int = 0,
+        tokensCacheRead: Int = 0,
+        tokensCacheCreation: Int = 0,
         estimatedCostUSD: Double = 0,
         errorMessage: String? = nil
     ) {
@@ -328,8 +482,78 @@ struct ProxyRequestLog: Codable, Identifiable {
         self.responseTimeMs = responseTimeMs
         self.tokensInput = tokensInput
         self.tokensOutput = tokensOutput
-        self.tokensCache = tokensCache
+        self.tokensCacheRead = tokensCacheRead
+        self.tokensCacheCreation = tokensCacheCreation
         self.estimatedCostUSD = estimatedCostUSD
         self.errorMessage = errorMessage
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case configId
+        case timestamp
+        case method
+        case path
+        case claudeModel
+        case upstreamModel
+        case success
+        case responseTimeMs
+        case tokensInput
+        case tokensOutput
+        case tokensCache              // legacy combined cache
+        case tokensCacheRead
+        case tokensCacheCreation
+        case estimatedCostUSD
+        case errorMessage
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        configId = try c.decode(String.self, forKey: .configId)
+        timestamp = try c.decode(Date.self, forKey: .timestamp)
+        method = try c.decode(String.self, forKey: .method)
+        path = try c.decode(String.self, forKey: .path)
+        claudeModel = try c.decode(String.self, forKey: .claudeModel)
+        upstreamModel = try c.decode(String.self, forKey: .upstreamModel)
+        success = try c.decode(Bool.self, forKey: .success)
+        responseTimeMs = try c.decode(Double.self, forKey: .responseTimeMs)
+        tokensInput = try c.decode(Int.self, forKey: .tokensInput)
+        tokensOutput = try c.decode(Int.self, forKey: .tokensOutput)
+
+        let legacyCache = try c.decodeIfPresent(Int.self, forKey: .tokensCache)
+        let splitRead = try c.decodeIfPresent(Int.self, forKey: .tokensCacheRead)
+        let splitCreate = try c.decodeIfPresent(Int.self, forKey: .tokensCacheCreation)
+        if splitRead != nil || splitCreate != nil {
+            tokensCacheRead = splitRead ?? 0
+            tokensCacheCreation = splitCreate ?? 0
+        } else {
+            // Legacy migration: historical records have no split — attribute to cache-read.
+            tokensCacheRead = legacyCache ?? 0
+            tokensCacheCreation = 0
+        }
+
+        estimatedCostUSD = try c.decode(Double.self, forKey: .estimatedCostUSD)
+        errorMessage = try c.decodeIfPresent(String.self, forKey: .errorMessage)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(configId, forKey: .configId)
+        try c.encode(timestamp, forKey: .timestamp)
+        try c.encode(method, forKey: .method)
+        try c.encode(path, forKey: .path)
+        try c.encode(claudeModel, forKey: .claudeModel)
+        try c.encode(upstreamModel, forKey: .upstreamModel)
+        try c.encode(success, forKey: .success)
+        try c.encode(responseTimeMs, forKey: .responseTimeMs)
+        try c.encode(tokensInput, forKey: .tokensInput)
+        try c.encode(tokensOutput, forKey: .tokensOutput)
+        try c.encode(tokensCacheRead, forKey: .tokensCacheRead)
+        try c.encode(tokensCacheCreation, forKey: .tokensCacheCreation)
+        try c.encode(tokensCacheRead + tokensCacheCreation, forKey: .tokensCache)
+        try c.encode(estimatedCostUSD, forKey: .estimatedCostUSD)
+        try c.encodeIfPresent(errorMessage, forKey: .errorMessage)
     }
 }

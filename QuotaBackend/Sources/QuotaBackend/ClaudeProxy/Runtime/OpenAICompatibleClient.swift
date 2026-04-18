@@ -232,6 +232,7 @@ public actor OpenAICompatibleClient {
             maxTokens: request.maxTokens,
             stop: request.stop,
             stream: true,
+            streamOptions: .init(includeUsage: true),
             tools: request.tools,
             toolChoice: request.toolChoice,
             parallelToolCalls: request.parallelToolCalls
@@ -258,6 +259,7 @@ public actor OpenAICompatibleClient {
                     maxTokens: nil,
                     stop: request.stop,
                     stream: true,
+                    streamOptions: .init(includeUsage: true),
                     tools: request.tools,
                     toolChoice: request.toolChoice,
                     parallelToolCalls: request.parallelToolCalls
@@ -280,15 +282,21 @@ public actor OpenAICompatibleClient {
         let decoder = Self.jsonDecoder
         var startedToolIndices = Set<Int>()
         var finishReason: String?
+        var capturedUsage: OpenAIUsage?
 
         try await consumeSSEPayloads(from: bytes) { payload in
             if payload == "[DONE]" { return }
 
             guard let data = payload.data(using: .utf8),
-                  let chunk = try? decoder.decode(OpenAIStreamChunk.self, from: data),
-                  let choice = chunk.choices.first else {
+                  let chunk = try? decoder.decode(OpenAIStreamChunk.self, from: data) else {
                 return
             }
+
+            if let usage = chunk.usage {
+                capturedUsage = usage
+            }
+
+            guard let choice = chunk.choices.first else { return }
 
             if let content = choice.delta.content, !content.isEmpty {
                 try await onEvent(.textDelta(content))
@@ -314,7 +322,7 @@ public actor OpenAICompatibleClient {
             }
         }
 
-        try await onEvent(.completed(finishReason: finishReason, usage: nil))
+        try await onEvent(.completed(finishReason: finishReason, usage: capturedUsage))
     }
 
     // MARK: - Responses API

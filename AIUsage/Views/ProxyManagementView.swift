@@ -103,7 +103,8 @@ struct ProxyManagementView: View {
     // MARK: - Summary Strip
 
     private var summaryStrip: some View {
-        HStack(spacing: 12) {
+        let agg = aggregatedStats
+        return HStack(spacing: 12) {
             summaryCell(
                 icon: "point.3.connected.trianglepath.dotted",
                 title: L("Nodes", "节点数"),
@@ -119,25 +120,25 @@ struct ProxyManagementView: View {
             summaryCell(
                 icon: "arrow.up.arrow.down",
                 title: L("Total Requests", "总请求"),
-                value: formatCompactNumber(Double(totalRequests)),
+                value: formatCompactNumber(Double(agg.requests)),
                 tint: .orange
             )
             summaryCell(
                 icon: "checkmark.shield.fill",
                 title: L("Success Rate", "成功率"),
-                value: String(format: "%.1f%%", totalSuccessRate),
+                value: String(format: "%.1f%%", agg.successRate),
                 tint: .purple
             )
             summaryCell(
                 icon: "bolt.fill",
                 title: L("Total Tokens", "总 Tokens"),
-                value: formatCompactNumber(Double(totalTokens)),
+                value: formatCompactNumber(Double(agg.tokens)),
                 tint: .pink
             )
             summaryCell(
                 icon: "dollarsign.circle.fill",
                 title: L("Total Cost", "总费用"),
-                value: formatProxyCurrency(totalCost),
+                value: formatProxyCurrency(agg.cost),
                 tint: .red
             )
         }
@@ -504,10 +505,26 @@ struct ProxyManagementView: View {
                     color: .pink
                 )
                 statsCard(
-                    title: L("Cache Tokens", "缓存 Tokens"),
-                    value: formatCompactNumber(Double(stats.totalTokensCache)),
-                    icon: "memorychip",
-                    color: .cyan
+                    title: L("Cache Read", "缓存读取"),
+                    value: formatCompactNumber(Double(stats.totalTokensCacheRead)),
+                    icon: "arrow.down.doc",
+                    color: .orange
+                )
+                statsCard(
+                    title: L("Cache Write", "缓存写入"),
+                    value: formatCompactNumber(Double(stats.totalTokensCacheCreation)),
+                    icon: "square.and.arrow.down",
+                    color: .indigo
+                )
+            }
+
+            HStack(spacing: 12) {
+                let cacheEligible = stats.totalTokensInput + stats.totalTokensCacheRead + stats.totalTokensCacheCreation
+                statsCard(
+                    title: L("Hit Rate", "命中率"),
+                    value: cacheEligible > 0 ? String(format: "%.1f%%", stats.cacheHitRate) : "—",
+                    icon: "scope",
+                    color: .teal
                 )
                 statsCard(
                     title: L("Estimated Cost", "预估费用"),
@@ -674,23 +691,27 @@ struct ProxyManagementView: View {
         return viewModel.configurations.first { $0.id == id }
     }
 
-    private var totalRequests: Int {
-        viewModel.statistics.values.reduce(0) { $0 + $1.totalRequests }
+    private struct AggregatedStats {
+        var requests: Int = 0
+        var successful: Int = 0
+        var tokens: Int = 0
+        var cost: Double = 0
+
+        var successRate: Double {
+            guard requests > 0 else { return 0 }
+            return Double(successful) / Double(requests) * 100
+        }
     }
 
-    private var totalSuccessRate: Double {
-        let total = viewModel.statistics.values.reduce(0) { $0 + $1.totalRequests }
-        let successful = viewModel.statistics.values.reduce(0) { $0 + $1.successfulRequests }
-        guard total > 0 else { return 0 }
-        return Double(successful) / Double(total) * 100
-    }
-
-    private var totalTokens: Int {
-        viewModel.statistics.values.reduce(0) { $0 + $1.totalTokens }
-    }
-
-    private var totalCost: Double {
-        viewModel.statistics.values.reduce(0) { $0 + $1.estimatedCostUSD }
+    private var aggregatedStats: AggregatedStats {
+        var agg = AggregatedStats()
+        for s in viewModel.statistics.values {
+            agg.requests += s.totalRequests
+            agg.successful += s.successfulRequests
+            agg.tokens += s.totalTokens
+            agg.cost += s.estimatedCostUSD
+        }
+        return agg
     }
 
     // MARK: - Actions
@@ -731,10 +752,14 @@ struct ProxyManagementView: View {
 
     // MARK: - Helpers
 
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .short
+        return f
+    }()
+
     private func formatRelativeTime(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
+        Self.relativeFormatter.localizedString(for: date, relativeTo: Date())
     }
 
     private func openAIUpstreamAPILabel(_ api: OpenAIUpstreamAPI) -> String {

@@ -16,6 +16,24 @@ extension CostTrackingView {
         return max(1, points.count)
     }
 
+    /// Cache hit rate across all tracked models: cache_read / (input + cache_read + cache_creation).
+    /// Returns nil when no cache-eligible traffic has been observed yet (to display an em-dash instead of 0%).
+    var overallCacheHitRate: Double? {
+        guard let breakdowns = costSummary?.modelBreakdownOverall ?? costSummary?.modelBreakdown,
+              !breakdowns.isEmpty else { return nil }
+        var read = 0
+        var write = 0
+        var input = 0
+        for b in breakdowns {
+            read += b.cacheReadTokens
+            write += b.cacheCreateTokens
+            input += b.inputTokens
+        }
+        let denom = input + read + write
+        guard denom > 0 else { return nil }
+        return Double(read) / Double(denom) * 100
+    }
+
     var summaryStrip: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
@@ -48,6 +66,12 @@ extension CostTrackingView {
                     title: L("Total Tokens", "总 Tokens"),
                     value: formatCompactNumber(Double(costSummary?.overall?.tokens ?? 0)),
                     tint: .purple
+                )
+                summaryCell(
+                    icon: "scope",
+                    title: L("Cache Hit Rate", "缓存命中率"),
+                    value: overallCacheHitRate.map { String(format: "%.1f%%", $0) } ?? "—",
+                    tint: .teal
                 )
                 summaryCell(
                     icon: "cpu",

@@ -5,7 +5,14 @@ extension ProxyViewModel {
 
     // MARK: - Aggregation for ProxyStatsView
 
+    func invalidateLogCache() {
+        _logCache.removeAll()
+    }
+
     func allLogs(nodeFilter: String?, modelFilter: String?) -> [ProxyRequestLog] {
+        let key = LogCacheKey(nodeFilter: nodeFilter, modelFilter: modelFilter)
+        if let cached = _logCache[key] { return cached }
+
         var result: [ProxyRequestLog] = []
         for (configId, logs) in recentLogs {
             if let node = nodeFilter, node != configId { continue }
@@ -14,7 +21,9 @@ extension ProxyViewModel {
                 result.append(log)
             }
         }
-        return result.sorted { $0.timestamp < $1.timestamp }
+        let sorted = result.sorted { $0.timestamp < $1.timestamp }
+        _logCache[key] = sorted
+        return sorted
     }
 
     struct DailyAggregate: Identifiable {
@@ -78,8 +87,8 @@ extension ProxyViewModel {
 
         var map: [String: ModelTimePoint] = [:]
         var allModels = Set<String>()
-        var allDates = Set<String>()
-        var dateMap: [String: Date] = [:]
+        var minDate = logs[0].timestamp
+        var maxDate = logs[0].timestamp
 
         for log in logs {
             let timeKey = DateFormat.string(from: log.timestamp, format: format)
@@ -92,17 +101,14 @@ extension ProxyViewModel {
                 dateStart = cal.startOfDay(for: log.timestamp)
             }
             allModels.insert(log.upstreamModel)
-            allDates.insert(timeKey)
-            dateMap[timeKey] = dateStart
+            if log.timestamp < minDate { minDate = log.timestamp }
+            if log.timestamp > maxDate { maxDate = log.timestamp }
 
             var pt = map[key] ?? ModelTimePoint(id: key, date: dateStart, model: log.upstreamModel, cost: 0, tokens: 0)
             pt.cost += log.estimatedCostUSD
             pt.tokens += log.tokensInput + log.tokensOutput + log.tokensCache
             map[key] = pt
         }
-
-        guard let minDate = logs.map(\.timestamp).min(),
-              let maxDate = logs.map(\.timestamp).max() else { return map.values.sorted { $0.date < $1.date } }
 
         let step: Calendar.Component = granularity == "hourly" ? .hour : .day
         var cursor: Date
@@ -138,7 +144,17 @@ extension ProxyViewModel {
         var requests: Int
         var inputTokens: Int
         var outputTokens: Int
-        var cacheTokens: Int
+        var cacheReadTokens: Int
+        var cacheCreationTokens: Int
+
+        var cacheTokens: Int { cacheReadTokens + cacheCreationTokens }
+
+        /// cache_read / (input + cache_read + cache_creation) — percentage of billable input surface served from cache.
+        var cacheHitRate: Double {
+            let denom = inputTokens + cacheReadTokens + cacheCreationTokens
+            guard denom > 0 else { return 0 }
+            return Double(cacheReadTokens) / Double(denom) * 100
+        }
     }
 
     func modelAggregates(nodeFilter: String?, modelFilter: String?, since: Date? = nil) -> [ModelAggregate] {
@@ -148,13 +164,18 @@ extension ProxyViewModel {
 
         for log in logs {
             let key = log.upstreamModel
-            var agg = map[key] ?? ModelAggregate(id: key, model: key, cost: 0, tokens: 0, requests: 0, inputTokens: 0, outputTokens: 0, cacheTokens: 0)
+            var agg = map[key] ?? ModelAggregate(
+                id: key, model: key, cost: 0, tokens: 0, requests: 0,
+                inputTokens: 0, outputTokens: 0,
+                cacheReadTokens: 0, cacheCreationTokens: 0
+            )
             agg.cost += log.estimatedCostUSD
             agg.tokens += log.tokensInput + log.tokensOutput + log.tokensCache
             agg.requests += 1
             agg.inputTokens += log.tokensInput
             agg.outputTokens += log.tokensOutput
-            agg.cacheTokens += log.tokensCache
+            agg.cacheReadTokens += log.tokensCacheRead
+            agg.cacheCreationTokens += log.tokensCacheCreation
             map[key] = agg
         }
 
@@ -170,18 +191,57 @@ extension ProxyViewModel {
         return models.sorted()
     }
 
-    func overallStats(nodeFilter: String?, modelFilter: String?) -> (cost: Double, tokens: Int, requests: Int, successRate: Double) {
+    struct OverallStats {
+        var cost: Double
+        var tokens: Int
+        var requests: Int
+        var successRate: Double
+        var inputTokens: Int
+        var outputTokens: Int
+        var cacheReadTokens: Int
+        var cacheCreationTokens: Int
+
+        var cacheTokens: Int { cacheReadTokens + cacheCreationTokens }
+
+        /// cache_read / (input + cache_read + cache_creation). 0 when no cache-eligible traffic yet.
+        var cacheHitRate: Double {
+            let denom = inputTokens + cacheReadTokens + cacheCreationTokens
+            guard denom > 0 else { return 0 }
+            return Double(cacheReadTokens) / Double(denom) * 100
+        }
+    }
+
+    func overallStats(nodeFilter: String?, modelFilter: String?) -> OverallStats {
         overallStats(nodeFilter: nodeFilter, modelFilter: modelFilter, since: nil)
     }
 
-    func overallStats(nodeFilter: String?, modelFilter: String?, since: Date?) -> (cost: Double, tokens: Int, requests: Int, successRate: Double) {
+    func overallStats(nodeFilter: String?, modelFilter: String?, since: Date?) -> OverallStats {
         var logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
         if let since { logs = logs.filter { $0.timestamp >= since } }
-        let cost = logs.reduce(0.0) { $0 + $1.estimatedCostUSD }
-        let tokens = logs.reduce(0) { $0 + $1.tokensInput + $1.tokensOutput + $1.tokensCache }
-        let successCount = logs.filter(\.success).count
-        let rate = logs.isEmpty ? 0 : Double(successCount) / Double(logs.count) * 100
-        return (cost, tokens, logs.count, rate)
+
+        var cost = 0.0, tokens = 0, input = 0, output = 0
+        var cacheRead = 0, cacheCreate = 0, successCount = 0
+        for log in logs {
+            cost += log.estimatedCostUSD
+            let logTokens = log.tokensInput + log.tokensOutput + log.tokensCache
+            tokens += logTokens
+            input += log.tokensInput
+            output += log.tokensOutput
+            cacheRead += log.tokensCacheRead
+            cacheCreate += log.tokensCacheCreation
+            if log.success { successCount += 1 }
+        }
+        let rate = logs.isEmpty ? 0.0 : Double(successCount) / Double(logs.count) * 100
+        return OverallStats(
+            cost: cost,
+            tokens: tokens,
+            requests: logs.count,
+            successRate: rate,
+            inputTokens: input,
+            outputTokens: output,
+            cacheReadTokens: cacheRead,
+            cacheCreationTokens: cacheCreate
+        )
     }
 
     func dataDateRange(nodeFilter: String?, modelFilter: String?) -> (earliest: Date?, latest: Date?, days: Int) {

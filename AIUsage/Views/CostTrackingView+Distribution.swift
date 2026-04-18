@@ -106,18 +106,20 @@ extension CostTrackingView {
             }
 
             let distModels = rankedDistributionModels
+            let colorMap = modelColorMap
+            let tokenTotal = distModels.reduce(0) { $0 + $1.totalTokens }
             if distModels.isEmpty {
                 Text(L("No data for this period", "该时段暂无数据"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 160)
             } else {
-                donutChart
+                donutChart(colorMap: colorMap, tokenTotal: tokenTotal)
                     .frame(height: distributionChartHeight(for: layout))
 
                 VStack(spacing: 6) {
                     ForEach(Array(distModels.prefix(6)), id: \.id) { model in
-                        let color = modelColor(for: model.model)
+                        let color = modelColor(for: model.model, from: colorMap)
                         HStack(spacing: 8) {
                             Circle().fill(color).frame(width: 8, height: 8)
                             Text(model.model)
@@ -126,18 +128,19 @@ extension CostTrackingView {
                                 .truncationMode(.middle)
                                 .help(model.model)
                             Spacer()
+                            let share = distributionShare(for: model, totalTokens: tokenTotal)
                             if distributionMetric == .usd {
                                 Text(formatCurrency(model.estimatedCostUsd))
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(color)
-                                Text(String(format: "%.1f%%", distributionShare(for: model)))
+                                Text(String(format: "%.1f%%", share))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             } else {
                                 Text(formatCompactNumber(Double(model.totalTokens)))
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(color)
-                                Text(String(format: "%.1f%%", distributionShare(for: model)))
+                                Text(String(format: "%.1f%%", share))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -158,7 +161,7 @@ extension CostTrackingView {
         )
     }
 
-    var donutChart: some View {
+    func donutChart(colorMap: [String: Color], tokenTotal: Int) -> some View {
         let items = Array(rankedDistributionModels.prefix(6))
         return Chart(items, id: \.id) { model in
             SectorMark(
@@ -166,10 +169,10 @@ extension CostTrackingView {
                 innerRadius: .ratio(0.6),
                 angularInset: 1.5
             )
-            .foregroundStyle(modelColor(for: model.model))
+            .foregroundStyle(modelColor(for: model.model, from: colorMap))
             .cornerRadius(4)
             .annotation(position: .overlay) {
-                let pct = distributionShare(for: model)
+                let pct = distributionShare(for: model, totalTokens: tokenTotal)
                 if pct >= 10 {
                     Text(String(format: "%.0f%%", pct))
                         .font(.system(size: 10, weight: .bold))

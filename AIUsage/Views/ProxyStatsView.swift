@@ -107,7 +107,7 @@ struct ProxyStatsView: View {
 
     // MARK: - Summary
 
-    private var stats: (cost: Double, tokens: Int, requests: Int, successRate: Double) {
+    private var stats: ProxyViewModel.OverallStats {
         viewModel.overallStats(nodeFilter: selectedNodeId, modelFilter: nil)
     }
 
@@ -147,14 +147,23 @@ struct ProxyStatsView: View {
 
     private var summaryStrip: some View {
         let s = stats
+        let range = dateRange
         return VStack(spacing: 8) {
             HStack(spacing: 12) {
                 summaryCell(icon: "dollarsign.circle.fill",
-                            title: L("Cost (\(dateRange.days)d)", "费用（\(dateRange.days)天）"),
+                            title: L("Cost (\(range.days)d)", "费用（\(range.days)天）"),
                             value: formatCurrency(s.cost), tint: .orange)
                 summaryCell(icon: "bolt.fill",
-                            title: L("Tokens (\(dateRange.days)d)", "Tokens（\(dateRange.days)天）"),
+                            title: L("Tokens (\(range.days)d)", "Tokens（\(range.days)天）"),
                             value: formatCompactNumber(Double(s.tokens)), tint: .purple)
+                summaryCell(
+                    icon: "scope",
+                    title: L("Cache Hit Rate", "缓存命中率"),
+                    value: s.cacheTokens + s.inputTokens > 0
+                        ? String(format: "%.1f%%", s.cacheHitRate)
+                        : "—",
+                    tint: .teal
+                )
                 summaryCell(icon: "arrow.up.arrow.down", title: L("Request Count", "请求数"),
                             value: "\(s.requests)", tint: .blue)
                 summaryCell(icon: "checkmark.seal.fill", title: L("Success Rate", "成功率"),
@@ -326,12 +335,13 @@ struct ProxyStatsView: View {
             }
 
             let series = displayedTrendSeries
+            let colorMap = modelColorMap
             if series.isEmpty {
                 Text(L("No data yet", "暂无数据"))
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, minHeight: 200, alignment: .center)
             } else {
-                proxyTrendChart(for: series)
+                proxyTrendChart(for: series, colorMap: colorMap)
                     .frame(height: 260)
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -350,7 +360,7 @@ struct ProxyStatsView: View {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 8)], alignment: .leading, spacing: 8) {
                             ForEach(series) { descriptor in
                                 StatsLegendChip(
-                                    color: colorForProxyModel(descriptor.model),
+                                    color: colorForProxyModel(descriptor.model, from: colorMap),
                                     title: descriptor.model,
                                     value: metric == .cost
                                         ? formatCurrency(descriptor.totalCost)
@@ -381,10 +391,6 @@ struct ProxyStatsView: View {
         }
     }
 
-    private var rawModelData: [ProxyViewModel.ModelAggregate] {
-        viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: nil)
-    }
-
     private var filteredModelData: [ProxyViewModel.ModelAggregate] {
         viewModel.modelAggregates(nodeFilter: selectedNodeId, modelFilter: nil, since: distributionSinceDate)
     }
@@ -412,17 +418,20 @@ struct ProxyStatsView: View {
     }
 
     private var insightPanels: some View {
-        Group {
+        let data = modelData
+        let colorMap = modelColorMap
+        let distTotal = data.reduce(0.0) { $0 + distributionValue($1) }
+        return Group {
             if usesStackedInsightsLayout {
                 VStack(alignment: .leading, spacing: 16) {
-                    modelDistribution(layout: .stacked)
-                    modelTable(layout: .stacked)
+                    modelDistribution(layout: .stacked, data: data, colorMap: colorMap, distTotal: distTotal)
+                    modelTable(layout: .stacked, data: data, colorMap: colorMap, distTotal: distTotal)
                 }
             } else {
                 HStack(alignment: .top, spacing: 16) {
-                    modelDistribution(layout: .split)
+                    modelDistribution(layout: .split, data: data, colorMap: colorMap, distTotal: distTotal)
                         .frame(width: splitDistributionWidth, alignment: .topLeading)
-                    modelTable(layout: .split)
+                    modelTable(layout: .split, data: data, colorMap: colorMap, distTotal: distTotal)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .layoutPriority(1)
                 }
@@ -447,20 +456,23 @@ struct ProxyStatsView: View {
         }
     }
 
-    private func colorForProxyModel(_ model: String) -> Color {
-        let ranked = rankedTrendSeries.map(\.model)
-        if let idx = ranked.firstIndex(of: model) {
-            return chartColors[idx % chartColors.count]
+    private var modelColorMap: [String: Color] {
+        var map: [String: Color] = [:]
+        for (idx, descriptor) in rankedTrendSeries.enumerated() {
+            map[descriptor.model] = chartColors[idx % chartColors.count]
         }
-        return chartColors[stablePaletteIndex(for: model, paletteCount: chartColors.count)]
+        return map
+    }
+
+    private func colorForProxyModel(_ model: String, from colorMap: [String: Color]) -> Color {
+        colorMap[model] ?? chartColors[stablePaletteIndex(for: model, paletteCount: chartColors.count)]
     }
 
     private func distributionValue(_ item: ProxyViewModel.ModelAggregate) -> Double {
         distributionMetric == .cost ? item.cost : Double(item.tokens)
     }
 
-    private func distributionShare(_ item: ProxyViewModel.ModelAggregate) -> Double {
-        let total = modelData.reduce(0.0) { $0 + distributionValue($1) }
+    private func distributionShare(_ item: ProxyViewModel.ModelAggregate, total: Double) -> Double {
         guard total > 0 else { return 0 }
         return distributionValue(item) / total * 100
     }
@@ -477,11 +489,11 @@ struct ProxyStatsView: View {
         } ?? []
     }
 
-    private func proxyTrendChart(for series: [TrendSeriesDescriptor]) -> some View {
+    private func proxyTrendChart(for series: [TrendSeriesDescriptor], colorMap: [String: Color]) -> some View {
         let isSingle = series.count == 1
         return Chart {
             ForEach(series) { descriptor in
-                let color = colorForProxyModel(descriptor.model)
+                let color = colorForProxyModel(descriptor.model, from: colorMap)
 
                 ForEach(descriptor.points, id: \.id) { point in
                     let value = metric == .cost ? point.cost : Double(point.tokens)
@@ -542,7 +554,7 @@ struct ProxyStatsView: View {
         }
     }
 
-    private func modelDistribution(layout: InsightsLayout) -> some View {
+    private func modelDistribution(layout: InsightsLayout, data: [ProxyViewModel.ModelAggregate], colorMap: [String: Color], distTotal: Double) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(L("Model Distribution", "模型分布"))
@@ -592,7 +604,6 @@ struct ProxyStatsView: View {
                 }
             }
 
-            let data = modelData
             if data.isEmpty {
                 Text(L("No data yet", "暂无数据"))
                     .foregroundStyle(.tertiary)
@@ -604,10 +615,10 @@ struct ProxyStatsView: View {
                         innerRadius: .ratio(0.55),
                         angularInset: 1.5
                     )
-                    .foregroundStyle(colorForProxyModel(item.model))
+                    .foregroundStyle(colorForProxyModel(item.model, from: colorMap))
                     .cornerRadius(4)
                     .annotation(position: .overlay) {
-                        let share = distributionShare(item)
+                        let share = distributionShare(item, total: distTotal)
                         if share >= 10 {
                             Text(String(format: "%.0f%%", share))
                                 .font(.system(size: 10, weight: .bold))
@@ -621,7 +632,7 @@ struct ProxyStatsView: View {
                     ForEach(Array(data.prefix(6)), id: \.id) { item in
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(colorForProxyModel(item.model))
+                                .fill(colorForProxyModel(item.model, from: colorMap))
                                 .frame(width: 8, height: 8)
                             Text(item.model)
                                 .font(.caption)
@@ -631,8 +642,8 @@ struct ProxyStatsView: View {
                             Spacer()
                             Text(distributionValueText(item))
                                 .font(.caption.weight(.medium).monospacedDigit())
-                                .foregroundStyle(colorForProxyModel(item.model))
-                            Text(String(format: "%.1f%%", distributionShare(item)))
+                                .foregroundStyle(colorForProxyModel(item.model, from: colorMap))
+                            Text(String(format: "%.1f%%", distributionShare(item, total: distTotal)))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -648,7 +659,7 @@ struct ProxyStatsView: View {
 
     // MARK: - Model Table
 
-    private func modelTable(layout: InsightsLayout) -> some View {
+    private func modelTable(layout: InsightsLayout, data: [ProxyViewModel.ModelAggregate], colorMap: [String: Color], distTotal: Double) -> some View {
         let costWidth = tableColumnWidth(.cost, layout: layout)
         let tokensWidth = tableColumnWidth(.tokens, layout: layout)
         let shareWidth = tableColumnWidth(.share, layout: layout)
@@ -658,7 +669,6 @@ struct ProxyStatsView: View {
             Text(L("Model Details", "模型详情"))
                 .font(.headline.weight(.bold))
 
-            let data = modelData
             if data.isEmpty {
                 Text(L("No data yet", "暂无数据"))
                     .foregroundStyle(.tertiary)
@@ -680,17 +690,19 @@ struct ProxyStatsView: View {
                     Divider()
 
                     ForEach(Array(data.enumerated()), id: \.element.id) { index, item in
+                        let itemColor = colorForProxyModel(item.model, from: colorMap)
                         proxyModelRow(
                             item,
-                            color: colorForProxyModel(item.model),
+                            color: itemColor,
                             costWidth: costWidth,
                             tokensWidth: tokensWidth,
                             shareWidth: shareWidth,
-                            trendWidth: trendWidth
+                            trendWidth: trendWidth,
+                            distTotal: distTotal
                         )
 
                         if expandedModels.contains(item.model) {
-                            proxyModelDetailRow(item, color: colorForProxyModel(item.model))
+                            proxyModelDetailRow(item, color: itemColor)
                         }
 
                         if index < data.count - 1 {
@@ -712,7 +724,8 @@ struct ProxyStatsView: View {
         costWidth: CGFloat,
         tokensWidth: CGFloat,
         shareWidth: CGFloat,
-        trendWidth: CGFloat
+        trendWidth: CGFloat,
+        distTotal: Double
     ) -> some View {
         let isExpanded = expandedModels.contains(item.model)
 
@@ -742,7 +755,7 @@ struct ProxyStatsView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: tokensWidth, alignment: .trailing)
 
-            Text(String(format: "%.1f%%", distributionShare(item)))
+            Text(String(format: "%.1f%%", distributionShare(item, total: distTotal)))
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(color)
                 .frame(width: shareWidth, alignment: .trailing)
@@ -772,11 +785,15 @@ struct ProxyStatsView: View {
     }
 
     private func proxyModelDetailRow(_ item: ProxyViewModel.ModelAggregate, color: Color) -> some View {
+        let cacheEligible = item.inputTokens + item.cacheReadTokens + item.cacheCreationTokens
+        let hitRateValue = cacheEligible > 0 ? String(format: "%.1f%%", item.cacheHitRate) : "—"
         let detailItems: [(String, String, Color)] = [
             (L("Requests", "请求"), "\(item.requests)", .secondary),
             (L("Input", "输入"), formatCompactNumber(Double(item.inputTokens)), .blue),
             (L("Output", "输出"), formatCompactNumber(Double(item.outputTokens)), .green),
-            (L("Cache", "缓存"), formatCompactNumber(Double(item.cacheTokens)), .orange)
+            (L("Cache Read", "缓存读取"), formatCompactNumber(Double(item.cacheReadTokens)), .orange),
+            (L("Cache Write", "缓存写入"), formatCompactNumber(Double(item.cacheCreationTokens)), .purple),
+            (L("Hit Rate", "命中率"), hitRateValue, .teal)
         ]
 
         return VStack(alignment: .leading, spacing: 10) {

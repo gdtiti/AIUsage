@@ -235,7 +235,6 @@ extension QuotaHTTPServer {
         let outputTokens = usage["output_tokens"] as? Int ?? 0
         let cacheCreation = usage["cache_creation_input_tokens"] as? Int ?? 0
         let cacheRead = usage["cache_read_input_tokens"] as? Int ?? 0
-        let cacheTokens = cacheCreation + cacheRead
 
         let log: [String: Any] = [
             "type": "proxy_request_log",
@@ -245,7 +244,9 @@ extension QuotaHTTPServer {
             "response_time_ms": responseTimeMs,
             "input_tokens": inputTokens,
             "output_tokens": outputTokens,
-            "cache_tokens": cacheTokens,
+            "cache_creation_tokens": cacheCreation,
+            "cache_read_tokens": cacheRead,
+            "cache_tokens": cacheCreation + cacheRead,
         ]
 
         if let data = try? JSONSerialization.data(withJSONObject: log),

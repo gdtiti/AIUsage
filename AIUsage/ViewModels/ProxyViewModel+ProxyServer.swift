@@ -118,14 +118,28 @@ extension ProxyViewModel {
         let upstreamModel = json["upstream_model"] as? String ?? "unknown"
         let tokensInput = json["input_tokens"] as? Int ?? 0
         let tokensOutput = json["output_tokens"] as? Int ?? 0
-        let tokensCache = json["cache_tokens"] as? Int ?? 0
+
+        // Prefer split cache fields; fall back to legacy combined `cache_tokens` (attribute to cache-read).
+        let splitRead = json["cache_read_tokens"] as? Int
+        let splitCreate = json["cache_creation_tokens"] as? Int
+        let legacyCache = json["cache_tokens"] as? Int
+        let tokensCacheRead: Int
+        let tokensCacheCreation: Int
+        if splitRead != nil || splitCreate != nil {
+            tokensCacheRead = splitRead ?? 0
+            tokensCacheCreation = splitCreate ?? 0
+        } else {
+            tokensCacheRead = legacyCache ?? 0
+            tokensCacheCreation = 0
+        }
 
         let config = configurations.first { $0.id == configId }
         let pricing = config?.pricingForModel(upstreamModel)
         let estimatedCost = pricing?.costForTokens(
             input: tokensInput,
             output: tokensOutput,
-            cache: tokensCache
+            cacheRead: tokensCacheRead,
+            cacheCreate: tokensCacheCreation
         ) ?? 0
 
         let log = ProxyRequestLog(
@@ -138,7 +152,8 @@ extension ProxyViewModel {
             responseTimeMs: Double(json["response_time_ms"] as? Int ?? 0),
             tokensInput: tokensInput,
             tokensOutput: tokensOutput,
-            tokensCache: tokensCache,
+            tokensCacheRead: tokensCacheRead,
+            tokensCacheCreation: tokensCacheCreation,
             estimatedCostUSD: estimatedCost,
             errorMessage: json["error"] as? String
         )

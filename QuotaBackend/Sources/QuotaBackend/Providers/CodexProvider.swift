@@ -1,8 +1,11 @@
 import Foundation
+import os
 
 // MARK: - Codex Provider
 // Reads ~/.codex/auth.json, refreshes OAuth
 // when needed, and fetches ChatGPT Codex quota windows for one or many accounts.
+
+private let codexLog = Logger(subsystem: "com.aiusage.quotabackend", category: "CodexProvider")
 
 public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingProvider {
     public let id = "codex"
@@ -84,19 +87,114 @@ public struct CodexProvider: MultiAccountProviderFetcher, CredentialAcceptingPro
                 jwtUserId: effectiveCreds.jwtUserId
             )
         } catch let error as ProviderError where error.code == "unauthorized" {
-            guard !effectiveCreds.isApiKeyMode,
-                  let refreshToken = effectiveCreds.refreshToken ?? creds.refreshToken else { throw error }
-            let refreshed = try await refreshCredentials(effectiveCreds, refreshToken: refreshToken)
-            if let path = credentialPath { persistRefreshedCredentials(refreshed, to: path) }
-            let response = try await requestUsage(creds: refreshed, url: usageURL)
-            return parseResponse(
-                response,
-                accountId: refreshed.accountId ?? normalizedLabel(credential.accountLabel),
-                source: source,
-                fallbackEmail: refreshed.accountEmail ?? normalizedLabel(credential.accountLabel),
-                jwtPlanType: refreshed.jwtPlanType,
-                jwtUserId: refreshed.jwtUserId
-            )
+            if !effectiveCreds.isApiKeyMode,
+               let refreshToken = effectiveCreds.refreshToken ?? creds.refreshToken {
+                let refreshed = (try? await refreshCredentials(effectiveCreds, refreshToken: refreshToken))
+                    ?? effectiveCreds
+                if let path = credentialPath { persistRefreshedCredentials(refreshed, to: path) }
+                if let response = try? await requestUsage(creds: refreshed, url: usageURL) {
+                    return parseResponse(
+                        response,
+                        accountId: refreshed.accountId ?? normalizedLabel(credential.accountLabel),
+                        source: source,
+                        fallbackEmail: refreshed.accountEmail ?? normalizedLabel(credential.accountLabel),
+                        jwtPlanType: refreshed.jwtPlanType,
+                        jwtUserId: refreshed.jwtUserId
+                    )
+                }
+            }
+
+            if let recovered = try? await recoverFromSourceAndFetch(
+                staleCreds: creds,
+                credentialPath: credentialPath,
+                sourcePath: credential.metadata["sourcePath"],
+                usageURL: usageURL,
+                fallbackLabel: credential.accountLabel
+            ) {
+                return recovered
+            }
+
+            throw error
+        }
+    }
+
+    /// Rescue path for managed-import copies whose refresh_token has been
+    /// rotated out by the Codex CLI/App. When the authoritative auth file
+    /// (credential.metadata["sourcePath"], typically ~/.codex/auth.json)
+    /// belongs to the same workspace, overwrite the stale copy and retry.
+    /// Workspace identity = (accountId, planType) — planType distinguishes
+    /// Plus vs Team for the same user-xxx.
+    private func recoverFromSourceAndFetch(
+        staleCreds: Credentials,
+        credentialPath: String?,
+        sourcePath: String?,
+        usageURL: URL,
+        fallbackLabel: String?
+    ) async throws -> ProviderUsage {
+        guard let credentialPath,
+              let rawSource = stringValue(sourcePath) else {
+            throw ProviderError("no_source", "No sourcePath metadata available for recovery.")
+        }
+
+        let expandedSource = NSString(string: rawSource).expandingTildeInPath
+        let expandedCredential = NSString(string: credentialPath).expandingTildeInPath
+        guard expandedSource != expandedCredential else {
+            throw ProviderError("source_same_as_copy", "Credential already points at the authoritative source.")
+        }
+        guard FileManager.default.fileExists(atPath: expandedSource) else {
+            throw ProviderError("source_missing", "Original auth file not found; cannot recover.")
+        }
+
+        let sourceCreds = try loadCredentials(from: expandedSource)
+        guard sameCodexWorkspace(staleCreds, sourceCreds) else {
+            throw ProviderError("workspace_mismatch", "Source auth file is a different Codex workspace.")
+        }
+
+        if let sourceData = FileManager.default.contents(atPath: expandedSource),
+           FileManager.default.contents(atPath: expandedCredential) != sourceData {
+            do {
+                try sourceData.write(to: URL(fileURLWithPath: expandedCredential), options: .atomic)
+            } catch {
+                codexLog.warning("Failed to sync authoritative auth to managed copy at \(expandedCredential, privacy: .private): \(error.localizedDescription)")
+            }
+        }
+
+        var effective = sourceCreds
+        if !sourceCreds.isApiKeyMode, sourceCreds.needsRefresh, let rt = sourceCreds.refreshToken {
+            do {
+                let refreshed = try await refreshCredentials(sourceCreds, refreshToken: rt)
+                effective = refreshed
+                persistRefreshedCredentials(refreshed, to: expandedCredential)
+            } catch {
+                codexLog.warning("Recovery refresh failed for \(expandedCredential, privacy: .private): \(error.localizedDescription)")
+                throw ProviderError("recovery_refresh_failed", "Source credential refresh failed: \(error.localizedDescription)")
+            }
+        }
+
+        let response = try await requestUsage(creds: effective, url: usageURL)
+        return parseResponse(
+            response,
+            accountId: effective.accountId ?? normalizedLabel(fallbackLabel),
+            source: sourceInfo(for: URL(fileURLWithPath: expandedCredential), mode: "manual"),
+            fallbackEmail: effective.accountEmail ?? normalizedLabel(fallbackLabel),
+            jwtPlanType: effective.jwtPlanType,
+            jwtUserId: effective.jwtUserId
+        )
+    }
+
+    private func sameCodexWorkspace(_ lhs: Credentials, _ rhs: Credentials) -> Bool {
+        guard let lhsId = stringValue(lhs.accountId),
+              let rhsId = stringValue(rhs.accountId),
+              lhsId == rhsId else { return false }
+
+        let lhsPlan = stringValue(lhs.jwtPlanType)?.lowercased()
+        let rhsPlan = stringValue(rhs.jwtPlanType)?.lowercased()
+        switch (lhsPlan, rhsPlan) {
+        case let (l?, r?):  return l == r
+        case (.some, .none), (.none, .some):
+            return true
+        case (.none, .none):
+            return false
         }
     }
 

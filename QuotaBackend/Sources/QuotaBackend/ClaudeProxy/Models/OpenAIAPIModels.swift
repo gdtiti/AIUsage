@@ -10,14 +10,22 @@ public struct OpenAIChatCompletionRequest: Codable, Sendable {
     public let maxTokens: Int?
     public let stop: [String]?
     public let stream: Bool?
+    public let streamOptions: StreamOptions?
     public let tools: [OpenAITool]?
     public let toolChoice: OpenAIToolChoice?
     public let parallelToolCalls: Bool?
+
+    public struct StreamOptions: Codable, Sendable {
+        public let includeUsage: Bool
+        enum CodingKeys: String, CodingKey { case includeUsage = "include_usage" }
+        public init(includeUsage: Bool = true) { self.includeUsage = includeUsage }
+    }
 
     enum CodingKeys: String, CodingKey {
         case model, messages, temperature, stop, stream, tools
         case topP = "top_p"
         case maxTokens = "max_tokens"
+        case streamOptions = "stream_options"
         case toolChoice = "tool_choice"
         case parallelToolCalls = "parallel_tool_calls"
     }
@@ -30,6 +38,7 @@ public struct OpenAIChatCompletionRequest: Codable, Sendable {
         maxTokens: Int? = nil,
         stop: [String]? = nil,
         stream: Bool? = nil,
+        streamOptions: StreamOptions? = nil,
         tools: [OpenAITool]? = nil,
         toolChoice: OpenAIToolChoice? = nil,
         parallelToolCalls: Bool? = nil
@@ -41,6 +50,7 @@ public struct OpenAIChatCompletionRequest: Codable, Sendable {
         self.maxTokens = maxTokens
         self.stop = stop
         self.stream = stream
+        self.streamOptions = streamOptions
         self.tools = tools
         self.toolChoice = toolChoice
         self.parallelToolCalls = parallelToolCalls
@@ -525,13 +535,15 @@ public struct OpenAIStreamChunk: Codable, Sendable {
     public let created: Int
     public let model: String
     public let choices: [OpenAIStreamChoice]
+    public let usage: OpenAIUsage?
 
-    public init(id: String, object: String = "chat.completion.chunk", created: Int, model: String, choices: [OpenAIStreamChoice]) {
+    public init(id: String, object: String = "chat.completion.chunk", created: Int, model: String, choices: [OpenAIStreamChoice], usage: OpenAIUsage? = nil) {
         self.id = id
         self.object = object
         self.created = created
         self.model = model
         self.choices = choices
+        self.usage = usage
     }
 }
 

@@ -94,12 +94,16 @@ extension DroidProvider {
     }
 
     func requestUsageInfo(baseURL: String, auth: DroidAuth) async throws -> [String: Any] {
-        guard let url = URL(string: "\(baseURL)/api/organization/subscription/usage") else {
+        guard var components = URLComponents(string: "\(baseURL)/api/organization/subscription/usage") else {
             throw ProviderError("invalid_url", "Droid usage URL is invalid.")
         }
-        var body: [String: Any] = ["useCache": true]
-        if let userId = auth.userId { body["userId"] = userId }
-        return try await requestDroidJSON(url: url, method: "POST", body: body, auth: auth)
+        var queryItems: [URLQueryItem] = [URLQueryItem(name: "useCache", value: "true")]
+        if let userId = auth.userId { queryItems.append(URLQueryItem(name: "userId", value: userId)) }
+        components.queryItems = queryItems
+        guard let url = components.url else {
+            throw ProviderError("invalid_url", "Droid usage URL is invalid.")
+        }
+        return try await requestDroidJSON(url: url, method: "GET", body: nil, auth: auth)
     }
 
     func requestDroidJSON(

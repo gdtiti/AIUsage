@@ -433,16 +433,31 @@ public struct OpenAIUsage: Codable, Sendable {
     public let completionTokens: Int
     public let totalTokens: Int
 
+    /// DeepSeek: prompt_cache_hit_tokens (tokens served from context cache)
+    public let promptCacheHitTokens: Int?
+    /// DeepSeek: prompt_cache_miss_tokens (tokens not served from cache)
+    public let promptCacheMissTokens: Int?
+
     enum CodingKeys: String, CodingKey {
         case promptTokens = "prompt_tokens"
         case completionTokens = "completion_tokens"
         case totalTokens = "total_tokens"
+        case promptCacheHitTokens = "prompt_cache_hit_tokens"
+        case promptCacheMissTokens = "prompt_cache_miss_tokens"
     }
 
-    public init(promptTokens: Int, completionTokens: Int, totalTokens: Int) {
+    public init(
+        promptTokens: Int,
+        completionTokens: Int,
+        totalTokens: Int,
+        promptCacheHitTokens: Int? = nil,
+        promptCacheMissTokens: Int? = nil
+    ) {
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
         self.totalTokens = totalTokens
+        self.promptCacheHitTokens = promptCacheHitTokens
+        self.promptCacheMissTokens = promptCacheMissTokens
     }
 }
 

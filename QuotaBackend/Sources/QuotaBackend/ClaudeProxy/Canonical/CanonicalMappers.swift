@@ -198,7 +198,9 @@ public struct CanonicalResponseMapper {
                 CanonicalUsage(
                     inputTokens: $0.promptTokens,
                     outputTokens: $0.completionTokens,
-                    totalTokens: $0.totalTokens
+                    totalTokens: $0.totalTokens,
+                    cacheCreationInputTokens: nil,
+                    cacheReadInputTokens: $0.promptCacheHitTokens
                 )
             }
         )

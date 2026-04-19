@@ -8,6 +8,7 @@ extension ProviderAccountEditorView {
     func iconName(for action: ProviderAuthLaunchAction) -> String {
         if providerId == "codex", action.id == "codex-login" { return "globe" }
         if providerId == "gemini", action.id == "gemini-login" { return "globe" }
+        if providerId == "antigravity", action.id == "antigravity-login" { return "globe" }
         switch action.kind {
         case .openApp: return "app.badge"
         case .openURL: return "safari"
@@ -34,6 +35,14 @@ extension ProviderAccountEditorView {
            command == "gemini" {
             sessionMonitorTask?.cancel()
             geminiLogin.start()
+            return
+        }
+
+        if providerId == "antigravity",
+           case .runTerminal(let command) = action.kind,
+           command == "antigravity" {
+            sessionMonitorTask?.cancel()
+            antigravityLogin.start()
             return
         }
 
@@ -118,6 +127,34 @@ extension ProviderAccountEditorView {
 
         await importCandidate(tempCandidate)
         await MainActor.run { geminiLogin.discardImportedSession() }
+    }
+
+    func handleAntigravityLoginSuccess() async {
+        guard let authFileURL = antigravityLogin.importedAuthFileURL else {
+            await MainActor.run {
+                errorMessage = L("Google sign-in succeeded, but AIUsage could not find the Antigravity auth file.", "Google 登录已经成功，但 AIUsage 没有找到 Antigravity 的认证文件。")
+            }
+            return
+        }
+
+        let tempCandidate = ProviderAuthCandidate(
+            id: "antigravity-oauth:\(authFileURL.path)",
+            providerId: "antigravity",
+            sourceIdentifier: "antigravity-oauth:\(antigravityLogin.accountEmail?.lowercased() ?? authFileURL.path)",
+            sessionFingerprint: nil,
+            title: antigravityLogin.accountEmail ?? "Antigravity Google Login",
+            subtitle: L("Fresh Google login", "新的 Google 登录"),
+            detail: authFileURL.lastPathComponent,
+            modifiedAt: Date(),
+            authMethod: .authFile,
+            credentialValue: authFileURL.path,
+            sourcePath: authFileURL.path,
+            shouldCopyFile: true,
+            identityScope: .sharedSource
+        )
+
+        await importCandidate(tempCandidate)
+        await MainActor.run { antigravityLogin.discardImportedSession() }
     }
 
     func preferredCodexCandidate(

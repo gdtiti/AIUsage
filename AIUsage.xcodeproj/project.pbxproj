@@ -71,6 +71,7 @@
 		5EFPA0322F91000300A15674 /* CLIExecutableResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0312F91000300A15674 /* CLIExecutableResolver.swift */; };
 		5EFPA0422F91000400A15674 /* CodexLoginCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0412F91000400A15674 /* CodexLoginCoordinator.swift */; };
 		5EFPA0522F91000500A15674 /* GeminiLoginCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0512F91000500A15674 /* GeminiLoginCoordinator.swift */; };
+		5EFPA0562F91000550A15674 /* AntigravityLoginCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0552F91000550A15674 /* AntigravityLoginCoordinator.swift */; };
 		5EFPA0622F91000600A15674 /* ProviderAuthCandidateDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0612F91000600A15674 /* ProviderAuthCandidateDiscovery.swift */; };
 		5EFPA0722F91000700A15674 /* ProviderAuthParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0712F91000700A15674 /* ProviderAuthParsing.swift */; };
 		5EFAD7872F87B10200A15674 /* ProviderAccountEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7882F87B10200A15674 /* ProviderAccountEditorView.swift */; };
@@ -153,6 +154,7 @@
 		5EFPA0312F91000300A15674 /* CLIExecutableResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIExecutableResolver.swift; sourceTree = "<group>"; };
 		5EFPA0412F91000400A15674 /* CodexLoginCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexLoginCoordinator.swift; sourceTree = "<group>"; };
 		5EFPA0512F91000500A15674 /* GeminiLoginCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiLoginCoordinator.swift; sourceTree = "<group>"; };
+		5EFPA0552F91000550A15674 /* AntigravityLoginCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravityLoginCoordinator.swift; sourceTree = "<group>"; };
 		5EFPA0612F91000600A15674 /* ProviderAuthCandidateDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderAuthCandidateDiscovery.swift; sourceTree = "<group>"; };
 		5EFPA0712F91000700A15674 /* ProviderAuthParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderAuthParsing.swift; sourceTree = "<group>"; };
 		5EFAD7882F87B10200A15674 /* ProviderAccountEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderAccountEditorView.swift; sourceTree = "<group>"; };
@@ -247,6 +249,7 @@
 				5EFPA0312F91000300A15674 /* CLIExecutableResolver.swift */,
 				5EFPA0412F91000400A15674 /* CodexLoginCoordinator.swift */,
 				5EFPA0512F91000500A15674 /* GeminiLoginCoordinator.swift */,
+				5EFPA0552F91000550A15674 /* AntigravityLoginCoordinator.swift */,
 				5EFPA0612F91000600A15674 /* ProviderAuthCandidateDiscovery.swift */,
 				5EFPA0712F91000700A15674 /* ProviderAuthParsing.swift */,
 			);
@@ -481,6 +484,7 @@
 				5EFPA0322F91000300A15674 /* CLIExecutableResolver.swift in Sources */,
 				5EFPA0422F91000400A15674 /* CodexLoginCoordinator.swift in Sources */,
 				5EFPA0522F91000500A15674 /* GeminiLoginCoordinator.swift in Sources */,
+				5EFPA0562F91000550A15674 /* AntigravityLoginCoordinator.swift in Sources */,
 				5EFPA0622F91000600A15674 /* ProviderAuthCandidateDiscovery.swift in Sources */,
 				5EFPA0722F91000700A15674 /* ProviderAuthParsing.swift in Sources */,
 				5EFAD7862F87B10100A15674 /* ProviderAuthManager.swift in Sources */,
@@ -657,7 +661,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.28;
+				MARKETING_VERSION = 0.4.29;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -689,7 +693,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.28;
+				MARKETING_VERSION = 0.4.29;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

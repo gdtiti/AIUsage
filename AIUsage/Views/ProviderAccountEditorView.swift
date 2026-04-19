@@ -9,6 +9,7 @@ struct ProviderAccountEditorView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject var codexLogin = CodexLoginCoordinator()
     @StateObject var geminiLogin = GeminiLoginCoordinator()
+    @StateObject var antigravityLogin = AntigravityLoginCoordinator()
     @State var isWorking = false
     @State var statusMessage: String?
     @State var errorMessage: String?
@@ -41,13 +42,17 @@ struct ProviderAccountEditorView: View {
         providerId == "gemini" && geminiLogin.phase != .idle
     }
 
+    var showsAntigravityLogin: Bool {
+        providerId == "antigravity" && antigravityLogin.phase != .idle
+    }
+
     var editorWidth: CGFloat {
         showsCodexBrowser ? 880 : 520
     }
 
     var editorHeight: CGFloat {
         if showsCodexBrowser { return 580 }
-        if showsGeminiLogin { return 360 }
+        if showsGeminiLogin || showsAntigravityLogin { return 360 }
 
         let visibleCandidateCount = candidates.count
         let detectedSessionExtra = CGFloat(min(visibleCandidateCount, 3)) * 86
@@ -96,6 +101,10 @@ struct ProviderAccountEditorView: View {
                     geminiLoginSection
                 }
 
+                if showsAntigravityLogin {
+                    antigravityLoginSection
+                }
+
                 // Status feedback (single line)
                 statusFeedback
 
@@ -125,6 +134,7 @@ struct ProviderAccountEditorView: View {
             sessionMonitorTask?.cancel()
             codexLogin.cancel()
             geminiLogin.cancel()
+            antigravityLogin.cancel()
         }
         .onReceive(codexLogin.$phase) { phase in
             guard providerId == "codex" else { return }
@@ -139,6 +149,14 @@ struct ProviderAccountEditorView: View {
             guard providerId == "gemini" else { return }
             if case .succeeded = phase {
                 Task { await handleGeminiLoginSuccess() }
+            } else if case .failed(let message) = phase {
+                errorMessage = message
+            }
+        }
+        .onReceive(antigravityLogin.$phase) { phase in
+            guard providerId == "antigravity" else { return }
+            if case .succeeded = phase {
+                Task { await handleAntigravityLoginSuccess() }
             } else if case .failed(let message) = phase {
                 errorMessage = message
             }

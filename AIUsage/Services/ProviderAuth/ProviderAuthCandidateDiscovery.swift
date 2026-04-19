@@ -1,5 +1,6 @@
 import Foundation
 import QuotaBackend
+import SQLite3
 
 extension ProviderAuthManager {
     // MARK: - Candidate Discovery
@@ -61,7 +62,116 @@ extension ProviderAuthManager {
     }
 
     internal static func antigravityCandidates() -> [ProviderAuthCandidate] {
-        []
+        guard let authStatus = readAntigravityAuthStatus() else { return [] }
+        guard let apiKey = authStatus["apiKey"] as? String, !apiKey.isEmpty else { return [] }
+
+        let email = authStatus["email"] as? String
+        let name = authStatus["name"] as? String
+        let title = email ?? name ?? "Antigravity IDE session"
+        let sourceId = "antigravity-ide:\(email?.lowercased() ?? "default")"
+
+        let fileManager = FileManager.default
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let sessionDir = fileManager.temporaryDirectory
+            .appendingPathComponent("aiusage-antigravity-import-\(sourceId.hashValue)", isDirectory: true)
+        try? fileManager.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+
+        let authFileURL = sessionDir.appendingPathComponent("antigravity_ide_creds.json")
+
+        var authJSON: [String: Any] = ["access_token": apiKey, "token_type": "Bearer"]
+        if let email { authJSON["email"] = email }
+        if let refreshToken = extractAntigravityRefreshToken() {
+            authJSON["refresh_token"] = refreshToken
+        }
+
+        guard let data = try? JSONSerialization.data(withJSONObject: authJSON, options: [.prettyPrinted, .sortedKeys]),
+              let _ = try? data.write(to: authFileURL, options: .atomic) else {
+            return []
+        }
+
+        let dbPath = "\(home)/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
+        let dbURL = URL(fileURLWithPath: dbPath)
+        let modifiedAt = modificationDate(for: dbURL)
+
+        return [
+            ProviderAuthCandidate(
+                id: "antigravity:\(sourceId)",
+                providerId: "antigravity",
+                sourceIdentifier: sourceId,
+                sessionFingerprint: normalizedHandle(email),
+                title: title,
+                subtitle: "Antigravity IDE",
+                detail: compactDetail(parts: [email, formattedDate(modifiedAt)].compactMap { $0 }),
+                modifiedAt: modifiedAt,
+                authMethod: .authFile,
+                credentialValue: authFileURL.path,
+                sourcePath: authFileURL.path,
+                shouldCopyFile: true,
+                identityScope: .sharedSource
+            )
+        ]
+    }
+
+    private static let antigravityDBPath: String = {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return "\(home)/Library/Application Support/Antigravity/User/globalStorage/state.vscdb"
+    }()
+
+    private static func readAntigravityAuthStatus() -> [String: Any]? {
+        guard FileManager.default.fileExists(atPath: antigravityDBPath) else { return nil }
+        guard let db = openSQLiteDB(at: antigravityDBPath) else { return nil }
+        defer { sqlite3_close(db) }
+
+        var stmt: OpaquePointer?
+        let query = "SELECT value FROM ItemTable WHERE key = 'antigravityAuthStatus'"
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+
+        guard sqlite3_step(stmt) == SQLITE_ROW,
+              let cString = sqlite3_column_text(stmt, 0) else { return nil }
+
+        let jsonString = String(cString: cString)
+        guard let data = jsonString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return json
+    }
+
+    private static func extractAntigravityRefreshToken() -> String? {
+        guard FileManager.default.fileExists(atPath: antigravityDBPath) else { return nil }
+        guard let db = openSQLiteDB(at: antigravityDBPath) else { return nil }
+        defer { sqlite3_close(db) }
+
+        var stmt: OpaquePointer?
+        let query = "SELECT value FROM ItemTable WHERE key = 'antigravityUnifiedStateSync.oauthToken'"
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+
+        guard sqlite3_step(stmt) == SQLITE_ROW,
+              let cString = sqlite3_column_text(stmt, 0) else { return nil }
+
+        let b64String = String(cString: cString)
+        guard let decoded = Data(base64Encoded: b64String) else { return nil }
+
+        guard let pattern = try? NSRegularExpression(pattern: #"1//[A-Za-z0-9_-]+"#),
+              let decodedString = String(data: decoded, encoding: .utf8) ?? String(data: decoded, encoding: .ascii),
+              let match = pattern.firstMatch(in: decodedString, range: NSRange(decodedString.startIndex..., in: decodedString)),
+              let range = Range(match.range, in: decodedString) else {
+            return nil
+        }
+        return String(decodedString[range])
+    }
+
+    private static func openSQLiteDB(at path: String) -> OpaquePointer? {
+        var db: OpaquePointer?
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX
+        guard sqlite3_open_v2(path, &db, flags, nil) == SQLITE_OK else {
+            if let db { sqlite3_close(db) }
+            return nil
+        }
+        sqlite3_exec(db, "PRAGMA journal_mode=wal;", nil, nil, nil)
+        return db
     }
 
     private static let kiroFingerprintKeys = ["email", "userId", "accountEmail", "profile_arn", "profileArn"]

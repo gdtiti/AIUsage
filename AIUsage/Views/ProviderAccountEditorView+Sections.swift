@@ -288,6 +288,76 @@ extension ProviderAccountEditorView {
         }
     }
 
+    // MARK: - Antigravity Login
+
+    var antigravityLoginSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                if antigravityLogin.isRunning {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(antigravityPhaseLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if case .succeeded = antigravityLogin.phase {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text(L("Google sign-in completed", "Google 登录已完成"))
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+
+                Spacer()
+
+                if antigravityLogin.authURL != nil {
+                    Button(L("Open Browser Again", "重新打开浏览器")) {
+                        antigravityLogin.reopenInBrowser()
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                }
+            }
+
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(L("Secure Google Sign-In", "安全的 Google 登录"))
+                            .font(.subheadline.weight(.semibold))
+
+                        Text(L(
+                            "AIUsage has opened Antigravity's official Google sign-in page in your browser. Finish the browser step, then return here and the account will connect automatically.",
+                            "AIUsage 已经在浏览器中打开 Antigravity 官方 Google 登录页。你只要在浏览器里完成授权，再回到这里，账号就会自动接入。"
+                        ))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        if let accountEmail = antigravityLogin.accountEmail, !accountEmail.isEmpty {
+                            Label(accountEmail, systemImage: "person.crop.circle.badge.checkmark")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    .padding(16)
+                }
+                .frame(height: 148)
+        }
+    }
+
+    var antigravityPhaseLabel: String {
+        switch antigravityLogin.phase {
+        case .launching:
+            return L("Preparing Google sign-in…", "正在准备 Google 登录…")
+        case .waitingForBrowser:
+            return L("Finish the browser sign-in", "请完成浏览器登录")
+        case .waitingForCompletion:
+            return L("Waiting for Google callback…", "正在等待 Google 回调…")
+        default:
+            return ""
+        }
+    }
+
     var geminiPhaseLabel: String {
         switch geminiLogin.phase {
         case .launching:

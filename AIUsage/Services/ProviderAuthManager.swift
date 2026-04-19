@@ -71,9 +71,17 @@ enum ProviderAuthManager {
             return ProviderAuthPlan(
                 titleEn: "Connect an Antigravity account",
                 titleZh: "连接 Antigravity 账号",
-                summaryEn: "Open Antigravity and sign in. AIUsage will detect each account session below so you can connect it with one click.",
-                summaryZh: "打开 Antigravity 并完成登录。AIUsage 会在下方检测到每个账号会话，你可以一键连接。",
+                summaryEn: "Sign in with your Google account. AIUsage will also detect any existing Antigravity IDE session below.",
+                summaryZh: "使用 Google 账号登录。AIUsage 也会在下方检测已有的 Antigravity IDE 会话。",
                 launchActions: [
+                    ProviderAuthLaunchAction(
+                        id: "antigravity-login",
+                        titleEn: "Sign in with Google",
+                        titleZh: "使用 Google 登录",
+                        subtitleEn: "Opens Google sign-in in your browser. No Antigravity installation required.",
+                        subtitleZh: "在浏览器中打开 Google 登录页，无需安装 Antigravity 应用。",
+                        kind: .runTerminal(command: "antigravity")
+                    ),
                     ProviderAuthLaunchAction(
                         id: "antigravity-app",
                         titleEn: "Open Antigravity",

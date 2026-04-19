@@ -78,7 +78,11 @@ extension ProviderAuthManager {
 
         let authFileURL = sessionDir.appendingPathComponent("antigravity_ide_creds.json")
 
-        var authJSON: [String: Any] = ["access_token": apiKey, "token_type": "Bearer"]
+        var authJSON: [String: Any] = [
+            "access_token": apiKey,
+            "token_type": "Bearer",
+            "expired": "2000-01-01T00:00:00Z"
+        ]
         if let email { authJSON["email"] = email }
         if let refreshToken = extractAntigravityRefreshToken() {
             authJSON["refresh_token"] = refreshToken
@@ -152,15 +156,37 @@ extension ProviderAuthManager {
               let cString = sqlite3_column_text(stmt, 0) else { return nil }
 
         let b64String = String(cString: cString)
-        guard let decoded = Data(base64Encoded: b64String) else { return nil }
+        guard let outerDecoded = Data(base64Encoded: b64String) else { return nil }
 
-        guard let pattern = try? NSRegularExpression(pattern: #"1//[A-Za-z0-9_-]+"#),
-              let decodedString = String(data: decoded, encoding: .utf8) ?? String(data: decoded, encoding: .ascii),
-              let match = pattern.firstMatch(in: decodedString, range: NSRange(decodedString.startIndex..., in: decodedString)),
-              let range = Range(match.range, in: decodedString) else {
-            return nil
+        // Protobuf binary: use .isoLatin1 to losslessly map every byte to a character
+        guard let outerText = String(data: outerDecoded, encoding: .isoLatin1) else { return nil }
+
+        guard let refreshTokenPattern = try? NSRegularExpression(pattern: #"1//[A-Za-z0-9_-]+"#) else { return nil }
+
+        if let match = refreshTokenPattern.firstMatch(in: outerText, range: NSRange(outerText.startIndex..., in: outerText)),
+           let range = Range(match.range, in: outerText) {
+            return String(outerText[range])
         }
-        return String(decodedString[range])
+
+        // Protobuf nests tokens inside inner Base64 segments; decode and search each
+        guard let innerB64Pattern = try? NSRegularExpression(pattern: #"[A-Za-z0-9+/_-]{40,}"#) else { return nil }
+        let innerMatches = innerB64Pattern.matches(in: outerText, range: NSRange(outerText.startIndex..., in: outerText))
+        for innerMatch in innerMatches {
+            guard let matchRange = Range(innerMatch.range, in: outerText) else { continue }
+            let segment = String(outerText[matchRange])
+                .replacingOccurrences(of: "-", with: "+")
+                .replacingOccurrences(of: "_", with: "/")
+            let padded = segment + String(repeating: "=", count: (4 - segment.count % 4) % 4)
+            guard let innerData = Data(base64Encoded: padded),
+                  let innerText = String(data: innerData, encoding: .isoLatin1) else {
+                continue
+            }
+            if let match = refreshTokenPattern.firstMatch(in: innerText, range: NSRange(innerText.startIndex..., in: innerText)),
+               let range = Range(match.range, in: innerText) {
+                return String(innerText[range])
+            }
+        }
+        return nil
     }
 
     private static func openSQLiteDB(at path: String) -> OpaquePointer? {

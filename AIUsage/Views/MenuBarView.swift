@@ -105,11 +105,18 @@ struct MenuBarView: View {
 
         let activeNode = proxyVM.configurations.first { $0.id == proxyVM.activatedConfigId }
 
+        let accountIconColor: Color = connectedAccounts == totalAccounts && totalAccounts > 0
+            ? Color(red: 0.15, green: 0.78, blue: 0.40)
+            : connectedAccounts > 0 ? .orange : .secondary
+        let accountValueColor: Color = connectedAccounts > 0 ? .cyan : .secondary
+
         return HStack(spacing: 0) {
             summaryStatCell(
                 value: "\(connectedAccounts)/\(totalAccounts)",
                 label: L("Accounts", "账号"),
-                icon: "person.2.fill"
+                icon: "person.2.fill",
+                iconColor: accountIconColor,
+                valueColor: accountValueColor
             )
             .frame(maxWidth: .infinity)
 
@@ -164,13 +171,14 @@ struct MenuBarView: View {
             }
         } label: {
             VStack(spacing: 3) {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: activeNode != nil ? "bolt.circle.fill" : "bolt.slash.circle")
-                        .font(.system(size: 9))
-                        .foregroundColor(activeNode != nil ? .green : .gray)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(activeNode != nil ? Color(red: 0.20, green: 0.84, blue: 0.42) : .gray)
+                        .shadow(color: activeNode != nil ? Color.green.opacity(0.4) : .clear, radius: 3)
                     Text(activeNode?.name ?? L("Off", "未启用"))
                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(activeNode != nil ? .primary : .secondary)
+                        .foregroundStyle(activeNode != nil ? Color(red: 0.20, green: 0.84, blue: 0.42) : .secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .minimumScaleFactor(0.7)
@@ -178,7 +186,7 @@ struct MenuBarView: View {
                 if let node = activeNode {
                     Text(proxyNodeTypeLabel(node))
                         .font(.system(size: 8, weight: .semibold))
-                        .foregroundColor(proxyNodeTypeColor(node))
+                        .foregroundStyle(proxyNodeTypeColor(node))
                 } else {
                     Text(L("Proxy", "代理"))
                         .font(.system(size: 9, weight: .medium))
@@ -293,10 +301,10 @@ struct MenuBarView: View {
             }
         } label: {
             VStack(spacing: 3) {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: statsIcon(source: source, metric: config.metric))
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(tintColor.opacity(0.7))
                     Text(valueText)
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(tintColor)
@@ -411,12 +419,12 @@ struct MenuBarView: View {
         return "\(periodLabel(period)) · \(sourcePrefix)"
     }
 
-    private func summaryStatCell(value: String, label: String, icon: String, valueColor: Color? = nil) -> some View {
+    private func summaryStatCell(value: String, label: String, icon: String, iconColor: Color = .secondary, valueColor: Color? = nil) -> some View {
         VStack(spacing: 3) {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(iconColor)
                 Text(value)
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(valueColor ?? .primary)

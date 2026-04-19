@@ -22,8 +22,9 @@ final class ProviderActivationManager: ObservableObject {
             return [:]
         }
 
+        var ids: [String: String]
         do {
-            return try JSONDecoder().decode([String: String].self, from: data)
+            ids = try JSONDecoder().decode([String: String].self, from: data)
         } catch {
             providerActivationLog.error("Failed to decode persisted active provider ids: \(String(describing: error), privacy: .public)")
             if let legacyCodex = UserDefaults.standard.string(forKey: DefaultsKey.activeCodexAccountId) {
@@ -31,6 +32,15 @@ final class ProviderActivationManager: ObservableObject {
             }
             return [:]
         }
+
+        let staleKeys = ids.keys.filter { !activatableProviders.contains($0) }
+        if !staleKeys.isEmpty {
+            staleKeys.forEach { ids.removeValue(forKey: $0) }
+            if let cleaned = try? JSONEncoder().encode(ids) {
+                UserDefaults.standard.set(cleaned, forKey: DefaultsKey.activeProviderAccountIds)
+            }
+        }
+        return ids
     }()
 
     @Published var activationResult: ActivationResult?
@@ -93,8 +103,8 @@ final class ProviderActivationManager: ObservableObject {
         }
 
         let entryAccountId = (entry.storedAccount?.accountId ?? entry.liveProvider?.accountId)?.lowercased().nilIfBlank
-        if let entryAccountId {
-            return entryAccountId == activeId
+        if let entryAccountId, entryAccountId == activeId {
+            return true
         }
 
         let email = entry.accountEmail?.lowercased().nilIfBlank
@@ -145,7 +155,7 @@ final class ProviderActivationManager: ObservableObject {
         codexActivationResult = .success(msg)
     }
 
-    // MARK: Gemini / Antigravity activation
+    // MARK: Gemini activation
 
     func activateGeminiAccount(entry: ProviderAccountEntry) throws {
         let fm = FileManager.default
@@ -475,4 +485,5 @@ final class ProviderActivationManager: ObservableObject {
         let active = (json["active"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
         applyDetectedActiveId(active, for: "gemini", reason: "google_accounts.json has no active account")
     }
+
 }

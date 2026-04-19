@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - Antigravity Provider
-// Uses Keychain-imported credentials or env-configured auth files,
+// Uses Keychain-imported credentials (OAuth or IDE session),
 // refreshes OAuth token when needed, and calls Google Cloud Code
 // Assist API for per-model quotas.
 
@@ -18,7 +18,7 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
     static let oauthRefreshURL = "https://oauth2.googleapis.com/token"
     static let userAgent = "antigravity/1.11.3 Darwin/arm64"
 
-    public var supportedAuthMethods: [AuthMethod] { [.authFile, .oauth, .auto] }
+    public var supportedAuthMethods: [AuthMethod] { [.authFile, .oauth] }
 
     public init(homeDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path,
                 timeoutSeconds: Double = 15) {
@@ -26,15 +26,16 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
         self.timeoutSeconds = timeoutSeconds
     }
 
-    /// Default single-account fetch (picks latest auth file for backward compat)
     public func fetchUsage() async throws -> ProviderUsage {
-        let authContext = try resolveAuthContext()
-        return try await fetchForAuthContext(authContext)
+        throw ProviderError(
+            "not_logged_in",
+            "Antigravity requires credential-based authentication. Connect your Antigravity IDE session or sign in with Google."
+        )
     }
 
     public func fetchUsage(with credential: AccountCredential) async throws -> ProviderUsage {
         guard credential.authMethod == .authFile || credential.authMethod == .oauth else {
-            throw ProviderError("unsupported_auth_method", "Antigravity currently supports auth file imports.")
+            throw ProviderError("unsupported_auth_method", "Antigravity supports auth file and OAuth credentials.")
         }
 
         let authContext = try resolveCredentialAuthContext(credential)
@@ -46,67 +47,8 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
         return usage
     }
 
-    /// Multi-account: fetch ALL auth files in parallel, returning one result per account
     public func fetchAllAccounts() async -> [AccountFetchResult] {
-        let allContexts: [AuthContext]
-        do {
-            allContexts = try resolveAllAuthContexts()
-        } catch {
-            return [AccountFetchResult(
-                accountId: "default",
-                accountLabel: nil,
-                result: .failure(error)
-            )]
-        }
-
-        guard !allContexts.isEmpty else {
-            return [AccountFetchResult(
-                accountId: "default",
-                accountLabel: nil,
-                result: .failure(ProviderError("not_logged_in", "No Antigravity auth files found."))
-            )]
-        }
-
-        if allContexts.count == 1 {
-            let ctx = allContexts[0]
-            let filePath = ctx.url.path
-            do {
-                let usage = try await fetchForAuthContext(ctx)
-                return [AccountFetchResult(
-                    accountId: ctx.authFile.email ?? ctx.url.lastPathComponent,
-                    accountLabel: ctx.authFile.email,
-                    result: .success(usage),
-                    sourceFilePath: filePath
-                )]
-            } catch {
-                return [AccountFetchResult(
-                    accountId: ctx.authFile.email ?? ctx.url.lastPathComponent,
-                    accountLabel: ctx.authFile.email,
-                    result: .failure(error),
-                    sourceFilePath: filePath
-                )]
-            }
-        }
-
-        return await withTaskGroup(of: AccountFetchResult.self) { group in
-            for ctx in allContexts {
-                group.addTask {
-                    let accountId = ctx.authFile.email ?? ctx.url.lastPathComponent
-                    let filePath = ctx.url.path
-                    do {
-                        let usage = try await fetchForAuthContext(ctx)
-                        return AccountFetchResult(accountId: accountId, accountLabel: ctx.authFile.email, result: .success(usage), sourceFilePath: filePath)
-                    } catch {
-                        return AccountFetchResult(accountId: accountId, accountLabel: ctx.authFile.email, result: .failure(error), sourceFilePath: filePath)
-                    }
-                }
-            }
-            var results: [AccountFetchResult] = []
-            for await result in group {
-                results.append(result)
-            }
-            return results
-        }
+        []
     }
 
     /// Core fetch logic for a single auth context
@@ -197,62 +139,6 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
         }
     }
 
-    /// Resolve ALL auth contexts (one per auth file) for multi-account fetching
-    private func resolveAllAuthContexts() throws -> [AuthContext] {
-        let env = ProcessInfo.processInfo.environment
-
-        if let explicitFile = env["ANTIGRAVITY_AUTH_FILE"], !explicitFile.isEmpty {
-            let url = URL(fileURLWithPath: NSString(string: explicitFile).expandingTildeInPath)
-            return [try loadAuthContext(url: url, fileCount: 1, sourceDirectory: url.deletingLastPathComponent().path)]
-        }
-
-        guard let authDirectoryRaw = env["ANTIGRAVITY_AUTH_DIR"], !authDirectoryRaw.isEmpty else {
-            throw ProviderError(
-                "not_logged_in",
-                "No Antigravity auth directory configured. Set ANTIGRAVITY_AUTH_DIR or import an auth file."
-            )
-        }
-        let authDirectory = NSString(string: authDirectoryRaw).expandingTildeInPath
-        let directoryURL = URL(fileURLWithPath: authDirectory, isDirectory: true)
-
-        guard FileManager.default.fileExists(atPath: directoryURL.path) else {
-            throw ProviderError(
-                "not_logged_in",
-                "No Antigravity auth directory found. Expected \(directoryURL.path) or set ANTIGRAVITY_AUTH_FILE."
-            )
-        }
-
-        let files = (try? FileManager.default.contentsOfDirectory(
-            at: directoryURL,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        )) ?? []
-
-        let matches = files.filter {
-            $0.lastPathComponent.hasPrefix("antigravity-") && $0.pathExtension == "json"
-        }
-
-        guard !matches.isEmpty else {
-            throw ProviderError(
-                "not_logged_in",
-                "No Antigravity auth files found under \(directoryURL.path). Expected antigravity-*.json."
-            )
-        }
-
-        return matches
-            .sorted { modificationDate(for: $0) > modificationDate(for: $1) }
-            .compactMap { try? loadAuthContext(url: $0, fileCount: matches.count, sourceDirectory: directoryURL.path) }
-    }
-
-    /// Legacy single-file resolution (picks latest modified)
-    private func resolveAuthContext() throws -> AuthContext {
-        let contexts = try resolveAllAuthContexts()
-        guard let first = contexts.first else {
-            throw ProviderError("not_logged_in", "No valid Antigravity auth files found.")
-        }
-        return first
-    }
-
     private func loadAuthContext(url: URL, fileCount: Int, sourceDirectory: String) throws -> AuthContext {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ProviderError("not_logged_in", "Antigravity auth file not found at \(url.path).")
@@ -284,10 +170,6 @@ public struct AntigravityProvider: MultiAccountProviderFetcher, CredentialAccept
             .replacingOccurrences(of: ".gmail.com", with: "@gmail.com")
             .replacingOccurrences(of: "_", with: ".")
         return restored.contains("@") ? restored : nil
-    }
-
-    private func modificationDate(for url: URL) -> Date {
-        (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
     }
 
     // MARK: - OAuth

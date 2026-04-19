@@ -63,7 +63,7 @@ struct ProviderCard: View {
                 
                 VStack(alignment: .trailing, spacing: 6) {
                     HStack(spacing: 6) {
-                        if isActiveProviderAccount {
+                        if isActiveProviderAccount && canActivateProvider {
                             badge(text: L("Active", "当前"), tint: .green)
                         }
 

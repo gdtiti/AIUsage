@@ -130,10 +130,10 @@ public enum BrowserDiscovery {
         ProviderAuthCapability(
             providerId: "antigravity",
             displayName: "Antigravity",
-            supportedMethods: [.authFile, .oauth, .auto],
+            supportedMethods: [.authFile, .oauth],
             cookieDomains: nil,
             cookieNames: nil,
-            instructions: "Import an auth file or set ANTIGRAVITY_AUTH_DIR. You can also specify a file path directly."
+            instructions: "Connect your Antigravity IDE session or sign in with Google."
         ),
         ProviderAuthCapability(
             providerId: "kiro",

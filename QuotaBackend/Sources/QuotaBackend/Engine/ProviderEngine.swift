@@ -344,7 +344,7 @@ public actor ProviderEngine {
 
         if accountResults.isEmpty {
             let elapsed = Date().timeIntervalSince(start)
-            engineLog.warning("✗ \(provider.id): \(String(format: "%.0f", elapsed * 1000))ms - no accounts found")
+            engineLog.debug("✗ \(provider.id): \(String(format: "%.0f", elapsed * 1000))ms - no auto-discovered accounts")
             let summary = UsageNormalizer.errorSummary(
                 provider: provider,
                 error: ProviderError("not_logged_in", "No accounts found for \(provider.displayName)")
@@ -504,11 +504,16 @@ public actor ProviderEngine {
             .nilIfBlank
     }
 
+    private func isPlaceholderIdentity(_ value: String?) -> Bool {
+        let norm = normalizedIdentity(value)
+        return norm == nil || norm == "default"
+    }
+
     private func isGenericAvailabilityError(_ result: ProviderResult, providerId: String) -> Bool {
         guard !result.ok,
               result.providerId == providerId,
-              normalizedIdentity(result.resultAccountId) == nil,
-              normalizedIdentity(result.summary?.accountId) == nil,
+              isPlaceholderIdentity(result.resultAccountId),
+              isPlaceholderIdentity(result.summary?.accountId),
               normalizedIdentity(result.summary?.accountLabel) == nil,
               normalizedIdentity(result.usage?.accountEmail) == nil else {
             return false

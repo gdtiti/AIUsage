@@ -571,12 +571,13 @@ struct ProxyStatsView: View {
                         switch phase {
                         case .active(let location):
                             guard let rawDate: Date = proxy.value(atX: location.x) else {
-                                chartHoverDate = nil
+                                if chartHoverDate != nil { chartHoverDate = nil }
                                 return
                             }
-                            chartHoverDate = nearestBucketDate(to: rawDate, from: series)
+                            let snapped = nearestBucketDate(to: rawDate, from: series)
+                            if chartHoverDate != snapped { chartHoverDate = snapped }
                         case .ended:
-                            chartHoverDate = nil
+                            if chartHoverDate != nil { chartHoverDate = nil }
                         }
                     }
             }
@@ -584,14 +585,15 @@ struct ProxyStatsView: View {
     }
 
     private func nearestBucketDate(to target: Date, from series: [TrendSeriesDescriptor]) -> Date? {
-        guard let firstSeries = series.first else { return nil }
         var closest: Date?
         var minDistance: TimeInterval = .infinity
-        for point in firstSeries.points {
-            let distance = abs(point.date.timeIntervalSince(target))
-            if distance < minDistance {
-                minDistance = distance
-                closest = point.date
+        for s in series {
+            for point in s.points {
+                let distance = abs(point.date.timeIntervalSince(target))
+                if distance < minDistance {
+                    minDistance = distance
+                    closest = point.date
+                }
             }
         }
         return closest
@@ -639,13 +641,21 @@ struct ProxyStatsView: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
     }
 
+    private static let tooltipHourlyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MM/dd HH:00"
+        return f
+    }()
+    private static let tooltipDailyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
     private func formatTooltipDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        if granularity == .hourly {
-            formatter.dateFormat = "MM/dd HH:00"
-        } else {
-            formatter.dateFormat = "yyyy-MM-dd"
-        }
+        let formatter = granularity == .hourly
+            ? Self.tooltipHourlyFormatter
+            : Self.tooltipDailyFormatter
         return formatter.string(from: date)
     }
 

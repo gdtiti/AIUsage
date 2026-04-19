@@ -183,13 +183,14 @@ extension CostTrackingView {
                         switch phase {
                         case .active(let location):
                             guard let rawDate: Date = proxy.value(atX: location.x),
-                                  let pts = allSeries.first?.points else {
-                                chartHoverDate = nil
+                                  !allSeries.isEmpty else {
+                                if chartHoverDate != nil { chartHoverDate = nil }
                                 return
                             }
-                            chartHoverDate = nearestPointDate(to: rawDate, from: pts)
+                            let snapped = nearestPointDate(to: rawDate, fromSeries: allSeries)
+                            if chartHoverDate != snapped { chartHoverDate = snapped }
                         case .ended:
-                            chartHoverDate = nil
+                            if chartHoverDate != nil { chartHoverDate = nil }
                         }
                     }
             }
@@ -277,12 +278,13 @@ extension CostTrackingView {
                         switch phase {
                         case .active(let location):
                             guard let rawDate: Date = proxy.value(atX: location.x) else {
-                                chartHoverDate = nil
+                                if chartHoverDate != nil { chartHoverDate = nil }
                                 return
                             }
-                            chartHoverDate = nearestPointDate(to: rawDate, from: points)
+                            let snapped = nearestPointDate(to: rawDate, from: points)
+                            if chartHoverDate != snapped { chartHoverDate = snapped }
                         case .ended:
-                            chartHoverDate = nil
+                            if chartHoverDate != nil { chartHoverDate = nil }
                         }
                     }
             }
@@ -336,13 +338,36 @@ extension CostTrackingView {
         return closest
     }
 
-    private func tooltipDateLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        if selectedGranularity == .hourly {
-            formatter.dateFormat = "MM/dd HH:00"
-        } else {
-            formatter.dateFormat = "yyyy-MM-dd"
+    func nearestPointDate(to target: Date, fromSeries allSeries: [ChartSeriesDescriptor]) -> Date? {
+        var closest: Date?
+        var minDistance: TimeInterval = .infinity
+        for series in allSeries {
+            for point in series.points {
+                let distance = abs(point.date.timeIntervalSince(target))
+                if distance < minDistance {
+                    minDistance = distance
+                    closest = point.date
+                }
+            }
         }
+        return closest
+    }
+
+    private static let tooltipHourlyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MM/dd HH:00"
+        return f
+    }()
+    private static let tooltipDailyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    private func tooltipDateLabel(_ date: Date) -> String {
+        let formatter = selectedGranularity == .hourly
+            ? Self.tooltipHourlyFormatter
+            : Self.tooltipDailyFormatter
         return formatter.string(from: date)
     }
 

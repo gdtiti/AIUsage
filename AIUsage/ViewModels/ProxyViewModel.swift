@@ -112,7 +112,6 @@ class ProxyViewModel: ObservableObject {
             .sink { [weak self] _ in
                 guard let self, self.logsDirty else { return }
                 self.logsDirty = false
-                self.invalidateLogCaches()
                 self.objectWillChange.send()
             }
         loadConfigurations()
@@ -121,10 +120,13 @@ class ProxyViewModel: ObservableObject {
         restoreActivatedNode()
     }
 
-    /// Marks that logs/statistics have changed. The UI refresh is coalesced by the throttle
-    /// in `init`; callers that need the UI to update synchronously (e.g. user-initiated
-    /// delete/clear) should additionally call `flushLogsRefresh()`.
+    /// Marks that logs/statistics have changed. Caches are invalidated immediately so that
+    /// any SwiftUI re-evaluation (even triggered by other @Published fields) reads fresh data.
+    /// The actual `objectWillChange` notification is coalesced by the throttle in `init`;
+    /// callers that need the UI to update synchronously (e.g. user-initiated delete/clear)
+    /// should additionally call `flushLogsRefresh()`.
     func scheduleLogsRefresh() {
+        invalidateLogCaches()
         logsDirty = true
         logsChangeSubject.send(())
     }

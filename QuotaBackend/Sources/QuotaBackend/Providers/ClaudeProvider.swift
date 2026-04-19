@@ -65,7 +65,8 @@ public struct ClaudeProvider: ProviderFetcher {
         extra["currentMonth.totalTokens"]      = AnyCodable(currentMonth.totalTokens)
         extra["currentMonth.key"]              = AnyCodable(monthKey)
         extra["timeline.hourly"]              = AnyCodable(encodeTimeline(todayHourlyTimeline(rows: rows, now: now)))
-        extra["timeline.daily"]               = AnyCodable(encodeTimeline(trailingDailyTimeline(rows: rows, now: now, days: 7)))
+        let allDays = calendar().dateComponents([.day], from: rows[0].timestamp, to: now).day.map { $0 + 1 } ?? 7
+        extra["timeline.daily"]               = AnyCodable(encodeTimeline(trailingDailyTimeline(rows: rows, now: now, days: max(allDays, 7))))
 
         extra["overall.estimatedCostUsd"]     = AnyCodable(overall.estimatedCostUsd)
         extra["overall.totalTokens"]          = AnyCodable(overall.totalTokens)
@@ -103,7 +104,7 @@ public struct ClaudeProvider: ProviderFetcher {
         for modelName in modelNames.sorted() {
             let modelRows = rows.filter { $0.model == modelName }
             let hourly = todayHourlyTimeline(rows: modelRows, now: now)
-            let daily = trailingDailyTimeline(rows: modelRows, now: now, days: 7)
+            let daily = trailingDailyTimeline(rows: modelRows, now: now, days: max(allDays, 7))
             guard !hourly.isEmpty || !daily.isEmpty else { continue }
             modelTimelinesArr.append(AnyCodable([
                 "model": AnyCodable(modelName),

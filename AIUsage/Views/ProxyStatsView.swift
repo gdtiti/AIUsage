@@ -7,8 +7,8 @@ struct ProxyStatsView: View {
     @EnvironmentObject var viewModel: ProxyViewModel
 
     @AppStorage(DefaultsKey.proxyStatsNodeId) private var selectedNodeIdRaw: String = ""
-    @AppStorage(DefaultsKey.proxyStatsGranularity) private var granularity: StatGranularity = .daily
     @AppStorage(DefaultsKey.proxyStatsMetric) private var metric: StatMetric = .cost
+    @AppStorage(DefaultsKey.proxyStatsChartRange) private var chartTimeRange: ChartTimeRange = .today
     @AppStorage(DefaultsKey.proxyStatsDistributionMetric) private var distributionMetric: StatMetric = .cost
     @State private var contentWidth: CGFloat = 0
     @State private var expandedModels: Set<String> = []
@@ -34,6 +34,7 @@ struct ProxyStatsView: View {
 
     enum StatGranularity: String, CaseIterable { case hourly, daily }
     enum StatMetric: String, CaseIterable { case cost, tokens }
+    private var granularity: StatGranularity { chartTimeRange.isHourly ? .hourly : .daily }
     private enum InsightsLayout {
         case split
         case stacked
@@ -210,7 +211,9 @@ struct ProxyStatsView: View {
     // MARK: - Trend Chart
 
     private var modelTimeSeries: [ProxyViewModel.ModelTimePoint] {
-        viewModel.modelTimeSeries(nodeFilter: selectedNodeId, granularity: granularity == .hourly ? "hourly" : "daily")
+        let all = viewModel.modelTimeSeries(nodeFilter: selectedNodeId, granularity: granularity == .hourly ? "hourly" : "daily")
+        guard let start = chartTimeRange.startDate() else { return all }
+        return all.filter { $0.date >= start }
     }
 
     private var maxVisibleTrendModels: Int { 8 }
@@ -323,12 +326,14 @@ struct ProxyStatsView: View {
                 .pickerStyle(.segmented)
                 .frame(width: 140)
 
-                Picker("", selection: $granularity) {
-                    Text(L("Hourly", "小时")).tag(StatGranularity.hourly)
-                    Text(L("Daily", "每日")).tag(StatGranularity.daily)
+                Picker("", selection: $chartTimeRange) {
+                    Text(L("Today", "今日")).tag(ChartTimeRange.today)
+                    Text(L("Week", "本周")).tag(ChartTimeRange.thisWeek)
+                    Text(L("Month", "本月")).tag(ChartTimeRange.thisMonth)
+                    Text(L("All", "全部")).tag(ChartTimeRange.all)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 140)
+                .frame(width: 220)
             }
 
             if series.isEmpty {

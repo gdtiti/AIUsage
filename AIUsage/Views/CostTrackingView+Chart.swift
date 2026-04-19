@@ -22,12 +22,14 @@ extension CostTrackingView {
                 .pickerStyle(.segmented)
                 .frame(width: 140)
 
-                Picker("", selection: $selectedGranularity) {
-                    Text(L("Hourly", "小时")).tag(CostGranularity.hourly)
-                    Text(L("Daily", "每日")).tag(CostGranularity.daily)
+                Picker("", selection: $chartTimeRange) {
+                    Text(L("Today", "今日")).tag(ChartTimeRange.today)
+                    Text(L("Week", "本周")).tag(ChartTimeRange.thisWeek)
+                    Text(L("Month", "本月")).tag(ChartTimeRange.thisMonth)
+                    Text(L("All", "全部")).tag(ChartTimeRange.all)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 140)
+                .frame(width: 220)
             }
 
             spendChart

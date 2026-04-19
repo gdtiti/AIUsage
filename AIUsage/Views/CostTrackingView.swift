@@ -6,8 +6,8 @@ import Charts
 struct CostTrackingView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
-    @AppStorage(DefaultsKey.ccStatsGranularity) var selectedGranularity: CostGranularity = .hourly
     @AppStorage(DefaultsKey.ccStatsMetric) var selectedMetric: CostMetric = .usd
+    @AppStorage(DefaultsKey.ccStatsChartRange) var chartTimeRange: ChartTimeRange = .today
     @State var selectedModels: Set<String> = []
     @AppStorage(DefaultsKey.ccStatsDistMetric) var distributionMetric: CostMetric = .usd
     @AppStorage(DefaultsKey.ccStatsDistPeriod) var distributionPeriod: DistributionPeriod = .today
@@ -15,6 +15,8 @@ struct CostTrackingView: View {
     @State var expandedModels: Set<String> = []
     @State var contentWidth: CGFloat = 0
     @State var chartHoverDate: Date?
+
+    var selectedGranularity: CostGranularity { chartTimeRange.isHourly ? .hourly : .daily }
 
     var costProviders: [ProviderData] {
         refreshCoordinator.providers.filter { $0.category == "local-cost" }

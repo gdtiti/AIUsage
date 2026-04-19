@@ -32,9 +32,15 @@ extension CostTrackingView {
 
     func aggregateChartPoints() -> [CostTimelinePoint] {
         guard let timeline = costSummary?.timeline else { return [] }
-        return selectedGranularity == .hourly
+        let raw = selectedGranularity == .hourly
             ? (!timeline.hourly.isEmpty ? timeline.hourly : timeline.daily)
             : (!timeline.daily.isEmpty ? timeline.daily : timeline.hourly)
+        return filterByTimeRange(raw)
+    }
+
+    func filterByTimeRange(_ points: [CostTimelinePoint]) -> [CostTimelinePoint] {
+        guard let start = chartTimeRange.startDate() else { return points }
+        return points.filter { $0.date >= start }
     }
 
     func chartPointsForModel(_ model: String) -> [CostTimelinePoint] {
@@ -87,17 +93,18 @@ extension CostTrackingView {
 
     func timelineFromSeries(_ series: ModelTimelineSeries?) -> [CostTimelinePoint] {
         guard let series else { return [] }
-        return selectedGranularity == .hourly
+        let raw = selectedGranularity == .hourly
             ? (!series.hourly.isEmpty ? series.hourly : series.daily)
             : (!series.daily.isEmpty ? series.daily : series.hourly)
+        return filterByTimeRange(raw)
     }
 
     func modelSparklineValues(_ model: String) -> [Double] {
         guard let series = costSummary?.modelTimelines?.first(where: { $0.model == model }) else { return [] }
-        let points = selectedGranularity == .hourly
+        let raw = selectedGranularity == .hourly
             ? (!series.hourly.isEmpty ? series.hourly : series.daily)
             : (!series.daily.isEmpty ? series.daily : series.hourly)
-        return points.map { selectedMetric == .usd ? $0.usd : Double($0.tokens) }
+        return filterByTimeRange(raw).map { selectedMetric == .usd ? $0.usd : Double($0.tokens) }
     }
 
     private static let modelPalette: [Color] = [.orange, .blue, .purple, .green, .pink, .cyan, .mint, .indigo, .teal, .red]

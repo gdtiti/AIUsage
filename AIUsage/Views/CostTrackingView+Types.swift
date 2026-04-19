@@ -48,3 +48,29 @@ enum DistributionPeriod: String, CaseIterable, Identifiable {
     case today, week, month, overall
     var id: String { rawValue }
 }
+
+enum ChartTimeRange: String, CaseIterable, Identifiable {
+    case today = "today"
+    case thisWeek = "week"
+    case thisMonth = "month"
+    case all = "all"
+    var id: String { rawValue }
+
+    var isHourly: Bool { self == .today }
+
+    func startDate(from now: Date = Date()) -> Date? {
+        let cal = Calendar.current
+        switch self {
+        case .today:
+            return cal.startOfDay(for: now)
+        case .thisWeek:
+            let weekday = cal.component(.weekday, from: now) // 1=Sun in Gregorian
+            let mondayOffset = (weekday + 5) % 7
+            return cal.date(byAdding: .day, value: -mondayOffset, to: cal.startOfDay(for: now))
+        case .thisMonth:
+            return cal.dateInterval(of: .month, for: now)?.start
+        case .all:
+            return nil
+        }
+    }
+}

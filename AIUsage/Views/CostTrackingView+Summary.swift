@@ -85,8 +85,8 @@ extension CostTrackingView {
                 HStack(spacing: 6) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(.secondary)
-                    Text(L("Based on local JSONL logs (\(range)). Claude Code retains ~7 days of logs; \"Overall\" reflects available data only.",
-                           "基于本地 JSONL 日志（\(range)）。Claude Code 仅保留约 7 天日志，「总计」仅反映现有数据。"))
+                    Text(L("Based on local JSONL logs (\(range)). \"Overall\" reflects all available local log data.",
+                           "基于本地 JSONL 日志（\(range)）。「总计」反映所有可用的本地日志数据。"))
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

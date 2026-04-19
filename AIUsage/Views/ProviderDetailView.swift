@@ -513,20 +513,30 @@ struct ProviderDetailView: View {
 
 struct QuotaWindowRow: View {
     let window: QuotaWindow
-    
+
+    private var isUnlimited: Bool {
+        window.remainingPercent == nil
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(window.label)
                     .font(.headline)
-                
+
                 Spacer()
-                
+
+                if isUnlimited {
+                    Image(systemName: "infinity")
+                        .font(.callout.weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+
                 Text(window.value)
                     .font(.callout)
                     .bold()
             }
-            
+
             // Progress bar
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
@@ -534,17 +544,22 @@ struct QuotaWindowRow: View {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color.secondary.opacity(0.2))
                         .frame(height: 8)
-                    
-                    // Remaining (green to red gradient)
+
                     if let remaining = window.remainingPercent {
+                        // Metered: green→red fill proportional to remaining
                         RoundedRectangle(cornerRadius: 4)
                             .fill(progressColor(remaining))
                             .frame(width: geometry.size.width * (remaining / 100), height: 8)
+                    } else {
+                        // Unlimited: full neutral bar so it doesn't look like 0%
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.secondary.opacity(0.45))
+                            .frame(width: geometry.size.width, height: 8)
                     }
                 }
             }
             .frame(height: 8)
-            
+
             Text(window.note)
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -553,7 +568,7 @@ struct QuotaWindowRow: View {
         .background(Color(nsColor: .controlBackgroundColor))
         .cornerRadius(12)
     }
-    
+
     private func progressColor(_ remaining: Double) -> Color {
         if remaining > 50 {
             return .green

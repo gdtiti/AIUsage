@@ -12,6 +12,7 @@ extension ProxyViewModel {
 
         do {
             statistics = try JSONDecoder().decode([String: ProxyStatistics].self, from: data)
+            flushLogsRefresh()
         } catch {
             logPersistenceError("load proxy statistics", error: error)
         }
@@ -57,6 +58,7 @@ extension ProxyViewModel {
 
         saveStatistics()
         saveLogs()
+        scheduleLogsRefresh()
     }
 
     /// Fill in costs for logs that have estimatedCostUSD == 0 (pricing was missing at creation time).
@@ -105,6 +107,7 @@ extension ProxyViewModel {
             }
             saveStatistics()
             saveLogs()
+            flushLogsRefresh()
         }
     }
 
@@ -130,6 +133,7 @@ extension ProxyViewModel {
             }
         }
         pruneOldLogs()
+        flushLogsRefresh()
     }
 
     @discardableResult
@@ -161,16 +165,21 @@ extension ProxyViewModel {
                 pruned = true
             }
         }
-        if pruned { saveLogs() }
+        if pruned {
+            saveLogs()
+            flushLogsRefresh()
+        }
     }
 
     func clearLogs(for configId: String) {
         recentLogs[configId] = []
         saveLogs()
+        flushLogsRefresh()
     }
 
     func clearAllLogs() {
         recentLogs.removeAll()
         saveLogs()
+        flushLogsRefresh()
     }
 }

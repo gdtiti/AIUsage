@@ -1032,12 +1032,16 @@ struct MenuBarQuotaBar: View {
     let window: QuotaWindow
     @Environment(\.colorScheme) private var colorScheme
 
+    private var isUnlimited: Bool {
+        window.remainingPercent == nil
+    }
+
     private var percent: Double {
         min(max(window.displayRemainingPercent, 0), 100)
     }
 
     private var barColor: Color {
-        MenuBarHelpers.quotaColor(percent)
+        isUnlimited ? Color.secondary.opacity(0.55) : MenuBarHelpers.quotaColor(percent)
     }
 
     private var trackColor: Color {
@@ -1054,9 +1058,15 @@ struct MenuBarQuotaBar: View {
 
                 Spacer(minLength: 2)
 
-                Text("\(Int(percent))%")
-                    .font(.system(size: 8, weight: .bold, design: .rounded))
-                    .foregroundStyle(barColor)
+                if isUnlimited {
+                    Image(systemName: "infinity")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(barColor)
+                } else {
+                    Text("\(Int(percent))%")
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(barColor)
+                }
             }
 
             ZStack(alignment: .leading) {
@@ -1064,7 +1074,7 @@ struct MenuBarQuotaBar: View {
                     .fill(trackColor)
                 RoundedRectangle(cornerRadius: 2)
                     .fill(barColor)
-                    .scaleEffect(x: max(percent / 100, 0.001), y: 1, anchor: .leading)
+                    .scaleEffect(x: isUnlimited ? 1 : max(percent / 100, 0.001), y: 1, anchor: .leading)
             }
             .frame(height: 4)
             .frame(maxWidth: .infinity)

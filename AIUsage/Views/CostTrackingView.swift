@@ -14,6 +14,7 @@ struct CostTrackingView: View {
     @State var detailProvider: ProviderData?
     @State var expandedModels: Set<String> = []
     @State var contentWidth: CGFloat = 0
+    @State var chartHoverDate: Date?
 
     var costProviders: [ProviderData] {
         refreshCoordinator.providers.filter { $0.category == "local-cost" }

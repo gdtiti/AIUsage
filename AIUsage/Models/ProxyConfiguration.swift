@@ -11,7 +11,7 @@ enum NodeType: String, Codable, CaseIterable {
 
 // MARK: - Proxy Configuration
 
-struct ProxyConfiguration: Codable, Identifiable {
+struct ProxyConfiguration: Codable, Identifiable, Equatable {
     let id: String
     var name: String
     var nodeType: NodeType
@@ -41,7 +41,7 @@ struct ProxyConfiguration: Codable, Identifiable {
         case cny
     }
 
-    struct ModelPricing: Codable {
+    struct ModelPricing: Codable, Equatable {
         var inputPerMillion: Double         // per 1M input tokens (in configured currency)
         var outputPerMillion: Double        // per 1M output tokens
         var cacheCreatePerMillion: Double   // per 1M cache write tokens (~1.25× input by default)
@@ -139,7 +139,7 @@ struct ProxyConfiguration: Codable, Identifiable {
         }
     }
 
-    struct MappedModel: Codable {
+    struct MappedModel: Codable, Equatable {
         var name: String
         var pricing: ModelPricing
 
@@ -149,7 +149,7 @@ struct ProxyConfiguration: Codable, Identifiable {
         }
     }
 
-    struct ModelMapping: Codable {
+    struct ModelMapping: Codable, Equatable {
         var bigModel: MappedModel      // opus -> this
         var middleModel: MappedModel   // sonnet -> this
         var smallModel: MappedModel    // haiku -> this
@@ -299,7 +299,7 @@ struct ProxyConfiguration: Codable, Identifiable {
 
 // MARK: - Proxy Statistics
 
-struct ProxyStatistics: Codable {
+struct ProxyStatistics: Codable, Equatable {
     var totalRequests: Int
     var successfulRequests: Int
     var failedRequests: Int

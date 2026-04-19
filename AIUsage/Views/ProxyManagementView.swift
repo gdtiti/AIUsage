@@ -19,14 +19,9 @@ struct ProxyManagementView: View {
                 emptyState
             } else {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    LazyVStack(spacing: 16) {
                         summaryStrip
                         configurationsList
-                        if let config = selectedConfiguration,
-                           config.needsProxyProcess {
-                            statisticsSection(for: config)
-                            recentRequestsSection(for: config)
-                        }
                     }
                     .padding(20)
                 }
@@ -185,19 +180,48 @@ struct ProxyManagementView: View {
                 Spacer()
             }
 
-            VStack(spacing: 0) {
+            LazyVStack(spacing: 0) {
                 ForEach(Array(viewModel.configurations.enumerated()), id: \.element.id) { index, config in
+                    let stats = viewModel.statistics[config.id] ?? .empty
+                    let isSelected = selectedConfigId == config.id
                     VStack(spacing: 0) {
                         dropIndicator(at: index)
-                        configurationCard(config)
-                            .opacity(draggingConfigId == config.id ? 0.3 : 1.0)
-                            .onDrop(of: [.text], delegate: CardDropDelegate(
-                                targetIndex: index,
-                                draggingId: $draggingConfigId,
-                                dropTarget: $dropTargetIndex,
-                                viewModel: viewModel
-                            ))
-                            .padding(.vertical, 4)
+                        ConfigurationCardView(
+                            config: config,
+                            isActive: viewModel.activatedConfigId == config.id,
+                            isBusy: viewModel.isOperationInProgress(config.id),
+                            isSelected: isSelected,
+                            statsRequests: stats.totalRequests,
+                            statsSuccessRate: stats.successRate,
+                            lastRequestAt: stats.lastRequestAt,
+                            onDragStart: { draggingConfigId = config.id },
+                            onToggleActivation: { Task { await viewModel.toggleActivation(config.id) } },
+                            onEdit: { editingConfig = config },
+                            onDelete: { pendingDeletionConfig = config },
+                            onDuplicate: { duplicateConfig(config) },
+                            onToggleSelection: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    selectedConfigId = selectedConfigId == config.id ? nil : config.id
+                                }
+                            }
+                        )
+                        .equatable()
+                        .opacity(draggingConfigId == config.id ? 0.3 : 1.0)
+                        .onDrop(of: [.text], delegate: CardDropDelegate(
+                            targetIndex: index,
+                            draggingId: $draggingConfigId,
+                            dropTarget: $dropTargetIndex,
+                            viewModel: viewModel
+                        ))
+                        .padding(.vertical, 4)
+
+                        if isSelected && config.needsProxyProcess {
+                            statisticsSection(for: config)
+                                .padding(.top, 8)
+                                .padding(.bottom, 4)
+                            recentRequestsSection(for: config)
+                                .padding(.bottom, 4)
+                        }
                     }
                 }
                 dropIndicator(at: viewModel.configurations.count)
@@ -231,228 +255,6 @@ struct ProxyManagementView: View {
         .frame(height: isActive ? 6 : 2)
         .padding(.horizontal, 4)
         .animation(.easeInOut(duration: 0.15), value: isActive)
-    }
-
-    private func configurationCard(_ config: ProxyConfiguration) -> some View {
-        let isActive = viewModel.activatedConfigId == config.id
-        let isBusy = viewModel.isOperationInProgress(config.id)
-        let isSelected = selectedConfigId == config.id
-        let stats = viewModel.statistics[config.id] ?? .empty
-
-        let brandColor: Color = config.nodeType == .anthropicDirect ? Self.anthropicBrand : Self.openAIBrand
-
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.quaternary)
-                    .frame(width: 16, height: 28)
-                    .contentShape(Rectangle())
-                    .onHover { hovering in
-                        if hovering { NSCursor.openHand.push() }
-                        else { NSCursor.pop() }
-                    }
-                    .onDrag {
-                        draggingConfigId = config.id
-                        return NSItemProvider(object: config.id as NSString)
-                    }
-
-                Circle()
-                    .fill(isActive ? brandColor : Color.gray.opacity(0.4))
-                    .frame(width: 10, height: 10)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(config.name)
-                            .font(.system(size: 15, weight: .bold))
-                        nodeTypeBadge(config)
-                    }
-                    Text(config.displayURL)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                if config.needsProxyProcess {
-                    HStack(spacing: 16) {
-                        statPill(
-                            icon: "arrow.up.arrow.down",
-                            value: "\(stats.totalRequests)",
-                            color: .blue
-                        )
-                        statPill(
-                            icon: "checkmark.circle",
-                            value: String(format: "%.0f%%", stats.successRate),
-                            color: .green
-                        )
-                    }
-                }
-
-                HStack(spacing: 8) {
-                    Button(action: { Task { await viewModel.toggleActivation(config.id) } }) {
-                        Group {
-                            if isBusy {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: isActive ? "stop.circle.fill" : "power.circle.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundStyle(isActive ? .orange : .green)
-                            }
-                        }
-                        .frame(width: 20, height: 20)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isBusy)
-                    .help(isActive ? L("Deactivate", "停用") : L("Activate", "激活"))
-
-                    Button(action: { editConfig(config) }) {
-                        Image(systemName: "pencil.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(.blue)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isBusy)
-                    .help(L("Edit", "编辑"))
-
-                    Button(action: { pendingDeletionConfig = config }) {
-                        Image(systemName: "trash.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(.red)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isBusy)
-                    .help(L("Delete", "删除"))
-                }
-            }
-
-            if isSelected {
-                Divider()
-                configDetailRow(config)
-            }
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(isActive
-                      ? brandColor.opacity(0.06)
-                      : isSelected
-                        ? brandColor.opacity(0.04)
-                        : Color(nsColor: .controlBackgroundColor).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(isActive
-                        ? brandColor.opacity(0.5)
-                        : isSelected
-                          ? brandColor.opacity(0.25)
-                          : Color.primary.opacity(0.06),
-                        lineWidth: isActive ? 1.5 : 1)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                selectedConfigId = isSelected ? nil : config.id
-            }
-        }
-        .contextMenu {
-            Button {
-                editingConfig = config
-            } label: {
-                Label(L("Edit", "编辑"), systemImage: "pencil")
-            }
-            Button {
-                duplicateConfig(config)
-            } label: {
-                Label(L("Duplicate", "复制节点"), systemImage: "doc.on.doc")
-            }
-            Divider()
-            Button(role: .destructive) {
-                pendingDeletionConfig = config
-            } label: {
-                Label(L("Delete", "删除"), systemImage: "trash")
-            }
-        }
-    }
-
-    private static let anthropicBrand = Color(red: 0.85, green: 0.47, blue: 0.34)
-    private static let openAIBrand = Color(red: 0.29, green: 0.73, blue: 0.56)
-
-    private func nodeTypeBadge(_ config: ProxyConfiguration) -> some View {
-        let (label, icon, color): (String, String, Color) = {
-            switch config.nodeType {
-            case .anthropicDirect:
-                if config.usePassthroughProxy {
-                    return ("Anthropic Proxy", "bolt.shield.fill", Self.anthropicBrand)
-                }
-                return ("Anthropic Direct", "bolt.horizontal.fill", Self.anthropicBrand)
-            case .openaiProxy:
-                return ("OpenAI Proxy", "arrow.triangle.swap", Self.openAIBrand)
-            }
-        }()
-
-        return HStack(spacing: 3) {
-            Image(systemName: icon)
-                .font(.system(size: 7, weight: .bold))
-            Text(label)
-        }
-        .font(.system(size: 9, weight: .bold))
-        .foregroundStyle(color)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(Capsule().fill(color.opacity(0.12)))
-    }
-
-    private func statPill(icon: String, value: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-            Text(value)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-        }
-        .foregroundStyle(color)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Capsule().fill(color.opacity(0.12)))
-    }
-
-    private func configDetailRow(_ config: ProxyConfiguration) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            switch config.nodeType {
-            case .anthropicDirect:
-                detailItem(label: "Base URL", value: config.anthropicBaseURL)
-                if config.usePassthroughProxy {
-                    detailItem(label: L("Local Proxy", "本地代理"), value: "http://\(config.host):\(config.port)")
-                }
-            case .openaiProxy:
-                detailItem(label: L("Upstream", "上游"), value: config.normalizedUpstreamBaseURL)
-                detailItem(
-                    label: L("API Mode", "接口模式"),
-                    value: openAIUpstreamAPILabel(config.openAIUpstreamAPI)
-                )
-                detailItem(
-                    label: L("Model Mapping", "模型映射"),
-                    value: "Opus\u{2192}\(config.modelMapping.bigModel.name), Sonnet\u{2192}\(config.modelMapping.middleModel.name), Haiku\u{2192}\(config.modelMapping.smallModel.name)"
-                )
-                detailItem(label: L("LAN Access", "局域网访问"), value: config.allowLAN ? L("Enabled", "已启用") : L("Disabled", "已禁用"))
-            }
-            if let lastUsed = config.lastUsedAt {
-                detailItem(label: L("Last Used", "最后使用"), value: formatRelativeTime(lastUsed))
-            }
-        }
-        .font(.caption)
-    }
-
-    private func detailItem(label: String, value: String) -> some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-        }
     }
 
     // MARK: - Statistics Section
@@ -762,12 +564,242 @@ struct ProxyManagementView: View {
         Self.relativeFormatter.localizedString(for: date, relativeTo: Date())
     }
 
-    private func openAIUpstreamAPILabel(_ api: OpenAIUpstreamAPI) -> String {
-        switch api {
-        case .chatCompletions:
-            return "Chat Completions"
-        case .responses:
-            return "Responses"
+}
+
+// MARK: - Configuration Card (Equatable)
+
+/// Standalone Equatable View so SwiftUI can skip re-rendering cards whose inputs haven't changed.
+/// When `selectedConfigId` changes, only the previously-selected and newly-selected cards re-render;
+/// the rest are skipped entirely. Same optimization applies during drag-and-drop state changes.
+private struct ConfigurationCardView: View, Equatable {
+    let config: ProxyConfiguration
+    let isActive: Bool
+    let isBusy: Bool
+    let isSelected: Bool
+    let statsRequests: Int
+    let statsSuccessRate: Double
+    let lastRequestAt: Date?
+
+    var onDragStart: () -> Void = {}
+    var onToggleActivation: () -> Void = {}
+    var onEdit: () -> Void = {}
+    var onDelete: () -> Void = {}
+    var onDuplicate: () -> Void = {}
+    var onToggleSelection: () -> Void = {}
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.config == rhs.config &&
+        lhs.isActive == rhs.isActive &&
+        lhs.isBusy == rhs.isBusy &&
+        lhs.isSelected == rhs.isSelected &&
+        lhs.statsRequests == rhs.statsRequests &&
+        lhs.statsSuccessRate == rhs.statsSuccessRate &&
+        lhs.lastRequestAt == rhs.lastRequestAt
+    }
+
+    private static let anthropicBrand = Color(red: 0.85, green: 0.47, blue: 0.34)
+    private static let openAIBrand = Color(red: 0.29, green: 0.73, blue: 0.56)
+
+    private var brandColor: Color {
+        config.nodeType == .anthropicDirect ? Self.anthropicBrand : Self.openAIBrand
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.quaternary)
+                    .frame(width: 16, height: 28)
+                    .contentShape(Rectangle())
+                    .onHover { hovering in
+                        if hovering { NSCursor.openHand.push() }
+                        else { NSCursor.pop() }
+                    }
+                    .onDrag {
+                        onDragStart()
+                        return NSItemProvider(object: config.id as NSString)
+                    }
+
+                Circle()
+                    .fill(isActive ? brandColor : Color.gray.opacity(0.4))
+                    .frame(width: 10, height: 10)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(config.name)
+                            .font(.system(size: 15, weight: .bold))
+                        nodeTypeBadge
+                    }
+                    Text(config.displayURL)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if config.needsProxyProcess {
+                    HStack(spacing: 16) {
+                        statPill(icon: "arrow.up.arrow.down", value: "\(statsRequests)", color: .blue)
+                        statPill(icon: "checkmark.circle", value: String(format: "%.0f%%", statsSuccessRate), color: .green)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Button(action: onToggleActivation) {
+                        Group {
+                            if isBusy {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: isActive ? "stop.circle.fill" : "power.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(isActive ? .orange : .green)
+                            }
+                        }
+                        .frame(width: 20, height: 20)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isBusy)
+                    .help(isActive ? L("Deactivate", "停用") : L("Activate", "激活"))
+
+                    Button(action: onEdit) {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isBusy)
+                    .help(L("Edit", "编辑"))
+
+                    Button(action: onDelete) {
+                        Image(systemName: "trash.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isBusy)
+                    .help(L("Delete", "删除"))
+                }
+            }
+
+            if isSelected {
+                Divider()
+                detailContent
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(isActive
+                      ? brandColor.opacity(0.06)
+                      : isSelected
+                        ? brandColor.opacity(0.04)
+                        : Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(isActive
+                        ? brandColor.opacity(0.5)
+                        : isSelected
+                          ? brandColor.opacity(0.25)
+                          : Color.primary.opacity(0.06),
+                        lineWidth: isActive ? 1.5 : 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onToggleSelection)
+        .contextMenu {
+            Button { onEdit() } label: {
+                Label(L("Edit", "编辑"), systemImage: "pencil")
+            }
+            Button { onDuplicate() } label: {
+                Label(L("Duplicate", "复制节点"), systemImage: "doc.on.doc")
+            }
+            Divider()
+            Button(role: .destructive) { onDelete() } label: {
+                Label(L("Delete", "删除"), systemImage: "trash")
+            }
+        }
+    }
+
+    // MARK: - Subviews
+
+    private var nodeTypeBadge: some View {
+        let (label, icon, color): (String, String, Color) = {
+            switch config.nodeType {
+            case .anthropicDirect:
+                if config.usePassthroughProxy {
+                    return ("Anthropic Proxy", "bolt.shield.fill", Self.anthropicBrand)
+                }
+                return ("Anthropic Direct", "bolt.horizontal.fill", Self.anthropicBrand)
+            case .openaiProxy:
+                return ("OpenAI Proxy", "arrow.triangle.swap", Self.openAIBrand)
+            }
+        }()
+
+        return HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 7, weight: .bold))
+            Text(label)
+        }
+        .font(.system(size: 9, weight: .bold))
+        .foregroundStyle(color)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(color.opacity(0.12)))
+    }
+
+    private func statPill(icon: String, value: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+            Text(value)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(color.opacity(0.12)))
+    }
+
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .short
+        return f
+    }()
+
+    private var detailContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switch config.nodeType {
+            case .anthropicDirect:
+                detailItem(label: "Base URL", value: config.anthropicBaseURL)
+                if config.usePassthroughProxy {
+                    detailItem(label: L("Local Proxy", "本地代理"), value: "http://\(config.host):\(config.port)")
+                }
+            case .openaiProxy:
+                detailItem(label: L("Upstream", "上游"), value: config.normalizedUpstreamBaseURL)
+                detailItem(label: L("API Mode", "接口模式"), value: config.openAIUpstreamAPI == .chatCompletions ? "Chat Completions" : "Responses")
+                detailItem(
+                    label: L("Model Mapping", "模型映射"),
+                    value: "Opus\u{2192}\(config.modelMapping.bigModel.name), Sonnet\u{2192}\(config.modelMapping.middleModel.name), Haiku\u{2192}\(config.modelMapping.smallModel.name)"
+                )
+                detailItem(label: L("LAN Access", "局域网访问"), value: config.allowLAN ? L("Enabled", "已启用") : L("Disabled", "已禁用"))
+            }
+            if let lastUsed = lastRequestAt ?? config.lastUsedAt {
+                detailItem(label: L("Last Used", "最后使用"), value: Self.relativeFormatter.localizedString(for: lastUsed, relativeTo: Date()))
+            }
+        }
+        .font(.caption)
+    }
+
+    private func detailItem(label: String, value: String) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
         }
     }
 }

@@ -5,10 +5,6 @@ extension ProxyViewModel {
 
     // MARK: - Aggregation for ProxyStatsView
 
-    func invalidateLogCache() {
-        _logCache.removeAll()
-    }
-
     func allLogs(nodeFilter: String?, modelFilter: String?) -> [ProxyRequestLog] {
         let key = LogCacheKey(nodeFilter: nodeFilter, modelFilter: modelFilter)
         if let cached = _logCache[key] { return cached }
@@ -26,50 +22,6 @@ extension ProxyViewModel {
         return sorted
     }
 
-    struct DailyAggregate: Identifiable {
-        let id: String
-        let date: Date
-        let label: String
-        var cost: Double
-        var tokens: Int
-        var requests: Int
-    }
-
-    func dailyAggregates(nodeFilter: String?, modelFilter: String?) -> [DailyAggregate] {
-        let logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
-        let cal = Calendar.current
-        var map: [String: DailyAggregate] = [:]
-        for log in logs {
-            let key = DateFormat.string(from: log.timestamp, format: "yyyy-MM-dd")
-            let dayStart = cal.startOfDay(for: log.timestamp)
-            var agg = map[key] ?? DailyAggregate(id: key, date: dayStart, label: key, cost: 0, tokens: 0, requests: 0)
-            agg.cost += log.estimatedCostUSD
-            agg.tokens += log.tokensInput + log.tokensOutput + log.tokensCache
-            agg.requests += 1
-            map[key] = agg
-        }
-
-        return map.values.sorted { $0.date < $1.date }
-    }
-
-    func hourlyAggregates(nodeFilter: String?, modelFilter: String?) -> [DailyAggregate] {
-        let logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
-        let cal = Calendar.current
-        var map: [String: DailyAggregate] = [:]
-        for log in logs {
-            let key = DateFormat.string(from: log.timestamp, format: "yyyy-MM-dd HH")
-            let comps = cal.dateComponents([.year, .month, .day, .hour], from: log.timestamp)
-            let hourStart = cal.date(from: comps) ?? log.timestamp
-            var agg = map[key] ?? DailyAggregate(id: key, date: hourStart, label: key, cost: 0, tokens: 0, requests: 0)
-            agg.cost += log.estimatedCostUSD
-            agg.tokens += log.tokensInput + log.tokensOutput + log.tokensCache
-            agg.requests += 1
-            map[key] = agg
-        }
-
-        return map.values.sorted { $0.date < $1.date }
-    }
-
     struct ModelTimePoint: Identifiable {
         let id: String
         let date: Date
@@ -79,8 +31,16 @@ extension ProxyViewModel {
     }
 
     func modelTimeSeries(nodeFilter: String?, granularity: String) -> [ModelTimePoint] {
+        let cacheKey = TimeSeriesKey(nodeFilter: nodeFilter, granularity: granularity)
+        if let cached = _timeSeriesCache[cacheKey] as? [ModelTimePoint] {
+            return cached
+        }
+
         let logs = allLogs(nodeFilter: nodeFilter, modelFilter: nil)
-        guard !logs.isEmpty else { return [] }
+        guard !logs.isEmpty else {
+            _timeSeriesCache[cacheKey] = [ModelTimePoint]()
+            return []
+        }
 
         let cal = Calendar.current
         let format = granularity == "hourly" ? "yyyy-MM-dd HH" : "yyyy-MM-dd"
@@ -133,7 +93,9 @@ extension ProxyViewModel {
             cursor = next
         }
 
-        return map.values.sorted { ($0.date, $0.model) < ($1.date, $1.model) }
+        let result = map.values.sorted { ($0.date, $0.model) < ($1.date, $1.model) }
+        _timeSeriesCache[cacheKey] = result
+        return result
     }
 
     struct ModelAggregate: Identifiable {
@@ -158,6 +120,11 @@ extension ProxyViewModel {
     }
 
     func modelAggregates(nodeFilter: String?, modelFilter: String?, since: Date? = nil) -> [ModelAggregate] {
+        let cacheKey = AggregateKey(nodeFilter: nodeFilter, modelFilter: modelFilter, since: since)
+        if let cached = _modelAggCache[cacheKey] as? [ModelAggregate] {
+            return cached
+        }
+
         var logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
         if let since { logs = logs.filter { $0.timestamp >= since } }
         var map: [String: ModelAggregate] = [:]
@@ -179,16 +146,24 @@ extension ProxyViewModel {
             map[key] = agg
         }
 
-        return map.values.sorted { $0.cost > $1.cost }
+        let result = map.values.sorted { $0.cost > $1.cost }
+        _modelAggCache[cacheKey] = result
+        return result
     }
 
     func allUpstreamModels(nodeFilter: String?) -> [String] {
+        let cacheKey = nodeFilter ?? ""
+        if let cached = _upstreamModelsCache[cacheKey] {
+            return cached
+        }
         var models = Set<String>()
         for (configId, logs) in recentLogs {
             if let node = nodeFilter, node != configId { continue }
             for log in logs { models.insert(log.upstreamModel) }
         }
-        return models.sorted()
+        let result = models.sorted()
+        _upstreamModelsCache[cacheKey] = result
+        return result
     }
 
     struct OverallStats {
@@ -216,6 +191,11 @@ extension ProxyViewModel {
     }
 
     func overallStats(nodeFilter: String?, modelFilter: String?, since: Date?) -> OverallStats {
+        let cacheKey = AggregateKey(nodeFilter: nodeFilter, modelFilter: modelFilter, since: since)
+        if let cached = _overallStatsCache[cacheKey] as? OverallStats {
+            return cached
+        }
+
         var logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
         if let since { logs = logs.filter { $0.timestamp >= since } }
 
@@ -232,7 +212,7 @@ extension ProxyViewModel {
             if log.success { successCount += 1 }
         }
         let rate = logs.isEmpty ? 0.0 : Double(successCount) / Double(logs.count) * 100
-        return OverallStats(
+        let result = OverallStats(
             cost: cost,
             tokens: tokens,
             requests: logs.count,
@@ -242,17 +222,27 @@ extension ProxyViewModel {
             cacheReadTokens: cacheRead,
             cacheCreationTokens: cacheCreate
         )
+        _overallStatsCache[cacheKey] = result
+        return result
     }
 
     func dataDateRange(nodeFilter: String?, modelFilter: String?) -> (earliest: Date?, latest: Date?, days: Int) {
+        let cacheKey = LogCacheKey(nodeFilter: nodeFilter, modelFilter: modelFilter)
+        if let cached = _dateRangeCache[cacheKey] {
+            return cached
+        }
         let logs = allLogs(nodeFilter: nodeFilter, modelFilter: modelFilter)
         guard let earliest = logs.first?.timestamp, let latest = logs.last?.timestamp else {
-            return (nil, nil, 0)
+            let empty: (earliest: Date?, latest: Date?, days: Int) = (nil, nil, 0)
+            _dateRangeCache[cacheKey] = empty
+            return empty
         }
         let calendar = Calendar.current
         let earliestDay = calendar.startOfDay(for: earliest)
         let latestDay = calendar.startOfDay(for: latest)
         let days = max(1, (calendar.dateComponents([.day], from: earliestDay, to: latestDay).day ?? 0) + 1)
-        return (earliest, latest, days)
+        let result: (earliest: Date?, latest: Date?, days: Int) = (earliest, latest, days)
+        _dateRangeCache[cacheKey] = result
+        return result
     }
 }

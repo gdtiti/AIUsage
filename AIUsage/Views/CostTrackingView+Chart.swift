@@ -143,13 +143,16 @@ extension CostTrackingView {
 
     func multiModelChartFor(_ allSeries: [ChartSeriesDescriptor]) -> some View {
         let colorMap = modelColorMap
+        let isUsd = selectedMetric == .usd
+        let hoverDate = chartHoverDate
         return Chart {
             ForEach(allSeries, id: \.model) { series in
                 let color = modelColor(for: series.model, from: colorMap)
                 ForEach(series.points, id: \.bucket) { point in
+                    let yVal: Double = isUsd ? point.usd : Double(point.tokens)
                     LineMark(
                         x: .value("Time", point.date),
-                        y: .value("Value", selectedMetric == .usd ? point.usd : Double(point.tokens)),
+                        y: .value("Value", yVal),
                         series: .value("Model", series.model)
                     )
                     .foregroundStyle(color)
@@ -157,10 +160,40 @@ extension CostTrackingView {
                     .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round))
                 }
             }
+
+            if let hoverDate {
+                RuleMark(x: .value("Hover", hoverDate))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .foregroundStyle(.secondary.opacity(0.5))
+                    .annotation(position: .top, spacing: 4,
+                                overflowResolution: .init(x: .fit, y: .disabled)) {
+                        multiModelTooltip(date: hoverDate, series: allSeries, colorMap: colorMap)
+                    }
+            }
         }
         .chartLegend(.hidden)
         .chartXAxis { costChartXAxis }
         .chartYAxis { costChartYAxis }
+        .chartOverlay { (proxy: ChartProxy) in
+            GeometryReader { _ in
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            guard let rawDate: Date = proxy.value(atX: location.x),
+                                  let pts = allSeries.first?.points else {
+                                chartHoverDate = nil
+                                return
+                            }
+                            chartHoverDate = nearestPointDate(to: rawDate, from: pts)
+                        case .ended:
+                            chartHoverDate = nil
+                        }
+                    }
+            }
+        }
     }
 
     @ViewBuilder
@@ -197,33 +230,63 @@ extension CostTrackingView {
     }
 
     func singleSeriesChart(points: [CostTimelinePoint]) -> some View {
-        let tint: Color = selectedMetric == .usd ? .orange : .purple
+        let isUsd = selectedMetric == .usd
+        let tint: Color = isUsd ? .orange : .purple
+        let gradient = LinearGradient(
+            colors: [tint.opacity(0.25), tint.opacity(0.02)],
+            startPoint: .top, endPoint: .bottom
+        )
+        let hoverDate = chartHoverDate
         return Chart {
             ForEach(points, id: \.bucket) { point in
-                let val = selectedMetric == .usd ? point.usd : Double(point.tokens)
+                let yVal: Double = isUsd ? point.usd : Double(point.tokens)
                 AreaMark(
                     x: .value("Time", point.date),
-                    y: .value("Value", val)
+                    y: .value("Value", yVal)
                 )
                 .interpolationMethod(.catmullRom)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [tint.opacity(0.25), tint.opacity(0.02)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(gradient)
 
                 LineMark(
                     x: .value("Time", point.date),
-                    y: .value("Value", val)
+                    y: .value("Value", yVal)
                 )
                 .interpolationMethod(.catmullRom)
                 .foregroundStyle(tint)
                 .lineStyle(StrokeStyle(lineWidth: 2.4, lineCap: .round))
             }
+
+            if let hoverDate {
+                RuleMark(x: .value("Hover", hoverDate))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .foregroundStyle(.secondary.opacity(0.5))
+                    .annotation(position: .top, spacing: 4,
+                                overflowResolution: .init(x: .fit, y: .disabled)) {
+                        singleTooltip(date: hoverDate, points: points, tint: tint)
+                    }
+            }
         }
         .chartXAxis { costChartXAxis }
         .chartYAxis { costChartYAxis }
+        .chartOverlay { (proxy: ChartProxy) in
+            GeometryReader { _ in
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            guard let rawDate: Date = proxy.value(atX: location.x) else {
+                                chartHoverDate = nil
+                                return
+                            }
+                            chartHoverDate = nearestPointDate(to: rawDate, from: points)
+                        case .ended:
+                            chartHoverDate = nil
+                        }
+                    }
+            }
+        }
     }
 
     // MARK: - Shared Axis Builders
@@ -256,5 +319,92 @@ extension CostTrackingView {
                 }
             }
         }
+    }
+
+    // MARK: - Chart Hover Helpers
+
+    func nearestPointDate(to target: Date, from points: [CostTimelinePoint]) -> Date? {
+        var closest: Date?
+        var minDistance: TimeInterval = .infinity
+        for point in points {
+            let distance = abs(point.date.timeIntervalSince(target))
+            if distance < minDistance {
+                minDistance = distance
+                closest = point.date
+            }
+        }
+        return closest
+    }
+
+    private func tooltipDateLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        if selectedGranularity == .hourly {
+            formatter.dateFormat = "MM/dd HH:00"
+        } else {
+            formatter.dateFormat = "yyyy-MM-dd"
+        }
+        return formatter.string(from: date)
+    }
+
+    func singleTooltip(date: Date, points: [CostTimelinePoint], tint: Color) -> some View {
+        let point = points.first(where: { $0.date == date })
+        let value = point.map { selectedMetric == .usd ? $0.usd : Double($0.tokens) } ?? 0
+
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(tooltipDateLabel(date))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 4) {
+                Circle().fill(tint).frame(width: 6, height: 6)
+                Text(selectedMetric == .usd ? formatCurrency(value) : formatCompactNumber(value))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
+    }
+
+    func multiModelTooltip(date: Date, series: [ChartSeriesDescriptor], colorMap: [String: Color]) -> some View {
+        let entries: [(String, Color, Double)] = series.compactMap { s in
+            guard let point = s.points.first(where: { $0.date == date }) else { return nil }
+            let value = selectedMetric == .usd ? point.usd : Double(point.tokens)
+            if value == 0 && series.count > 1 { return nil }
+            return (s.model, modelColor(for: s.model, from: colorMap), value)
+        }
+
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(tooltipDateLabel(date))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ForEach(entries, id: \.0) { model, color, value in
+                HStack(spacing: 4) {
+                    Circle().fill(color).frame(width: 6, height: 6)
+                    Text(shortModelName(model))
+                        .font(.caption2)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Text(selectedMetric == .usd ? formatCurrency(value) : formatCompactNumber(value))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                }
+            }
+
+            if entries.count > 1 {
+                Divider()
+                let total = entries.reduce(0.0) { $0 + $1.2 }
+                HStack(spacing: 4) {
+                    Text(L("Total", "合计"))
+                        .font(.caption2.weight(.semibold))
+                    Spacer(minLength: 8)
+                    Text(selectedMetric == .usd ? formatCurrency(total) : formatCompactNumber(total))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                }
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
     }
 }

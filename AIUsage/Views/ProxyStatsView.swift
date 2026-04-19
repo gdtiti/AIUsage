@@ -14,6 +14,7 @@ struct ProxyStatsView: View {
     @State private var expandedModels: Set<String> = []
     @State private var distributionPeriod: DistributionPeriod = .all
     @State private var selectedModels: Set<String> = []
+    @State private var chartHoverDate: Date?
 
     enum DistributionPeriod: String, CaseIterable { case today, week, month, all }
 
@@ -53,11 +54,13 @@ struct ProxyStatsView: View {
                 emptyState
             } else {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    let ranked = rankedTrendSeries
+                    let colorMap = buildModelColorMap(from: ranked)
+                    LazyVStack(spacing: 16) {
                         filterBar
                         summaryStrip
-                        trendChart
-                        insightPanels
+                        trendChartSection(ranked: ranked, colorMap: colorMap)
+                        insightPanelsSection(colorMap: colorMap, sparklineMap: buildSparklineMap(from: ranked))
                     }
                     .padding(20)
                     .background(
@@ -73,7 +76,11 @@ struct ProxyStatsView: View {
         .onAppear { validateSelections() }
         .onChange(of: selectedNodeIdRaw) { _, _ in validateSelections() }
         .onPreferenceChange(ProxyStatsContentWidthPreferenceKey.self) { newWidth in
-            contentWidth = newWidth
+            // Threshold avoids rebuilding the whole body on sub-pixel width jitter during scroll
+            // or expand/collapse. 8pt is well below the 1080pt breakpoint used by usesStackedInsightsLayout.
+            if abs(newWidth - contentWidth) > 8 {
+                contentWidth = newWidth
+            }
         }
     }
 
@@ -229,21 +236,6 @@ struct ProxyStatsView: View {
             }
     }
 
-    private var displayedTrendSeries: [TrendSeriesDescriptor] {
-        if !selectedModels.isEmpty {
-            return rankedTrendSeries.filter { selectedModels.contains($0.model) }
-        }
-        return Array(rankedTrendSeries.prefix(maxVisibleTrendModels))
-    }
-
-    private var hiddenTrendSeriesCount: Int {
-        max(0, rankedTrendSeries.count - displayedTrendSeries.count)
-    }
-
-    private var chartSelectableModels: [String] {
-        rankedTrendSeries.map(\.model)
-    }
-
     private var modelFilterLabel: String {
         if selectedModels.isEmpty { return L("All Models", "全部模型") }
         if selectedModels.count == 1, let only = selectedModels.first { return only }
@@ -258,7 +250,7 @@ struct ProxyStatsView: View {
         }
     }
 
-    private var proxyModelFilterMenu: some View {
+    private func proxyModelFilterMenu(selectableModels: [String]) -> some View {
         Menu {
             Button(action: { selectedModels = [] }) {
                 HStack {
@@ -269,7 +261,7 @@ struct ProxyStatsView: View {
                 }
             }
             Divider()
-            ForEach(chartSelectableModels, id: \.self) { model in
+            ForEach(selectableModels, id: \.self) { model in
                 Button(action: { toggleModelSelection(model) }) {
                     HStack {
                         Text(model)
@@ -299,8 +291,13 @@ struct ProxyStatsView: View {
         .buttonStyle(.plain)
     }
 
-    private var trendChart: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private func trendChartSection(ranked: [TrendSeriesDescriptor], colorMap: [String: Color]) -> some View {
+        let series: [TrendSeriesDescriptor] = selectedModels.isEmpty
+            ? Array(ranked.prefix(maxVisibleTrendModels))
+            : ranked.filter { selectedModels.contains($0.model) }
+        let hiddenCount = max(0, ranked.count - series.count)
+
+        return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(L("Spend Trend", "消费趋势"))
                     .font(.headline.weight(.bold))
@@ -317,7 +314,7 @@ struct ProxyStatsView: View {
                     .frame(width: 140)
                 }
 
-                proxyModelFilterMenu
+                proxyModelFilterMenu(selectableModels: ranked.map(\.model))
 
                 Picker("", selection: $metric) {
                     Text(L("Cost", "费用")).tag(StatMetric.cost)
@@ -334,8 +331,6 @@ struct ProxyStatsView: View {
                 .frame(width: 140)
             }
 
-            let series = displayedTrendSeries
-            let colorMap = modelColorMap
             if series.isEmpty {
                 Text(L("No data yet", "暂无数据"))
                     .foregroundStyle(.tertiary)
@@ -345,7 +340,7 @@ struct ProxyStatsView: View {
                     .frame(height: 260)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    if hiddenTrendSeriesCount > 0 && selectedModels.isEmpty {
+                    if hiddenCount > 0 && selectedModels.isEmpty {
                         Text(
                             L(
                                 "Showing Top \(series.count) models by current metric",
@@ -417,21 +412,20 @@ struct ProxyStatsView: View {
         return min(max(availableWidth * 0.34, 320), 380)
     }
 
-    private var insightPanels: some View {
+    private func insightPanelsSection(colorMap: [String: Color], sparklineMap: [String: [Double]]) -> some View {
         let data = modelData
-        let colorMap = modelColorMap
         let distTotal = data.reduce(0.0) { $0 + distributionValue($1) }
         return Group {
             if usesStackedInsightsLayout {
                 VStack(alignment: .leading, spacing: 16) {
                     modelDistribution(layout: .stacked, data: data, colorMap: colorMap, distTotal: distTotal)
-                    modelTable(layout: .stacked, data: data, colorMap: colorMap, distTotal: distTotal)
+                    modelTable(layout: .stacked, data: data, colorMap: colorMap, distTotal: distTotal, sparklineMap: sparklineMap)
                 }
             } else {
                 HStack(alignment: .top, spacing: 16) {
                     modelDistribution(layout: .split, data: data, colorMap: colorMap, distTotal: distTotal)
                         .frame(width: splitDistributionWidth, alignment: .topLeading)
-                    modelTable(layout: .split, data: data, colorMap: colorMap, distTotal: distTotal)
+                    modelTable(layout: .split, data: data, colorMap: colorMap, distTotal: distTotal, sparklineMap: sparklineMap)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .layoutPriority(1)
                 }
@@ -456,9 +450,9 @@ struct ProxyStatsView: View {
         }
     }
 
-    private var modelColorMap: [String: Color] {
+    private func buildModelColorMap(from ranked: [TrendSeriesDescriptor]) -> [String: Color] {
         var map: [String: Color] = [:]
-        for (idx, descriptor) in rankedTrendSeries.enumerated() {
+        for (idx, descriptor) in ranked.enumerated() {
             map[descriptor.model] = chartColors[idx % chartColors.count]
         }
         return map
@@ -483,10 +477,14 @@ struct ProxyStatsView: View {
             : formatCompactNumber(Double(item.tokens))
     }
 
-    private func proxySparklineValues(_ model: String) -> [Double] {
-        rankedTrendSeries.first(where: { $0.model == model })?.points.map {
-            metric == .cost ? $0.cost : Double($0.tokens)
-        } ?? []
+    private func buildSparklineMap(from ranked: [TrendSeriesDescriptor]) -> [String: [Double]] {
+        var map: [String: [Double]] = [:]
+        for descriptor in ranked {
+            map[descriptor.model] = descriptor.points.map {
+                metric == .cost ? $0.cost : Double($0.tokens)
+            }
+        }
+        return map
     }
 
     private func proxyTrendChart(for series: [TrendSeriesDescriptor], colorMap: [String: Color]) -> some View {
@@ -523,6 +521,18 @@ struct ProxyStatsView: View {
                     .interpolationMethod(.catmullRom)
                 }
             }
+
+            if let hoverDate = chartHoverDate {
+                RuleMark(x: .value("Hover", hoverDate))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .foregroundStyle(.secondary.opacity(0.5))
+                    .annotation(
+                        position: .top, spacing: 4,
+                        overflowResolution: .init(x: .fit, y: .disabled)
+                    ) {
+                        proxyChartTooltip(date: hoverDate, series: series, colorMap: colorMap)
+                    }
+            }
         }
         .chartLegend(.hidden)
         .chartYAxis {
@@ -552,6 +562,91 @@ struct ProxyStatsView: View {
                 }
             }
         }
+        .chartOverlay { proxy in
+            GeometryReader { _ in
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            guard let rawDate: Date = proxy.value(atX: location.x) else {
+                                chartHoverDate = nil
+                                return
+                            }
+                            chartHoverDate = nearestBucketDate(to: rawDate, from: series)
+                        case .ended:
+                            chartHoverDate = nil
+                        }
+                    }
+            }
+        }
+    }
+
+    private func nearestBucketDate(to target: Date, from series: [TrendSeriesDescriptor]) -> Date? {
+        guard let firstSeries = series.first else { return nil }
+        var closest: Date?
+        var minDistance: TimeInterval = .infinity
+        for point in firstSeries.points {
+            let distance = abs(point.date.timeIntervalSince(target))
+            if distance < minDistance {
+                minDistance = distance
+                closest = point.date
+            }
+        }
+        return closest
+    }
+
+    private func proxyChartTooltip(date: Date, series: [TrendSeriesDescriptor], colorMap: [String: Color]) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(formatTooltipDate(date))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            let entries = series.compactMap { descriptor -> (String, Color, Double)? in
+                guard let point = descriptor.points.first(where: { $0.date == date }) else { return nil }
+                let value = metric == .cost ? point.cost : Double(point.tokens)
+                if value == 0 && series.count > 1 { return nil }
+                return (descriptor.model, colorForProxyModel(descriptor.model, from: colorMap), value)
+            }
+
+            ForEach(entries, id: \.0) { model, color, value in
+                HStack(spacing: 4) {
+                    Circle().fill(color).frame(width: 6, height: 6)
+                    Text(model)
+                        .font(.caption2)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Text(metric == .cost ? formatCurrency(value) : formatCompactNumber(value))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                }
+            }
+
+            if entries.count > 1 {
+                Divider()
+                let total = entries.reduce(0.0) { $0 + $1.2 }
+                HStack(spacing: 4) {
+                    Text(L("Total", "合计"))
+                        .font(.caption2.weight(.semibold))
+                    Spacer(minLength: 8)
+                    Text(metric == .cost ? formatCurrency(total) : formatCompactNumber(total))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                }
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
+    }
+
+    private func formatTooltipDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        if granularity == .hourly {
+            formatter.dateFormat = "MM/dd HH:00"
+        } else {
+            formatter.dateFormat = "yyyy-MM-dd"
+        }
+        return formatter.string(from: date)
     }
 
     private func modelDistribution(layout: InsightsLayout, data: [ProxyViewModel.ModelAggregate], colorMap: [String: Color], distTotal: Double) -> some View {
@@ -659,7 +754,7 @@ struct ProxyStatsView: View {
 
     // MARK: - Model Table
 
-    private func modelTable(layout: InsightsLayout, data: [ProxyViewModel.ModelAggregate], colorMap: [String: Color], distTotal: Double) -> some View {
+    private func modelTable(layout: InsightsLayout, data: [ProxyViewModel.ModelAggregate], colorMap: [String: Color], distTotal: Double, sparklineMap: [String: [Double]]) -> some View {
         let costWidth = tableColumnWidth(.cost, layout: layout)
         let tokensWidth = tableColumnWidth(.tokens, layout: layout)
         let shareWidth = tableColumnWidth(.share, layout: layout)
@@ -674,7 +769,7 @@ struct ProxyStatsView: View {
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, minHeight: 180, alignment: .center)
             } else {
-                VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
                     HStack(spacing: 0) {
                         Text(L("Model", "模型")).frame(maxWidth: .infinity, alignment: .leading)
                         Text(L("Cost", "费用")).frame(width: costWidth, alignment: .trailing)
@@ -698,7 +793,8 @@ struct ProxyStatsView: View {
                             tokensWidth: tokensWidth,
                             shareWidth: shareWidth,
                             trendWidth: trendWidth,
-                            distTotal: distTotal
+                            distTotal: distTotal,
+                            sparkValues: sparklineMap[item.model] ?? []
                         )
 
                         if expandedModels.contains(item.model) {
@@ -725,7 +821,8 @@ struct ProxyStatsView: View {
         tokensWidth: CGFloat,
         shareWidth: CGFloat,
         trendWidth: CGFloat,
-        distTotal: Double
+        distTotal: Double,
+        sparkValues: [Double]
     ) -> some View {
         let isExpanded = expandedModels.contains(item.model)
 
@@ -760,7 +857,7 @@ struct ProxyStatsView: View {
                 .foregroundStyle(color)
                 .frame(width: shareWidth, alignment: .trailing)
 
-            MiniSparkline(values: proxySparklineValues(item.model), color: color)
+            MiniSparkline(values: sparkValues, color: color)
                 .frame(width: max(52, trendWidth - 8), height: 20)
                 .padding(.leading, 8)
         }

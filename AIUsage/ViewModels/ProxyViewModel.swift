@@ -47,10 +47,14 @@ class ProxyViewModel: ObservableObject {
 
     @Published var configurations: [ProxyConfiguration] = []
     @Published var activatedConfigId: String?
-    @Published var statistics: [String: ProxyStatistics] = [:]
-    @Published var recentLogs: [String: [ProxyRequestLog]] = [:] {
-        didSet { _logCache.removeAll() }
-    }
+    // `statistics` and `recentLogs` are intentionally NOT @Published: writes happen on every
+    // proxied request (potentially many per second during streaming) and each publish would
+    // force every observing view to rebuild body + re-aggregate on the main thread. Instead,
+    // mutations feed `logsChangeSubject`, which throttles UI notifications to `logsPublishInterval`
+    // via `objectWillChange.send()`. Persistence (`saveLogs()`, `saveStatistics()`) is NOT throttled —
+    // only the SwiftUI refresh is.
+    var statistics: [String: ProxyStatistics] = [:]
+    var recentLogs: [String: [ProxyRequestLog]] = [:]
     @Published var operationErrorMessage: String?
     @Published var operationInProgressConfigIds: Set<String> = []
 
@@ -60,6 +64,33 @@ class ProxyViewModel: ObservableObject {
     }
 
     var _logCache: [LogCacheKey: [ProxyRequestLog]] = [:]
+
+    // Cache dictionaries for derived aggregations. All are cleared together with `_logCache`
+    // whenever the throttled log refresh fires.
+    struct TimeSeriesKey: Hashable {
+        let nodeFilter: String?
+        let granularity: String
+    }
+    struct AggregateKey: Hashable {
+        let nodeFilter: String?
+        let modelFilter: String?
+        let since: Date?
+    }
+    var _timeSeriesCache: [TimeSeriesKey: Any] = [:]
+    var _modelAggCache: [AggregateKey: Any] = [:]
+    var _overallStatsCache: [AggregateKey: Any] = [:]
+    var _dateRangeCache: [LogCacheKey: (earliest: Date?, latest: Date?, days: Int)] = [:]
+    var _upstreamModelsCache: [String: [String]] = [:]
+
+    let logsChangeSubject = PassthroughSubject<Void, Never>()
+    var logsChangeCancellable: AnyCancellable?
+    /// Set by `scheduleLogsRefresh`, cleared by both the throttle sink and `flushLogsRefresh`.
+    /// Prevents a stale throttle event from triggering a redundant `objectWillChange` after
+    /// a synchronous flush already refreshed the UI.
+    private var logsDirty = false
+    /// Throttle window for coalescing log-driven UI refreshes. Individual log writes still hit
+    /// storage immediately; only the SwiftUI invalidation is batched.
+    static let logsPublishInterval: TimeInterval = 0.5
 
     let runtimeService: ProxyRuntimeService
 
@@ -76,10 +107,43 @@ class ProxyViewModel: ObservableObject {
     init() {
         runtimeService = ProxyRuntimeService()
         runtimeService.delegate = self
+        logsChangeCancellable = logsChangeSubject
+            .throttle(for: .seconds(Self.logsPublishInterval), scheduler: DispatchQueue.main, latest: true)
+            .sink { [weak self] _ in
+                guard let self, self.logsDirty else { return }
+                self.logsDirty = false
+                self.invalidateLogCaches()
+                self.objectWillChange.send()
+            }
         loadConfigurations()
         loadStatistics()
         loadLogs()
         restoreActivatedNode()
+    }
+
+    /// Marks that logs/statistics have changed. The UI refresh is coalesced by the throttle
+    /// in `init`; callers that need the UI to update synchronously (e.g. user-initiated
+    /// delete/clear) should additionally call `flushLogsRefresh()`.
+    func scheduleLogsRefresh() {
+        logsDirty = true
+        logsChangeSubject.send(())
+    }
+
+    /// Forces any pending throttled refresh to fire immediately. Used by user-initiated
+    /// operations (add/delete node, clear logs) where we don't want up-to-0.5s staleness.
+    func flushLogsRefresh() {
+        logsDirty = false
+        invalidateLogCaches()
+        objectWillChange.send()
+    }
+
+    func invalidateLogCaches() {
+        _logCache.removeAll()
+        _timeSeriesCache.removeAll()
+        _modelAggCache.removeAll()
+        _overallStatsCache.removeAll()
+        _dateRangeCache.removeAll()
+        _upstreamModelsCache.removeAll()
     }
 
     // MARK: - Configuration Management
@@ -131,6 +195,7 @@ class ProxyViewModel: ObservableObject {
         saveConfigurations()
         saveStatistics()
         saveLogs()
+        flushLogsRefresh()
     }
 
     func updateConfiguration(_ config: ProxyConfiguration) async {
@@ -179,6 +244,7 @@ class ProxyViewModel: ObservableObject {
         saveConfigurations()
         saveStatistics()
         saveLogs()
+        flushLogsRefresh()
     }
 
     // MARK: - Activate / Deactivate

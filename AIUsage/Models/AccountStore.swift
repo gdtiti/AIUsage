@@ -298,6 +298,52 @@ final class AccountStore: ObservableObject {
         cleanupManagedCredentialArtifacts()
     }
 
+    func deleteAccounts(
+        _ entries: [ProviderAccountEntry],
+        onPostRegistryDelete: () -> Void
+    ) {
+        guard !entries.isEmpty else { return }
+
+        for entry in entries {
+            let matchedCredentials = matchingCredentialsImpl(for: entry)
+            for credential in matchedCredentials {
+                AccountCredentialStore.shared.deleteCredential(credential)
+            }
+
+            let matchingIndices = matchingStoredAccountIndices(for: entry)
+            if !matchingIndices.isEmpty {
+                for index in matchingIndices {
+                    var updated = accountRegistry[index]
+                    updated.note = nil
+                    updated.credentialId = nil
+                    updated.providerResultId = entry.liveProvider?.id ?? updated.providerResultId
+                    updated.accountId = entry.liveProvider?.accountId ?? updated.accountId
+                    updated.isHidden = true
+                    updated.lastSeenAt = maxTimestampString(
+                        SharedFormatters.iso8601String(from: Date()),
+                        updated.lastSeenAt
+                    )
+                    accountRegistry[index] = updated
+                }
+            } else if let hiddenEntry = makeStoredAccount(
+                from: entry,
+                note: nil,
+                isHidden: true,
+                lastSeenAt: SharedFormatters.iso8601String(from: Date())
+            ) {
+                accountRegistry.append(hiddenEntry)
+            }
+        }
+
+        _ = normalizeAccountRegistryAgainstCredentials()
+        deduplicateAccountRegistry()
+        persistAccountRegistry()
+
+        onPostRegistryDelete()
+
+        cleanupManagedCredentialArtifacts()
+    }
+
     func accountNote(for provider: ProviderData) -> String? {
         accountRegistry.first(where: { !$0.isHidden && storedAccountMatchesLive($0, provider: provider) })?.note?.nilIfBlank
     }

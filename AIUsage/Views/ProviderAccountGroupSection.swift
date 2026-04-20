@@ -6,6 +6,10 @@ struct ProviderAccountGroupSection: View {
 
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
+    @State private var isBatchManaging = false
+    @State private var selectedForDeletion: Set<String> = []
+    @State private var showBatchDeleteConfirm = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 14) {
@@ -62,6 +66,24 @@ struct ProviderAccountGroupSection: View {
                         }
                         .buttonStyle(.borderless)
 
+                        if group.accounts.count > 1 {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isBatchManaging.toggle()
+                                    if !isBatchManaging { selectedForDeletion.removeAll() }
+                                }
+                            } label: {
+                                Label(
+                                    isBatchManaging
+                                        ? L("Done", "完成")
+                                        : L("Batch Manage", "批量管理"),
+                                    systemImage: isBatchManaging ? "checkmark" : "checklist"
+                                )
+                                .font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(.borderless)
+                        }
+
                         Button(action: onAddAccount) {
                             Label(L("Connect Account", "连接账号"), systemImage: "plus")
                                 .font(.caption.weight(.semibold))
@@ -90,7 +112,9 @@ struct ProviderAccountGroupSection: View {
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 16)], spacing: 16) {
                     ForEach(group.accounts) { account in
-                        if let liveProvider = account.liveProvider {
+                        if isBatchManaging {
+                            batchSelectableCard(for: account)
+                        } else if let liveProvider = account.liveProvider {
                             ManagedProviderAccountCard(account: account, provider: liveProvider)
                                 .environmentObject(appState)
                         } else {
@@ -100,7 +124,122 @@ struct ProviderAccountGroupSection: View {
                     }
                 }
             }
+
+            if isBatchManaging, !group.accounts.isEmpty {
+                batchActionBar
+            }
         }
+        .alert(
+            L("Remove Selected Accounts", "移除选中的账号"),
+            isPresented: $showBatchDeleteConfirm
+        ) {
+            Button(L("Remove", "移除"), role: .destructive) {
+                performBatchDelete()
+            }
+            Button(L("Cancel", "取消"), role: .cancel) {}
+        } message: {
+            Text(L(
+                "Remove \(selectedForDeletion.count) account(s) from monitoring? Credentials will be deleted from Keychain.",
+                "确认从监控中移除 \(selectedForDeletion.count) 个账号？凭据将从钥匙串中删除。"
+            ))
+        }
+    }
+
+    // MARK: - Batch Selection
+
+    @ViewBuilder
+    private func batchSelectableCard(for account: ProviderAccountEntry) -> some View {
+        let isSelected = selectedForDeletion.contains(account.id)
+        HStack(spacing: 0) {
+            Button {
+                if isSelected {
+                    selectedForDeletion.remove(account.id)
+                } else {
+                    selectedForDeletion.insert(account.id)
+                }
+            } label: {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? .blue : .secondary)
+                    .frame(width: 36)
+            }
+            .buttonStyle(.plain)
+
+            Group {
+                if let liveProvider = account.liveProvider {
+                    ManagedProviderAccountCard(account: account, provider: liveProvider)
+                        .environmentObject(appState)
+                        .environmentObject(refreshCoordinator)
+                } else {
+                    SavedAccountCard(account: account, onReconnect: { onAddAccount() })
+                        .environmentObject(appState)
+                }
+            }
+            .allowsHitTesting(false)
+            .opacity(isSelected ? 0.7 : 1.0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isSelected {
+                selectedForDeletion.remove(account.id)
+            } else {
+                selectedForDeletion.insert(account.id)
+            }
+        }
+    }
+
+    private var batchActionBar: some View {
+        HStack(spacing: 12) {
+            Button {
+                if selectedForDeletion.count == group.accounts.count {
+                    selectedForDeletion.removeAll()
+                } else {
+                    selectedForDeletion = Set(group.accounts.map(\.id))
+                }
+            } label: {
+                Text(selectedForDeletion.count == group.accounts.count
+                     ? L("Deselect All", "取消全选")
+                     : L("Select All", "全选"))
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.borderless)
+
+            Text(L("Selected \(selectedForDeletion.count)", "已选 \(selectedForDeletion.count) 个"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Button(role: .destructive) {
+                showBatchDeleteConfirm = true
+            } label: {
+                Label(
+                    L("Remove Selected (\(selectedForDeletion.count))", "移除选中 (\(selectedForDeletion.count))"),
+                    systemImage: "trash"
+                )
+                .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.bordered)
+            .disabled(selectedForDeletion.isEmpty)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func performBatchDelete() {
+        let entriesToDelete = group.accounts.filter { selectedForDeletion.contains($0.id) }
+        guard !entriesToDelete.isEmpty else { return }
+        appState.deleteAccounts(entriesToDelete)
+        selectedForDeletion.removeAll()
+        isBatchManaging = false
     }
 
     private func pill(text: String, tint: Color) -> some View {

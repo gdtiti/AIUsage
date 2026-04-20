@@ -72,6 +72,10 @@
 		5EFPA0422F91000400A15674 /* CodexLoginCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0412F91000400A15674 /* CodexLoginCoordinator.swift */; };
 		5EFPA0522F91000500A15674 /* GeminiLoginCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0512F91000500A15674 /* GeminiLoginCoordinator.swift */; };
 		5EFPA0562F91000550A15674 /* AntigravityLoginCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0552F91000550A15674 /* AntigravityLoginCoordinator.swift */; };
+		5EFPA0582F91000580A15674 /* CopilotLoginCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0572F91000580A15674 /* CopilotLoginCoordinator.swift */; };
+		5EFPA05A2F910005A0A15674 /* KiroLoginCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0592F910005A0A15674 /* KiroLoginCoordinator.swift */; };
+		B1BAT0012F98000100A15674 /* BatchAuthFileScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BAT0002F98000100A15674 /* BatchAuthFileScanner.swift */; };
+		B1BAT0032F98000300A15674 /* BatchImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BAT0022F98000300A15674 /* BatchImportView.swift */; };
 		5EFPA0622F91000600A15674 /* ProviderAuthCandidateDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0612F91000600A15674 /* ProviderAuthCandidateDiscovery.swift */; };
 		5EFPA0722F91000700A15674 /* ProviderAuthParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFPA0712F91000700A15674 /* ProviderAuthParsing.swift */; };
 		5EFAD7872F87B10200A15674 /* ProviderAccountEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7882F87B10200A15674 /* ProviderAccountEditorView.swift */; };
@@ -155,6 +159,10 @@
 		5EFPA0412F91000400A15674 /* CodexLoginCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexLoginCoordinator.swift; sourceTree = "<group>"; };
 		5EFPA0512F91000500A15674 /* GeminiLoginCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiLoginCoordinator.swift; sourceTree = "<group>"; };
 		5EFPA0552F91000550A15674 /* AntigravityLoginCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravityLoginCoordinator.swift; sourceTree = "<group>"; };
+		5EFPA0572F91000580A15674 /* CopilotLoginCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotLoginCoordinator.swift; sourceTree = "<group>"; };
+		5EFPA0592F910005A0A15674 /* KiroLoginCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiroLoginCoordinator.swift; sourceTree = "<group>"; };
+		B1BAT0002F98000100A15674 /* BatchAuthFileScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchAuthFileScanner.swift; sourceTree = "<group>"; };
+		B1BAT0022F98000300A15674 /* BatchImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchImportView.swift; sourceTree = "<group>"; };
 		5EFPA0612F91000600A15674 /* ProviderAuthCandidateDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderAuthCandidateDiscovery.swift; sourceTree = "<group>"; };
 		5EFPA0712F91000700A15674 /* ProviderAuthParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderAuthParsing.swift; sourceTree = "<group>"; };
 		5EFAD7882F87B10200A15674 /* ProviderAccountEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderAccountEditorView.swift; sourceTree = "<group>"; };
@@ -250,8 +258,11 @@
 				5EFPA0412F91000400A15674 /* CodexLoginCoordinator.swift */,
 				5EFPA0512F91000500A15674 /* GeminiLoginCoordinator.swift */,
 				5EFPA0552F91000550A15674 /* AntigravityLoginCoordinator.swift */,
+				5EFPA0572F91000580A15674 /* CopilotLoginCoordinator.swift */,
+				5EFPA0592F910005A0A15674 /* KiroLoginCoordinator.swift */,
 				5EFPA0612F91000600A15674 /* ProviderAuthCandidateDiscovery.swift */,
 				5EFPA0712F91000700A15674 /* ProviderAuthParsing.swift */,
+				B1BAT0002F98000100A15674 /* BatchAuthFileScanner.swift */,
 			);
 			path = ProviderAuth;
 			sourceTree = "<group>";
@@ -303,6 +314,7 @@
 				A2B3C4DD2F96001000A15674 /* ProviderAccountEditorView+CodexOAuth.swift */,
 				5EFAD78C2F87B10400A15674 /* SavedAccountViews.swift */,
 				5EFAD78E2F87B10500A15674 /* AccountNoteEditorView.swift */,
+				B1BAT0022F98000300A15674 /* BatchImportView.swift */,
 				5EFAD7902F87B10600A15674 /* Utilities.swift */,
 				5EFAD74B2F87AC7100A15674 /* SettingsView.swift */,
 				A2B3C4ED2F96001000A15674 /* SettingsView+Cards.swift */,
@@ -485,8 +497,12 @@
 				5EFPA0422F91000400A15674 /* CodexLoginCoordinator.swift in Sources */,
 				5EFPA0522F91000500A15674 /* GeminiLoginCoordinator.swift in Sources */,
 				5EFPA0562F91000550A15674 /* AntigravityLoginCoordinator.swift in Sources */,
+				5EFPA0582F91000580A15674 /* CopilotLoginCoordinator.swift in Sources */,
+				5EFPA05A2F910005A0A15674 /* KiroLoginCoordinator.swift in Sources */,
 				5EFPA0622F91000600A15674 /* ProviderAuthCandidateDiscovery.swift in Sources */,
 				5EFPA0722F91000700A15674 /* ProviderAuthParsing.swift in Sources */,
+				B1BAT0012F98000100A15674 /* BatchAuthFileScanner.swift in Sources */,
+				B1BAT0032F98000300A15674 /* BatchImportView.swift in Sources */,
 				5EFAD7862F87B10100A15674 /* ProviderAuthManager.swift in Sources */,
 				5EFAD7872F87B10200A15674 /* ProviderAccountEditorView.swift in Sources */,
 				5EFAD7892F87B10300A15674 /* ProviderAccountGroupSection.swift in Sources */,
@@ -661,7 +677,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.32;
+				MARKETING_VERSION = 0.4.33;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -693,7 +709,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.32;
+				MARKETING_VERSION = 0.4.33;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

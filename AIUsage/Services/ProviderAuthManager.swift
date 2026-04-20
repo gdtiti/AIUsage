@@ -53,16 +53,16 @@ enum ProviderAuthManager {
             return ProviderAuthPlan(
                 titleEn: "Connect a GitHub Copilot account",
                 titleZh: "连接 GitHub Copilot 账号",
-                summaryEn: "Run GitHub's official web login once. AIUsage will detect the resulting GitHub CLI session below and connect it as its own monitored account.",
-                summaryZh: "先走一次 GitHub 官方网页登录。AIUsage 会在下方发现这个 GitHub CLI 会话，并把它接成独立监控账号。",
+                summaryEn: "Sign in with your GitHub account. AIUsage opens the official GitHub authorization page in your browser and connects the account automatically after you approve.",
+                summaryZh: "使用 GitHub 账号登录。AIUsage 会在浏览器中打开 GitHub 官方授权页，你确认后即自动接入。",
                 launchActions: [
                     ProviderAuthLaunchAction(
                         id: "copilot-gh-login",
-                        titleEn: "Run GitHub Web Login",
-                        titleZh: "运行 GitHub 网页登录",
-                        subtitleEn: "Open Terminal and run gh auth login in browser mode.",
-                        subtitleZh: "打开终端并以网页模式执行 gh auth login。",
-                        kind: .runTerminal(command: "gh auth login -h github.com -p https -w")
+                        titleEn: "Sign in with GitHub",
+                        titleZh: "使用 GitHub 登录",
+                        subtitleEn: "Opens the GitHub sign-in page in your browser. No gh CLI required.",
+                        subtitleZh: "在浏览器中打开 GitHub 登录页，无需安装 gh 命令行工具。",
+                        kind: .runTerminal(command: "copilot")
                     )
                 ],
                 supportsEmbeddedWebLogin: false
@@ -97,15 +97,23 @@ enum ProviderAuthManager {
             return ProviderAuthPlan(
                 titleEn: "Connect a Kiro account",
                 titleZh: "连接 Kiro 账号",
-                summaryEn: "Open Kiro and complete sign-in. AIUsage will detect the new Kiro session below and keep it monitoring even after you switch accounts later.",
-                summaryZh: "打开 Kiro 并完成登录。AIUsage 会在下方发现新的 Kiro 会话，并在你之后切换账号时继续监控它。",
+                summaryEn: "Sign in with your Google, GitHub, Builder ID, or organization account. AIUsage opens the Kiro sign-in page in your browser and connects automatically after you approve.",
+                summaryZh: "使用 Google、GitHub、Builder ID 或组织账号登录。AIUsage 会在浏览器中打开 Kiro 登录页，你确认后即自动接入。",
                 launchActions: [
                     ProviderAuthLaunchAction(
+                        id: "kiro-login",
+                        titleEn: "Sign in with Kiro",
+                        titleZh: "使用 Kiro 登录",
+                        subtitleEn: "Opens the Kiro sign-in page in your browser. Supports Google, GitHub, Builder ID, and organization login.",
+                        subtitleZh: "在浏览器中打开 Kiro 登录页，支持 Google、GitHub、Builder ID 和组织登录。",
+                        kind: .runTerminal(command: "kiro")
+                    ),
+                    ProviderAuthLaunchAction(
                         id: "kiro-app",
-                        titleEn: "Open Kiro",
-                        titleZh: "打开 Kiro",
-                        subtitleEn: "Launch the Kiro desktop app to complete sign-in.",
-                        subtitleZh: "打开 Kiro 桌面应用完成登录。",
+                        titleEn: "Open Kiro App",
+                        titleZh: "打开 Kiro 应用",
+                        subtitleEn: "Launch the Kiro desktop app if you prefer signing in there.",
+                        subtitleZh: "如果你更习惯在 Kiro 应用里登录，可以打开它。",
                         kind: .openApp(bundleIdentifier: "dev.kiro.desktop")
                     )
                 ],
@@ -151,6 +159,40 @@ enum ProviderAuthManager {
                         subtitleEn: "Open the official Droid website to switch or complete the browser login first.",
                         subtitleZh: "打开 Droid 官方网站，先在浏览器里切换或完成登录。",
                         kind: .openURL(URL(string: "https://app.factory.ai")!)
+                    )
+                ],
+                supportsEmbeddedWebLogin: false
+            )
+        case "warp":
+            return ProviderAuthPlan(
+                titleEn: "Connect a Warp account",
+                titleZh: "连接 Warp 账号",
+                summaryEn: "Warp usage is read automatically from the local app cache. Just sign in inside the Warp terminal and AIUsage will detect it.",
+                summaryZh: "Warp 用量数据从本地应用缓存自动读取。只需在 Warp 终端中登录，AIUsage 即可自动检测。",
+                launchActions: [
+                    ProviderAuthLaunchAction(
+                        id: "warp-open",
+                        titleEn: "Open Warp",
+                        titleZh: "打开 Warp",
+                        subtitleEn: "Launch the Warp terminal. Sign in there if you haven't already.",
+                        subtitleZh: "启动 Warp 终端。如果还未登录，请先在 Warp 中登录。",
+                        kind: .openApp(bundleIdentifier: "dev.warp.Warp-Stable")
+                    ),
+                    ProviderAuthLaunchAction(
+                        id: "warp-check",
+                        titleEn: "Check Connection",
+                        titleZh: "检查连接",
+                        subtitleEn: "Verify that Warp data is available from the local app cache.",
+                        subtitleZh: "验证是否能从本地应用缓存中读取 Warp 数据。",
+                        kind: .runTerminal(command: "warp-check")
+                    ),
+                    ProviderAuthLaunchAction(
+                        id: "warp-site",
+                        titleEn: "Get Warp",
+                        titleZh: "获取 Warp",
+                        subtitleEn: "Download Warp from the official website.",
+                        subtitleZh: "从官方网站下载 Warp。",
+                        kind: .openURL(URL(string: "https://www.warp.dev")!)
                     )
                 ],
                 supportsEmbeddedWebLogin: false

@@ -10,6 +10,8 @@ struct ProviderAccountEditorView: View {
     @StateObject var codexLogin = CodexLoginCoordinator()
     @StateObject var geminiLogin = GeminiLoginCoordinator()
     @StateObject var antigravityLogin = AntigravityLoginCoordinator()
+    @StateObject var copilotLogin = CopilotLoginCoordinator()
+    @StateObject var kiroLogin = KiroLoginCoordinator()
     @State var isWorking = false
     @State var statusMessage: String?
     @State var errorMessage: String?
@@ -20,6 +22,7 @@ struct ProviderAccountEditorView: View {
     @State var monitoredFingerprints: Set<String> = []
     @State var monitoredHandles: Set<String> = []
     @State var sessionMonitorTask: Task<Void, Never>?
+    @State var showBatchImport = false
     var providerTitle: String {
         appState.providerCatalogItem(for: providerId)?.title(for: appState.language) ?? providerId
     }
@@ -46,18 +49,32 @@ struct ProviderAccountEditorView: View {
         providerId == "antigravity" && antigravityLogin.phase != .idle
     }
 
+    var showsCopilotLogin: Bool {
+        providerId == "copilot" && copilotLogin.phase != .idle
+    }
+
+    var showsKiroLogin: Bool {
+        providerId == "kiro" && kiroLogin.phase != .idle
+    }
+
+    var supportsBatchImport: Bool {
+        BatchAuthFileScanner.authFileProviderIds.contains(providerId)
+    }
+
     var editorWidth: CGFloat {
         showsCodexBrowser ? 880 : 520
     }
 
     var editorHeight: CGFloat {
         if showsCodexBrowser { return 580 }
+        if showsCopilotLogin || showsKiroLogin { return 440 }
         if showsGeminiLogin || showsAntigravityLogin { return 360 }
 
         let visibleCandidateCount = candidates.count
         let detectedSessionExtra = CGFloat(min(visibleCandidateCount, 3)) * 86
-        let baseHeight: CGFloat = visibleCandidateCount == 0 ? 300 : 360
-        return min(560, baseHeight + detectedSessionExtra)
+        let batchImportExtra: CGFloat = supportsBatchImport ? 44 : 0
+        let baseHeight: CGFloat = (visibleCandidateCount == 0 ? 300 : 360) + batchImportExtra
+        return min(600, baseHeight + detectedSessionExtra)
     }
 
     var body: some View {
@@ -88,6 +105,10 @@ struct ProviderAccountEditorView: View {
                     detectedCandidatesSection
                 }
 
+                if supportsBatchImport {
+                    batchImportButton
+                }
+
                 if providerId == "droid", !authPlan.supportsEmbeddedWebLogin {
                     fallbackLaunchSection
                 }
@@ -103,6 +124,14 @@ struct ProviderAccountEditorView: View {
 
                 if showsAntigravityLogin {
                     antigravityLoginSection
+                }
+
+                if showsCopilotLogin {
+                    copilotLoginSection
+                }
+
+                if showsKiroLogin {
+                    kiroLoginSection
                 }
 
                 // Status feedback (single line)
@@ -135,6 +164,8 @@ struct ProviderAccountEditorView: View {
             codexLogin.cancel()
             geminiLogin.cancel()
             antigravityLogin.cancel()
+            copilotLogin.cancel()
+            kiroLogin.cancel()
         }
         .onReceive(codexLogin.$phase) { phase in
             guard providerId == "codex" else { return }
@@ -161,6 +192,22 @@ struct ProviderAccountEditorView: View {
                 errorMessage = message
             }
         }
+        .onReceive(copilotLogin.$phase) { phase in
+            guard providerId == "copilot" else { return }
+            if case .succeeded = phase {
+                Task { await handleCopilotLoginSuccess() }
+            } else if case .failed(let message) = phase {
+                errorMessage = message
+            }
+        }
+        .onReceive(kiroLogin.$phase) { phase in
+            guard providerId == "kiro" else { return }
+            if case .succeeded = phase {
+                Task { await handleKiroLoginSuccess() }
+            } else if case .failed(let message) = phase {
+                errorMessage = message
+            }
+        }
         .sheet(isPresented: $showWebLogin) {
             if let loginURL = ProviderLoginURLs.loginURL(for: providerId) {
                 WebLoginView(
@@ -174,6 +221,11 @@ struct ProviderAccountEditorView: View {
                 )
                 .environmentObject(appState)
             }
+        }
+        .sheet(isPresented: $showBatchImport) {
+            BatchImportView(providerId: providerId)
+                .environmentObject(appState)
+                .environmentObject(refreshCoordinator)
         }
     }
 }

@@ -303,6 +303,12 @@ class AppState: ObservableObject {
         }
     }
 
+    func deleteAccounts(_ entries: [ProviderAccountEntry]) {
+        accountStore.deleteAccounts(entries) { [weak self] in
+            self?.refreshCoordinator.reapplyVisibleSortedProviders()
+        }
+    }
+
     func accountNote(for provider: ProviderData) -> String? {
         accountStore.accountNote(for: provider)
     }

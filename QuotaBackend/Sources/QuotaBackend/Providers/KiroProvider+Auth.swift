@@ -35,7 +35,7 @@ extension KiroProvider {
         }
 
         guard !candidates.isEmpty else {
-            throw ProviderError("not_logged_in", "No Kiro auth file found. Expected Kiro IDE session at ~/.aws/sso/cache/kiro-auth-token.json, or set KIRO_AUTH_DIR to a directory with kiro-*.json files.")
+            throw ProviderError("not_logged_in", "No Kiro auth file found. Connect a Kiro account in Settings, or launch Kiro IDE to generate a session file.")
         }
 
         let contexts = candidates

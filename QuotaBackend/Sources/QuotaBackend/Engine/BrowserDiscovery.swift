@@ -141,7 +141,7 @@ public enum BrowserDiscovery {
             supportedMethods: [.authFile, .auto],
             cookieDomains: nil,
             cookieNames: nil,
-            instructions: "Kiro IDE session cache is discovered automatically. You can also set KIRO_AUTH_DIR or import a file."
+            instructions: "Authenticates via AWS SSO OIDC Device Flow in-app (supports Google, GitHub, Builder ID, Organization). Also discovers Kiro IDE session cache automatically."
         ),
         ProviderAuthCapability(
             providerId: "codex",
@@ -157,7 +157,7 @@ public enum BrowserDiscovery {
             supportedMethods: [.token, .auto],
             cookieDomains: nil,
             cookieNames: nil,
-            instructions: "Uses `gh auth token` or reads ~/.config/gh/hosts.yml automatically. You can also paste a GitHub token."
+            instructions: "Authenticates via GitHub Device Flow OAuth in-app, or reads `gh auth token` / ~/.config/gh/hosts.yml as fallback. You can also paste a GitHub token."
         ),
         ProviderAuthCapability(
             providerId: "gemini",
@@ -181,7 +181,7 @@ public enum BrowserDiscovery {
             supportedMethods: [.auto],
             cookieDomains: nil,
             cookieNames: nil,
-            instructions: "Reads Warp desktop app cache automatically."
+            instructions: "Reads Warp desktop app cache automatically. No token or API key needed — sign into the Warp terminal and usage data is detected from macOS defaults."
         ),
         ProviderAuthCapability(
             providerId: "droid",

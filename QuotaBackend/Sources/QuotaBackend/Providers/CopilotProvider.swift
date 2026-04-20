@@ -92,7 +92,7 @@ public struct CopilotProvider: ProviderFetcher, CredentialAcceptingProvider {
         // Try hosts.yml
         if let token = readGHHosts() { return token }
 
-        throw ProviderError("not_logged_in", "No GitHub token found. Run `gh auth login` or set GITHUB_TOKEN.")
+        throw ProviderError("not_logged_in", "No GitHub token found. Connect a Copilot account in Settings, or run `gh auth login`.")
     }
 
     private func runCLI(_ path: String, args: [String]) -> String? {

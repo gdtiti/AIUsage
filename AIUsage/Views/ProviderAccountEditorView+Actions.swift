@@ -9,6 +9,11 @@ extension ProviderAccountEditorView {
         if providerId == "codex", action.id == "codex-login" { return "globe" }
         if providerId == "gemini", action.id == "gemini-login" { return "globe" }
         if providerId == "antigravity", action.id == "antigravity-login" { return "globe" }
+        if providerId == "copilot", action.id == "copilot-gh-login" { return "globe" }
+        if providerId == "kiro", action.id == "kiro-login" { return "globe" }
+        if providerId == "warp", action.id == "warp-open" { return "app.badge" }
+        if providerId == "warp", action.id == "warp-check" { return "checkmark.circle" }
+        if providerId == "warp", action.id == "warp-site" { return "safari" }
         switch action.kind {
         case .openApp: return "app.badge"
         case .openURL: return "safari"
@@ -44,6 +49,43 @@ extension ProviderAccountEditorView {
             sessionMonitorTask?.cancel()
             antigravityLogin.start()
             return
+        }
+
+        if providerId == "copilot",
+           case .runTerminal(let command) = action.kind,
+           command == "copilot" {
+            sessionMonitorTask?.cancel()
+            copilotLogin.start()
+            return
+        }
+
+        if providerId == "kiro",
+           case .runTerminal(let command) = action.kind,
+           command == "kiro" {
+            sessionMonitorTask?.cancel()
+            kiroLogin.start()
+            return
+        }
+
+        if providerId == "warp" {
+            if case .runTerminal(let command) = action.kind, command == "warp-check" {
+                performWarpConnectionCheck()
+                return
+            }
+            if case .openApp = action.kind {
+                do {
+                    try ProviderAuthManager.launch(action)
+                } catch {
+                    errorMessage = SensitiveDataRedactor.redactedMessage(for: error)
+                    return
+                }
+                statusMessage = L("Warp launched. Checking connection…", "Warp 已启动，正在检查连接…")
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    await MainActor.run { performWarpConnectionCheck() }
+                }
+                return
+            }
         }
 
         do {
@@ -157,6 +199,76 @@ extension ProviderAccountEditorView {
         await MainActor.run { antigravityLogin.discardImportedSession() }
     }
 
+    func handleKiroLoginSuccess() async {
+        guard let authFileURL = kiroLogin.importedAuthFileURL else {
+            await MainActor.run {
+                errorMessage = L(
+                    "Kiro sign-in succeeded, but AIUsage could not find the auth file.",
+                    "Kiro 登录已成功，但 AIUsage 没有找到认证文件。"
+                )
+            }
+            return
+        }
+
+        let email = kiroLogin.accountEmail
+        let title = email ?? "Kiro Login"
+        let sourceId = "kiro-device-flow:\(email?.lowercased() ?? authFileURL.path)"
+
+        let tempCandidate = ProviderAuthCandidate(
+            id: "kiro:\(sourceId)",
+            providerId: "kiro",
+            sourceIdentifier: sourceId,
+            sessionFingerprint: nil,
+            title: title,
+            subtitle: L("AWS SSO Device Flow", "AWS SSO 设备流登录"),
+            detail: authFileURL.lastPathComponent,
+            modifiedAt: Date(),
+            authMethod: .authFile,
+            credentialValue: authFileURL.path,
+            sourcePath: authFileURL.path,
+            shouldCopyFile: true,
+            identityScope: .sharedSource
+        )
+
+        await importCandidate(tempCandidate)
+        await MainActor.run { kiroLogin.discardImportedSession() }
+    }
+
+    func handleCopilotLoginSuccess() async {
+        guard let token = copilotLogin.githubToken, !token.isEmpty else {
+            await MainActor.run {
+                errorMessage = L(
+                    "GitHub sign-in succeeded, but AIUsage did not receive a token.",
+                    "GitHub 登录已成功，但 AIUsage 未收到 token。"
+                )
+            }
+            return
+        }
+
+        let login = copilotLogin.accountLogin
+        let email = copilotLogin.accountEmail
+        let label = login.map { "@\($0)" } ?? email ?? "GitHub Copilot"
+        let sourceId = "gh-device-flow:\(login?.lowercased() ?? email?.lowercased() ?? "default")"
+
+        let candidate = ProviderAuthCandidate(
+            id: "copilot:\(sourceId)",
+            providerId: "copilot",
+            sourceIdentifier: sourceId,
+            sessionFingerprint: ProviderAuthManager.tokenFingerprint(token),
+            title: label,
+            subtitle: L("GitHub Device Flow", "GitHub 设备流登录"),
+            detail: email ?? login ?? "",
+            modifiedAt: Date(),
+            authMethod: .token,
+            credentialValue: token,
+            sourcePath: nil,
+            shouldCopyFile: false,
+            identityScope: .accountScoped
+        )
+
+        await importCandidate(candidate)
+    }
+
     func preferredCodexCandidate(
         from candidates: [ProviderAuthCandidate],
         preferredPath: String? = nil,
@@ -181,6 +293,49 @@ extension ProviderAccountEditorView {
         let defaultPath = NSString(string: "~/.codex/auth.json").expandingTildeInPath
         return filteredByTime.first(where: { $0.sourcePath == defaultPath })
             ?? filteredByTime.sorted { ($0.modifiedAt ?? .distantPast) > ($1.modifiedAt ?? .distantPast) }.first
+    }
+
+    func performWarpConnectionCheck() {
+        isWorking = true
+        errorMessage = nil
+        statusMessage = nil
+
+        Task {
+            do {
+                let provider = WarpProvider()
+                let usage = try await provider.fetchUsage()
+                let email = usage.accountEmail ?? "Warp User"
+
+                await MainActor.run {
+                    statusMessage = L(
+                        "Warp detected. Connecting account…",
+                        "已检测到 Warp。正在连接账号…"
+                    )
+
+                    appState.saveAccount(
+                        providerId: "warp",
+                        email: email,
+                        displayName: "Warp",
+                        note: nil,
+                        accountId: "warp-auto:\(email.lowercased())"
+                    )
+                }
+
+                _ = await refreshCoordinator.fetchSingleProvider("warp")
+                await MainActor.run {
+                    isWorking = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isWorking = false
+                    errorMessage = L(
+                        "Warp data not available. Make sure Warp is installed and you are signed in.",
+                        "未检测到 Warp 数据。请确认 Warp 已安装且已登录。"
+                    )
+                }
+            }
+        }
     }
 
     func importCandidate(_ candidate: ProviderAuthCandidate) async {

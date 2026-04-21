@@ -1331,3 +1331,12 @@
 /* Views/JSONRawEditorView.swift */
 "Format" = "Format";
 "Validate" = "Validate";
+
+/* Views/SettingsView.swift - Settings categories */
+"Data & Refresh" = "Data & Refresh";
+"Menu Bar" = "Menu Bar";
+"Card Appearance" = "Card Appearance";
+"Language, appearance, and basic preferences." = "Language, appearance, and basic preferences.";
+"Backend mode and refresh intervals." = "Backend mode and refresh intervals.";
+"Claude Code proxy behavior and logging." = "Claude Code proxy behavior and logging.";
+"Backend Mode" = "Backend Mode";

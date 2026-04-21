@@ -2,6 +2,46 @@ import SwiftUI
 import Sparkle
 import ServiceManagement
 
+// MARK: - Settings Category
+
+enum SettingsCategory: String, CaseIterable, Identifiable {
+    case general
+    case dataRefresh
+    case menuBar
+    case cardAppearance
+    case proxy
+    case notifications
+    case about
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: return L("General", "通用")
+        case .dataRefresh: return L("Data & Refresh", "数据与刷新")
+        case .menuBar: return L("Menu Bar", "菜单栏")
+        case .cardAppearance: return L("Card Appearance", "卡片外观")
+        case .proxy: return L("Proxy", "代理")
+        case .notifications: return L("Notifications", "通知")
+        case .about: return L("About", "关于")
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .general: return "gearshape"
+        case .dataRefresh: return "arrow.triangle.2.circlepath"
+        case .menuBar: return "menubar.rectangle"
+        case .cardAppearance: return "rectangle.on.rectangle"
+        case .proxy: return "server.rack"
+        case .notifications: return "bell"
+        case .about: return "info.circle"
+        }
+    }
+}
+
+// MARK: - Settings View
+
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var refreshCoordinator: ProviderRefreshCoordinator
@@ -23,6 +63,8 @@ struct SettingsView: View {
     @State var remoteConnectionMessage: String?
     @AppStorage(DefaultsKey.proxyLogRetentionDays) var proxyLogRetentionDays: Int = 30
 
+    @State private var selectedCategory: SettingsCategory = .general
+
     enum RemoteConnectionState {
         case idle
         case success
@@ -40,7 +82,6 @@ struct SettingsView: View {
            let url = URL(string: raw) {
             return url
         }
-
         guard let owner = gitHubOwner, let repository = gitHubRepository else { return nil }
         return URL(string: "https://github.com/\(owner)/\(repository)")
     }
@@ -58,20 +99,17 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    settingsHero
-                    settingsSections(for: proxy.size.width)
-                }
-                .padding(.horizontal, 30)
-                .padding(.vertical, 24)
-                .frame(maxWidth: 1120, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+        VStack(spacing: 0) {
+            settingsHero
+            Divider()
+            HStack(spacing: 0) {
+                settingsSidebar
+                Divider()
+                settingsContent
             }
-            .background(settingsBackground.ignoresSafeArea())
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(settingsBackground.ignoresSafeArea())
         .onAppear {
             remoteHostInput = settings.remoteHost
             remotePortInput = "\(settings.remotePort)"
@@ -122,33 +160,136 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder
-    func settingsSections(for availableWidth: CGFloat) -> some View {
-        if availableWidth >= 1100 {
-            HStack(alignment: .top, spacing: 20) {
-                VStack(spacing: 20) {
-                    backendCard
-                    appearanceCard
-                }
-                .frame(maxWidth: .infinity, alignment: .top)
+    // MARK: - Hero
 
-                VStack(spacing: 20) {
-                    generalCard
-                    notificationsCard
-                    aboutCard
-                }
-                .frame(maxWidth: .infinity, alignment: .top)
+    var settingsHero: some View {
+        HStack(spacing: 14) {
+            if let icon = NSImage(named: "AppIcon") {
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 48, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: Color.accentColor.opacity(0.2), radius: 8, y: 3)
+            } else {
+                Image(systemName: "chart.bar.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 48, height: 48)
             }
-        } else {
-            VStack(spacing: 20) {
-                backendCard
-                generalCard
-                appearanceCard
-                notificationsCard
-                aboutCard
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("AIUsage")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+
+                Text(L("Your AI Quota Command Center", "您的 AI 额度指挥中心"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 10) {
+                Label(L("Version", "版本") + " " + appVersion, systemImage: "tag")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+
+                Button {
+                    sparkle.checkForUpdates()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.triangle.2.circlepath.circle")
+                        Text(L("Check for Updates", "检查更新"))
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!sparkle.canCheckForUpdates)
             }
         }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
     }
+
+    // MARK: - Sidebar
+
+    var settingsSidebar: some View {
+        ScrollView {
+            VStack(spacing: 2) {
+                ForEach(SettingsCategory.allCases) { category in
+                    settingsCategoryRow(category)
+                }
+            }
+            .padding(10)
+        }
+        .frame(width: 180)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+    }
+
+    private func settingsCategoryRow(_ category: SettingsCategory) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                selectedCategory = category
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: category.icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(selectedCategory == category ? .white : .secondary)
+                    .frame(width: 20)
+
+                Text(category.title)
+                    .font(.system(size: 13, weight: selectedCategory == category ? .semibold : .regular))
+                    .foregroundStyle(selectedCategory == category ? .white : .primary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(selectedCategory == category ? Color.accentColor : Color.clear)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Content Router
+
+    @ViewBuilder
+    var settingsContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                switch selectedCategory {
+                case .general:
+                    generalSection
+                case .dataRefresh:
+                    dataRefreshSection
+                case .menuBar:
+                    menuBarSection
+                case .cardAppearance:
+                    cardAppearanceSection
+                case .proxy:
+                    proxySection
+                case .notifications:
+                    notificationsSection
+                case .about:
+                    aboutSection
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: 800, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+
+    // MARK: - Background
 
     var settingsBackground: some View {
         LinearGradient(
@@ -159,76 +300,6 @@ struct SettingsView: View {
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
-        )
-    }
-
-    var settingsHero: some View {
-        VStack(spacing: 16) {
-            if let icon = NSImage(named: "AppIcon") {
-                Image(nsImage: icon)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 88, height: 88)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .shadow(color: Color.accentColor.opacity(0.3), radius: 16, y: 6)
-            } else {
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 88, height: 88)
-            }
-
-            Text("AIUsage")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-
-            Text(L("Your AI Quota Command Center", "您的 AI 额度指挥中心"))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 10) {
-                Label(L("Version", "版本") + " " + appVersion, systemImage: "tag")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.primary.opacity(0.06)))
-            }
-
-            HStack(spacing: 10) {
-                heroPill(
-                    title: L("Backend", "后端"),
-                    value: settings.backendMode == "remote" ? L("Remote", "远程") : L("Local", "本地"),
-                    tint: .blue
-                )
-                heroPill(
-                    title: L("Auto Refresh", "自动刷新"),
-                    value: autoRefreshTitle(for: settings.autoRefreshInterval),
-                    tint: .teal
-                )
-                heroPill(
-                    title: L("Theme", "主题"),
-                    value: {
-                        switch settings.themeMode {
-                        case "light": return L("Light", "浅色")
-                        case "dark": return L("Dark", "深色")
-                        default: return L("System", "系统")
-                        }
-                    }(),
-                    tint: .orange
-                )
-            }
-            .padding(.top, 4)
-        }
-        .padding(.vertical, 28)
-        .padding(.horizontal, 28)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 28)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.9))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 28)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
     }
 

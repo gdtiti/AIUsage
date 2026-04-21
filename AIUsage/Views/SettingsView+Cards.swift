@@ -1,15 +1,84 @@
 import SwiftUI
-import Sparkle
-import ServiceManagement
+
+// MARK: - Section Views
 
 extension SettingsView {
 
-    var backendCard: some View {
+    // MARK: - General
+
+    var generalSection: some View {
         settingsCard(
-            title: L("Backend", "后端"),
-            subtitle: L("Choose whether AIUsage reads data locally or from a remote QuotaServer.", "选择 AIUsage 从本地还是远程 QuotaServer 读取数据。")
+            title: L("General", "通用"),
+            subtitle: L("Language, appearance, and basic preferences.", "语言、外观和基本偏好设置。")
         ) {
-            settingsBlock(title: L("Mode", "模式")) {
+            settingsBlock(title: L("Language", "语言")) {
+                Picker("", selection: $settings.language) {
+                    Text("English").tag("en")
+                    Text("中文").tag("zh")
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 220, alignment: .leading)
+            }
+
+            Divider()
+
+            settingsBlock(
+                title: L("Theme", "主题"),
+                subtitle: L("Choose app appearance: follow system, light, or dark.", "选择外观模式：跟随系统、浅色或深色。")
+            ) {
+                Picker("", selection: $settings.themeMode) {
+                    Text(L("System", "系统")).tag("system")
+                    Text(L("Light", "浅色")).tag("light")
+                    Text(L("Dark", "深色")).tag("dark")
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 280, alignment: .leading)
+            }
+
+            Divider()
+
+            settingsBlock(
+                title: L("Display Currency", "显示货币"),
+                subtitle: L("Currency for cost display across the app.", "应用中费用显示的货币单位。")
+            ) {
+                Picker("", selection: Binding(
+                    get: { UserDefaults.standard.string(forKey: DefaultsKey.displayCurrency) ?? "USD" },
+                    set: { UserDefaults.standard.set($0, forKey: DefaultsKey.displayCurrency) }
+                )) {
+                    Text("USD ($)").tag("USD")
+                    Text("CNY (¥)").tag("CNY")
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 200, alignment: .leading)
+            }
+
+            Divider()
+
+            settingsToggleRow(
+                title: L("Launch at Login", "开机启动"),
+                subtitle: L("Open AIUsage automatically after login.", "登录系统后自动打开 AIUsage。"),
+                isOn: $launchAtLogin
+            )
+
+            Divider()
+
+            settingsToggleRow(
+                title: L("Hide Dock Icon", "隐藏 Dock 图标"),
+                subtitle: L("Keep AIUsage in the menu bar only.", "让 AIUsage 只出现在菜单栏。"),
+                isOn: $hideDockIcon
+            )
+            .help(L("The app will only appear in the menu bar", "应用将只显示在菜单栏"))
+        }
+    }
+
+    // MARK: - Data & Refresh
+
+    var dataRefreshSection: some View {
+        settingsCard(
+            title: L("Data & Refresh", "数据与刷新"),
+            subtitle: L("Backend mode and refresh intervals.", "后端模式和数据刷新频率。")
+        ) {
+            settingsBlock(title: L("Backend Mode", "后端模式")) {
                 Picker("", selection: $settings.backendMode) {
                     Text(L("Local", "本地")).tag("local")
                     Text(L("Remote", "远程")).tag("remote")
@@ -76,14 +145,9 @@ extension SettingsView {
                     .fixedSize(horizontal: false, vertical: true)
                 }
             }
-        }
-    }
 
-    var generalCard: some View {
-        settingsCard(
-            title: L("General", "通用"),
-            subtitle: L("Control refresh cadence and language.", "控制刷新频率和界面语言。")
-        ) {
+            Divider()
+
             settingsBlock(
                 title: L("Providers auto-refresh", "服务商自动刷新"),
                 subtitle: L("Refresh interval for API-based providers (OpenAI, Anthropic, etc.)", "API 服务商的刷新间隔（OpenAI、Anthropic 等）")
@@ -111,128 +175,44 @@ extension SettingsView {
                 .pickerStyle(.menu)
                 .frame(maxWidth: 180, alignment: .leading)
             }
-
-            Divider()
-
-            settingsBlock(
-                title: L("Claude Code daily cost alert", "Claude Code 每日消费提醒"),
-                subtitle: L("Get notified when daily spending exceeds threshold (0 = off)", "当每日消费超过阈值时通知（0 = 关闭）")
-            ) {
-                HStack(spacing: 8) {
-                    Text("$")
-                        .foregroundStyle(.secondary)
-                    TextField("0.00", value: $settings.claudeCodeDailyThreshold, format: .number.precision(.fractionLength(2)))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 100)
-                        .onChange(of: settings.claudeCodeDailyThreshold) { _, _ in
-                            settings.saveSettings()
-                        }
-                    Text(L("USD", "美元"))
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                }
-            }
-
-            Divider()
-
-            settingsBlock(
-                title: L("Display Currency", "显示货币"),
-                subtitle: L("Currency for cost display across the app.", "应用中费用显示的货币单位。")
-            ) {
-                Picker("", selection: Binding(
-                    get: { UserDefaults.standard.string(forKey: DefaultsKey.displayCurrency) ?? "USD" },
-                    set: { UserDefaults.standard.set($0, forKey: DefaultsKey.displayCurrency) }
-                )) {
-                    Text("USD ($)").tag("USD")
-                    Text("CNY (¥)").tag("CNY")
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 200, alignment: .leading)
-            }
-
-            Divider()
-
-            settingsToggleRow(
-                title: L("Auto-start last proxy on launch", "启动时自动恢复上次代理"),
-                subtitle: L(
-                    "If enabled, AIUsage re-activates the last-used Claude Code proxy when the app launches.",
-                    "开启后，启动 AIUsage 时会自动激活上次使用的 Claude Code 代理。"
-                ),
-                isOn: $settings.proxyAutoRestoreOnLaunch
-            )
-
-            Divider()
-
-            settingsBlock(
-                title: L("Proxy Log Retention", "代理日志保留"),
-                subtitle: L("Automatically delete proxy request logs older than the specified number of days.", "自动删除超过指定天数的代理请求日志。")
-            ) {
-                Picker("", selection: $proxyLogRetentionDays) {
-                    Text(L("7 days", "7 天")).tag(7)
-                    Text(L("14 days", "14 天")).tag(14)
-                    Text(L("30 days", "30 天")).tag(30)
-                    Text(L("90 days", "90 天")).tag(90)
-                    Text(L("180 days", "180 天")).tag(180)
-                    Text(L("365 days", "365 天")).tag(365)
-                }
-                .pickerStyle(.menu)
-                .frame(maxWidth: 180, alignment: .leading)
-            }
-
-            Divider()
-
-            settingsBlock(
-                title: L("Theme", "主题"),
-                subtitle: L("Choose app appearance: follow system, light, or dark.", "选择外观模式：跟随系统、浅色或深色。")
-            ) {
-                Picker("", selection: $settings.themeMode) {
-                    Text(L("System", "系统")).tag("system")
-                    Text(L("Light", "浅色")).tag("light")
-                    Text(L("Dark", "深色")).tag("dark")
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 280, alignment: .leading)
-            }
-
-            Divider()
-
-            settingsBlock(title: L("Language", "语言")) {
-                Picker("", selection: $settings.language) {
-                    Text("English").tag("en")
-                    Text("中文").tag("zh")
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 220, alignment: .leading)
-            }
         }
     }
 
-    var appearanceCard: some View {
+    // MARK: - Menu Bar
+
+    var menuBarSection: some View {
         settingsCard(
-            title: L("Appearance", "外观"),
+            title: L("Menu Bar", "菜单栏"),
+            subtitle: L("Configure what appears next to the menu bar icon.", "配置菜单栏图标旁显示的内容。")
+        ) {
+            menuBarQuotaAccountsPicker
+
+            Divider()
+
+            menuBarCostSourcesPicker
+
+            if totalPinnedCount > StatusBarItemView.recommendedMaxAccounts {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9))
+                    Text(L(
+                        "You have \(totalPinnedCount) items pinned. More than \(StatusBarItemView.recommendedMaxAccounts) may cause the menu bar to be too wide.",
+                        "已固定 \(totalPinnedCount) 项。超过 \(StatusBarItemView.recommendedMaxAccounts) 个可能导致菜单栏过长。"
+                    ))
+                    .font(.caption2)
+                }
+                .foregroundStyle(.orange)
+            }
+        }
+        .onAppear { pruneStaleMenuBarPins() }
+    }
+
+    // MARK: - Card Appearance
+
+    var cardAppearanceSection: some View {
+        settingsCard(
+            title: L("Card Appearance", "卡片外观"),
             subtitle: L("Adjust how quota cards present information.", "调整额度卡片的呈现方式。")
         ) {
-            settingsToggleRow(
-                title: L("Hide Dock Icon", "隐藏 Dock 图标"),
-                subtitle: L("Keep AIUsage in the menu bar only.", "让 AIUsage 只出现在菜单栏。"),
-                isOn: $hideDockIcon
-            )
-            .help(L("The app will only appear in the menu bar", "应用将只显示在菜单栏"))
-
-            Divider()
-
-            settingsToggleRow(
-                title: L("Launch at Login", "开机启动"),
-                subtitle: L("Open AIUsage automatically after login.", "登录系统后自动打开 AIUsage。"),
-                isOn: $launchAtLogin
-            )
-
-            Divider()
-
-            menuBarSettingsSection
-
-            Divider()
-
             settingsBlock(title: L("Quota card style", "额度卡片样式")) {
                 Picker("", selection: $settings.quotaIndicatorStyle) {
                     ForEach(CardQuotaIndicatorStyle.allCases, id: \.self) { style in
@@ -270,94 +250,147 @@ extension SettingsView {
         }
     }
 
-    // MARK: - Menu Bar Settings
+    // MARK: - Proxy
 
-    private var menuBarShowsQuotaBinding: Binding<Bool> {
-        Binding(
-            get: { settings.menuBarMetricType.showsQuota },
-            set: { newVal in
-                let showsCost = settings.menuBarMetricType.showsCost
-                if newVal && showsCost { settings.menuBarMetricType = .both }
-                else if newVal { settings.menuBarMetricType = .quota }
-                else if showsCost { settings.menuBarMetricType = .cost }
-                else { settings.menuBarMetricType = .quota }
+    var proxySection: some View {
+        settingsCard(
+            title: L("Proxy", "代理"),
+            subtitle: L("Claude Code proxy behavior and logging.", "Claude Code 代理行为和日志管理。")
+        ) {
+            settingsToggleRow(
+                title: L("Auto-start last proxy on launch", "启动时自动恢复上次代理"),
+                subtitle: L(
+                    "If enabled, AIUsage re-activates the last-used Claude Code proxy when the app launches.",
+                    "开启后，启动 AIUsage 时会自动激活上次使用的 Claude Code 代理。"
+                ),
+                isOn: $settings.proxyAutoRestoreOnLaunch
+            )
+
+            Divider()
+
+            settingsBlock(
+                title: L("Proxy Log Retention", "代理日志保留"),
+                subtitle: L("Automatically delete proxy request logs older than the specified number of days.", "自动删除超过指定天数的代理请求日志。")
+            ) {
+                Picker("", selection: $proxyLogRetentionDays) {
+                    Text(L("7 days", "7 天")).tag(7)
+                    Text(L("14 days", "14 天")).tag(14)
+                    Text(L("30 days", "30 天")).tag(30)
+                    Text(L("90 days", "90 天")).tag(90)
+                    Text(L("180 days", "180 天")).tag(180)
+                    Text(L("365 days", "365 天")).tag(365)
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 180, alignment: .leading)
             }
-        )
+        }
     }
 
-    private var menuBarShowsCostBinding: Binding<Bool> {
-        Binding(
-            get: { settings.menuBarMetricType.showsCost },
-            set: { newVal in
-                let showsQuota = settings.menuBarMetricType.showsQuota
-                if newVal && showsQuota { settings.menuBarMetricType = .both }
-                else if newVal { settings.menuBarMetricType = .cost }
-                else if showsQuota { settings.menuBarMetricType = .quota }
-                else { settings.menuBarMetricType = .cost }
+    // MARK: - Notifications
+
+    var notificationsSection: some View {
+        settingsCard(
+            title: L("Notifications", "通知"),
+            subtitle: L("Decide when AIUsage should proactively nudge you.", "设置 AIUsage 在什么情况下主动提醒你。")
+        ) {
+            settingsToggleRow(
+                title: L("Enable Notifications", "启用通知"),
+                subtitle: L("Show desktop alerts for low quota and other status changes.", "为低额度和状态变化显示桌面提醒。"),
+                isOn: $showNotifications
+            )
+
+            Divider()
+
+            settingsBlock(
+                title: L("Low Quota Alert", "低额度提醒"),
+                subtitle: L("Trigger when remaining quota drops below the selected threshold.", "当剩余额度低于阈值时触发提醒。")
+            ) {
+                HStack(spacing: 14) {
+                    Slider(value: $lowQuotaThreshold, in: 5...50, step: 5)
+                    Text("\(Int(lowQuotaThreshold))%")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 54, alignment: .trailing)
+                }
             }
-        )
+            .opacity(showNotifications ? 1 : 0.45)
+            .disabled(!showNotifications)
+
+            Divider()
+
+            settingsBlock(
+                title: L("Claude Code daily cost alert", "Claude Code 每日消费提醒"),
+                subtitle: L("Get notified when daily spending exceeds threshold (0 = off)", "当每日消费超过阈值时通知（0 = 关闭）")
+            ) {
+                HStack(spacing: 8) {
+                    Text("$")
+                        .foregroundStyle(.secondary)
+                    TextField("0.00", value: $settings.claudeCodeDailyThreshold, format: .number.precision(.fractionLength(2)))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                        .onChange(of: settings.claudeCodeDailyThreshold) { _, _ in
+                            settings.saveSettings()
+                        }
+                    Text(L("USD", "美元"))
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+            }
+            .opacity(showNotifications ? 1 : 0.45)
+            .disabled(!showNotifications)
+        }
     }
+
+    // MARK: - About
+
+    var aboutSection: some View {
+        settingsCard(
+            title: L("About", "关于"),
+            subtitle: L("Version information and update checks.", "版本信息与更新检查。")
+        ) {
+            settingsValueRow(title: L("Version", "版本"), value: appVersion)
+
+            Divider()
+
+            settingsToggleRow(
+                title: L("Automatic Updates", "自动检查更新"),
+                subtitle: L("Periodically check for new versions in the background.", "后台定期检查是否有新版本。"),
+                isOn: Binding(
+                    get: { sparkle.automaticallyChecksForUpdates },
+                    set: { sparkle.setAutoCheckEnabled($0) }
+                )
+            )
+
+            Divider()
+
+            HStack(spacing: 10) {
+                if let repositoryURL {
+                    Link(destination: repositoryURL) {
+                        Label("GitHub", systemImage: "link")
+                    }
+                }
+
+                Button {
+                    sparkle.checkForUpdates()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.triangle.2.circlepath.circle")
+                        Text(L("Check for Updates", "检查更新"))
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(!sparkle.canCheckForUpdates)
+            }
+        }
+    }
+
+    // MARK: - Menu Bar Helpers
 
     private func pruneStaleMenuBarPins() {
         let allEntries = appState.providerAccountGroups.flatMap(\.accounts)
         let quotaIds = Set(allEntries.filter { $0.liveProvider?.category != "local-cost" }.map(\.id))
         let costIds = Set(allEntries.filter { $0.liveProvider?.category == "local-cost" }.map(\.id))
         settings.pruneMenuBarPinnedIds(validQuotaIds: quotaIds, validCostIds: costIds)
-    }
-
-    private var menuBarSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(L("Menu Bar Display", "菜单栏显示"))
-                .font(.subheadline.weight(.semibold))
-
-            Text(L("Configure what appears next to the menu bar icon.", "配置菜单栏图标旁显示的内容。"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            settingsBlock(title: L("Display mode", "显示模式")) {
-                Picker("", selection: $settings.menuBarDisplayMode) {
-                    Text(L("Icon only", "仅图标")).tag(MenuBarDisplayMode.iconOnly)
-                    Text(L("Icon + metric", "图标+指标")).tag(MenuBarDisplayMode.iconAndMetric)
-                    Text(L("Metric only", "仅指标")).tag(MenuBarDisplayMode.metricOnly)
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 340, alignment: .leading)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(L("Metric type", "指标类型"))
-                    .font(.subheadline.weight(.semibold))
-
-                HStack(spacing: 16) {
-                    Toggle(L("Quota %", "配额%"), isOn: menuBarShowsQuotaBinding)
-                        .toggleStyle(.checkbox)
-                    Toggle(L("Cost", "费用"), isOn: menuBarShowsCostBinding)
-                        .toggleStyle(.checkbox)
-                }
-            }
-            .opacity(settings.menuBarDisplayMode == .iconOnly ? 0.45 : 1)
-            .disabled(settings.menuBarDisplayMode == .iconOnly)
-
-            if settings.menuBarMetricType.showsQuota {
-                menuBarQuotaAccountsPicker
-            }
-            if settings.menuBarMetricType.showsCost {
-                menuBarCostSourcesPicker
-            }
-
-            if totalPinnedCount > StatusBarItemView.recommendedMaxAccounts {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9))
-                    Text(L(
-                        "You have \(totalPinnedCount) items pinned. More than \(StatusBarItemView.recommendedMaxAccounts) may cause the menu bar to be too wide.",
-                        "已固定 \(totalPinnedCount) 项。超过 \(StatusBarItemView.recommendedMaxAccounts) 个可能导致菜单栏过长。"
-                    ))
-                    .font(.caption2)
-                }
-                .foregroundStyle(.orange)
-            }
-        }
-        .onAppear { pruneStaleMenuBarPins() }
     }
 
     private var menuBarQuotaAccountsPicker: some View {
@@ -529,9 +562,7 @@ extension SettingsView {
     }
 
     private var totalPinnedCount: Int {
-        let validQuotaIds = validPinnedQuotaIds
-        let validCostIds = validPinnedCostIds
-        return validQuotaIds.count + validCostIds.count
+        validPinnedQuotaIds.count + validPinnedCostIds.count
     }
 
     private var validPinnedQuotaIds: Set<String> {
@@ -610,76 +641,5 @@ extension SettingsView {
             }
         }
         .padding(.vertical, 4)
-    }
-
-    var notificationsCard: some View {
-        settingsCard(
-            title: L("Notifications", "通知"),
-            subtitle: L("Decide when AIUsage should proactively nudge you.", "设置 AIUsage 在什么情况下主动提醒你。")
-        ) {
-            settingsToggleRow(
-                title: L("Enable Notifications", "启用通知"),
-                subtitle: L("Show desktop alerts for low quota and other status changes.", "为低额度和状态变化显示桌面提醒。"),
-                isOn: $showNotifications
-            )
-
-            Divider()
-
-            settingsBlock(
-                title: L("Low Quota Alert", "低额度提醒"),
-                subtitle: L("Trigger when remaining quota drops below the selected threshold.", "当剩余额度低于阈值时触发提醒。")
-            ) {
-                HStack(spacing: 14) {
-                    Slider(value: $lowQuotaThreshold, in: 5...50, step: 5)
-                    Text("\(Int(lowQuotaThreshold))%")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 54, alignment: .trailing)
-                }
-            }
-            .opacity(showNotifications ? 1 : 0.45)
-            .disabled(!showNotifications)
-        }
-    }
-
-    var aboutCard: some View {
-        settingsCard(
-            title: L("About", "关于"),
-            subtitle: L("Version information and update checks.", "版本信息与更新检查。")
-        ) {
-            settingsValueRow(title: L("Version", "版本"), value: appVersion)
-
-            Divider()
-
-            settingsToggleRow(
-                title: L("Automatic Updates", "自动检查更新"),
-                subtitle: L("Periodically check for new versions in the background.", "后台定期检查是否有新版本。"),
-                isOn: Binding(
-                    get: { sparkle.automaticallyChecksForUpdates },
-                    set: { sparkle.setAutoCheckEnabled($0) }
-                )
-            )
-
-            Divider()
-
-            HStack(spacing: 10) {
-                if let repositoryURL {
-                    Link(destination: repositoryURL) {
-                        Label("GitHub", systemImage: "link")
-                    }
-                }
-
-                Button {
-                    sparkle.checkForUpdates()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.triangle.2.circlepath.circle")
-                        Text(L("Check for Updates", "检查更新"))
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(!sparkle.canCheckForUpdates)
-            }
-        }
     }
 }

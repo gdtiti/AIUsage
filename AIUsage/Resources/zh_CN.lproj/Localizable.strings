@@ -1331,3 +1331,12 @@
 /* Views/JSONRawEditorView.swift */
 "Format" = "格式化";
 "Validate" = "校验";
+
+/* Views/SettingsView.swift - Settings categories */
+"Data & Refresh" = "数据与刷新";
+"Menu Bar" = "菜单栏";
+"Card Appearance" = "卡片外观";
+"Language, appearance, and basic preferences." = "语言、外观和基本偏好设置。";
+"Backend mode and refresh intervals." = "后端模式和数据刷新频率。";
+"Claude Code proxy behavior and logging." = "Claude Code 代理行为和日志管理。";
+"Backend Mode" = "后端模式";

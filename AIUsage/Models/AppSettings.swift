@@ -245,6 +245,9 @@ final class AppSettings: ObservableObject {
         autoRefreshInterval = Self.normalizedAutoRefreshInterval(autoRefreshInterval)
         claudeCodeRefreshInterval = Self.normalizedClaudeCodeRefreshInterval(claudeCodeRefreshInterval)
 
+        menuBarDisplayMode = .iconAndMetric
+        menuBarMetricType = .both
+
         setupAutoPersist()
     }
 

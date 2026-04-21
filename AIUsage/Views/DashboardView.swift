@@ -241,14 +241,48 @@ struct DashboardView: View {
     // MARK: - State Views
 
     private var loadingView: some View {
-        VStack(spacing: 20) {
-            SmallProgressView()
-                .frame(width: 32, height: 32)
-            Text(L("Loading dashboard...", "加载中..."))
-                .font(.headline)
-                .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 24) {
+            skeletonTitle
+            skeletonOverviewGrid
+            skeletonHeatmap
+            skeletonAggregateRow
+            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var skeletonTitle: some View {
+        HStack(spacing: 12) {
+            SkeletonPill(width: 120, height: 22)
+            Spacer()
+            SkeletonPill(width: 80, height: 18)
+        }
+    }
+
+    private var skeletonOverviewGrid: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 16)], spacing: 16) {
+            ForEach(0..<4, id: \.self) { _ in
+                SkeletonStatCard()
+            }
+        }
+    }
+
+    private var skeletonHeatmap: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SkeletonPill(width: 180, height: 16)
+            SkeletonPill(width: 100, height: 10)
+            SkeletonBlock(height: 130, cornerRadius: 8)
+                .padding(.top, 4)
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 18).fill(Color(nsColor: .controlBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.primary.opacity(0.06), lineWidth: 1))
+    }
+
+    private var skeletonAggregateRow: some View {
+        HStack(spacing: 16) {
+            SkeletonAggregateCard(tint: .orange)
+            SkeletonAggregateCard(tint: .teal)
+        }
     }
     
     private func errorView(_ message: String) -> some View {
@@ -597,6 +631,136 @@ struct AlertBanner: View {
         case "watch": return "exclamationmark.circle.fill"
         default: return "info.circle.fill"
         }
+    }
+}
+
+// MARK: - Skeleton Components
+
+private struct ShimmerModifier: ViewModifier {
+    @State private var phase: CGFloat = -1
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: max(0, phase - 0.3)),
+                        .init(color: .white.opacity(0.12), location: phase),
+                        .init(color: .clear, location: min(1, phase + 0.3))
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .blendMode(.screen)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .onAppear {
+                withAnimation(.linear(duration: 1.6).repeatForever(autoreverses: false)) {
+                    phase = 2
+                }
+            }
+    }
+}
+
+private extension View {
+    func shimmer() -> some View {
+        modifier(ShimmerModifier())
+    }
+}
+
+private struct SkeletonPill: View {
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: height / 2)
+            .fill(Color.primary.opacity(0.06))
+            .frame(width: width, height: height)
+            .shimmer()
+    }
+}
+
+private struct SkeletonBlock: View {
+    let height: CGFloat
+    var cornerRadius: CGFloat = 12
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius)
+            .fill(Color.primary.opacity(0.05))
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .shimmer()
+    }
+}
+
+private struct SkeletonStatCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top) {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(0.06))
+                    .frame(width: 24, height: 24)
+                Spacer()
+                SkeletonPill(width: 50, height: 20)
+            }
+            Spacer(minLength: 8)
+            SkeletonPill(width: 90, height: 14)
+            Spacer(minLength: 4)
+            SkeletonPill(width: 140, height: 10)
+        }
+        .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
+        .padding(14)
+        .background(Color.primary.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .shimmer()
+    }
+}
+
+private struct SkeletonAggregateCard: View {
+    let tint: Color
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(tint.opacity(colorScheme == .dark ? 0.10 : 0.06))
+                    .frame(width: 50, height: 50)
+                VStack(alignment: .leading, spacing: 6) {
+                    SkeletonPill(width: 100, height: 14)
+                    SkeletonPill(width: 140, height: 10)
+                }
+                Spacer()
+            }
+            SkeletonPill(width: 80, height: 26)
+            HStack(spacing: 10) {
+                ForEach(0..<3, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 6) {
+                        SkeletonPill(width: 40, height: 9)
+                        SkeletonPill(width: 50, height: 12)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(tint.opacity(colorScheme == .dark ? 0.06 : 0.03))
+                    )
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 22)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22)
+                .stroke(tint.opacity(colorScheme == .dark ? 0.12 : 0.07), lineWidth: 1)
+        )
+        .shimmer()
     }
 }
 

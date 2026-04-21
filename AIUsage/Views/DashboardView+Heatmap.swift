@@ -8,7 +8,10 @@ struct ClaudeCodeUsageHeatmap: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.colorScheme) private var colorScheme
 
+    @State private var hoveredCell: HeatmapCellID?
+
     private let weeks = 52
+    private static let tooltipWidth: CGFloat = 280
 
     // MARK: - Data
 
@@ -25,10 +28,40 @@ struct ClaudeCodeUsageHeatmap: View {
         return map
     }
 
+    private var dailyUsd: [Date: Double] {
+        let calendar = Calendar.current
+        var map: [Date: Double] = [:]
+        for provider in providers {
+            guard let daily = provider.costSummary?.timeline?.daily else { continue }
+            for point in daily {
+                let day = calendar.startOfDay(for: point.date)
+                map[day, default: 0] += point.usd
+            }
+        }
+        return map
+    }
+
+    private func modelBreakdown(for targetDate: Date) -> [(model: String, tokens: Int, usd: Double)] {
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: targetDate)
+        var result: [(String, Int, Double)] = []
+        for provider in providers {
+            guard let timelines = provider.costSummary?.modelTimelines else { continue }
+            for series in timelines {
+                for point in series.daily {
+                    if calendar.startOfDay(for: point.date) == targetDay, point.tokens > 0 {
+                        result.append((series.model, point.tokens, point.usd))
+                    }
+                }
+            }
+        }
+        return result.sorted { $0.1 > $1.1 }
+    }
+
     private var startDate: Date {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        let weekday = calendar.component(.weekday, from: today) // 1=Sun, 7=Sat
+        let weekday = calendar.component(.weekday, from: today)
         let daysFromSunday = weekday - 1
         let currentWeekStart = calendar.date(byAdding: .day, value: -daysFromSunday, to: today) ?? today
         return calendar.date(byAdding: .day, value: -(weeks - 1) * 7, to: currentWeekStart) ?? today
@@ -138,6 +171,19 @@ struct ClaudeCodeUsageHeatmap: View {
                     gridColumns(cellSide: cellSide, spacing: spacing)
                 }
             }
+            .overlay {
+                if let hovered = hoveredCell {
+                    heatmapTooltipOverlay(
+                        cell: hovered,
+                        cellSide: cellSide,
+                        spacing: spacing,
+                        columnPitch: columnPitch,
+                        weekdayLabelWidth: weekdayLabelWidth,
+                        monthLabelHeight: monthLabelHeight,
+                        containerWidth: proxy.size.width
+                    )
+                }
+            }
         }
         .frame(height: 170)
     }
@@ -173,7 +219,7 @@ struct ClaudeCodeUsageHeatmap: View {
     }
 
     private func weekdayLabels(cellSide: CGFloat, spacing: CGFloat) -> some View {
-        let visibleRows: Set<Int> = [1, 3, 5] // Mon, Wed, Fri
+        let visibleRows: Set<Int> = [1, 3, 5]
         let names: [String] = [
             L("Sun", "日"),
             L("Mon", "一"),
@@ -212,48 +258,180 @@ struct ClaudeCodeUsageHeatmap: View {
                         let count = isActive ? (tokens[cellDate] ?? 0) : 0
                         let binIndex = bin(for: count, thresholds: computedThresholds)
                         let isToday = isActive && cellDate == today
+                        let isHovered = hoveredCell?.week == week && hoveredCell?.day == day
 
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .fill(color(for: binIndex, active: isActive))
                             .frame(width: cellSide, height: cellSide)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                    .stroke(isToday ? accent.opacity(0.9) : Color.clear,
-                                            lineWidth: isToday ? 1 : 0)
+                                    .stroke(
+                                        isHovered ? accent : (isToday ? accent.opacity(0.9) : Color.clear),
+                                        lineWidth: isHovered ? 1.5 : (isToday ? 1 : 0)
+                                    )
                             )
-                            .help(tooltipText(for: cellDate, tokens: count, isActive: isActive))
+                            .scaleEffect(isHovered ? 1.3 : 1.0)
+                            .zIndex(isHovered ? 10 : 0)
+                            .animation(.easeOut(duration: 0.12), value: isHovered)
+                            .onHover { hovering in
+                                withAnimation(.easeInOut(duration: 0.1)) {
+                                    hoveredCell = hovering ? HeatmapCellID(week: week, day: day) : nil
+                                }
+                            }
                     }
                 }
             }
         }
     }
 
-    private func tooltipText(for date: Date, tokens: Int, isActive: Bool) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: appState.language == "zh" ? "zh_CN" : "en_US_POSIX")
-        formatter.dateFormat = appState.language == "zh" ? "yyyy年M月d日" : "MMM d, yyyy"
-        let dateLabel = formatter.string(from: date)
+    // MARK: - Tooltip Overlay
 
-        guard isActive else {
-            return dateLabel + " · " + L("Not yet", "尚未到达")
-        }
+    @ViewBuilder
+    private func heatmapTooltipOverlay(
+        cell: HeatmapCellID,
+        cellSide: CGFloat,
+        spacing: CGFloat,
+        columnPitch: CGFloat,
+        weekdayLabelWidth: CGFloat,
+        monthLabelHeight: CGFloat,
+        containerWidth: CGFloat
+    ) -> some View {
+        let cellDate = date(forWeek: cell.week, day: cell.day)
+        let today = Calendar.current.startOfDay(for: Date())
+        let isActive = cellDate <= today
+        let tokens = isActive ? (dailyTokens[cellDate] ?? 0) : 0
+        let usd = isActive ? (dailyUsd[cellDate] ?? 0) : 0
+        let models = (isActive && tokens > 0) ? modelBreakdown(for: cellDate) : []
 
-        if tokens > 0 {
-            return dateLabel + " · " + L("\(formatNumber(tokens)) tokens", "\(formatNumber(tokens)) tokens")
-        }
-        return dateLabel + " · " + L("No activity", "无使用记录")
+        let cellCenterX = weekdayLabelWidth + CGFloat(cell.week) * columnPitch + cellSide / 2
+        let gridTopY = monthLabelHeight + 4
+        let cellBottomY = gridTopY + CGFloat(cell.day) * (cellSide + spacing) + cellSide
+
+        let tw = Self.tooltipWidth
+        let xClamped = max(4, min(containerWidth - tw - 4, cellCenterX - tw / 2))
+
+        heatmapTooltipCard(
+            date: cellDate,
+            isActive: isActive,
+            tokens: tokens,
+            usd: usd,
+            models: models
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: tw, alignment: .topLeading)
+        .offset(x: xClamped, y: cellBottomY + 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .allowsHitTesting(false)
     }
 
-    private func peakSummaryText(for peak: (date: Date, tokens: Int)) -> String {
+    private func heatmapTooltipCard(
+        date: Date,
+        isActive: Bool,
+        tokens: Int,
+        usd: Double,
+        models: [(model: String, tokens: Int, usd: Double)]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            tooltipDateHeader(date: date, isActive: isActive)
+
+            if isActive {
+                tooltipMetrics(tokens: tokens, usd: usd)
+
+                if !models.isEmpty {
+                    Divider()
+                        .padding(.vertical, 6)
+
+                    tooltipModelList(models: models)
+                }
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .windowBackgroundColor))
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.6 : 0.18), radius: 16, y: 6)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(colorScheme == .dark ? 0.16 : 0.10), lineWidth: 0.5)
+        )
+    }
+
+    private func tooltipDateHeader(date: Date, isActive: Bool) -> some View {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: appState.language == "zh" ? "zh_CN" : "en_US_POSIX")
-        formatter.dateFormat = appState.language == "zh" ? "M月d日" : "MMM d"
-        let peakDate = formatter.string(from: peak.date)
-        let peakValue = formatCompactNumber(Double(peak.tokens))
-        return L(
-            "\(activeDayCount) active days · peak \(peakValue) on \(peakDate)",
-            "活跃 \(activeDayCount) 天 · 最高 \(peakValue) 于 \(peakDate)"
-        )
+        formatter.dateFormat = appState.language == "zh" ? "yyyy年M月d日 EEE" : "EEE, MMM d, yyyy"
+        let dateStr = formatter.string(from: date)
+
+        return HStack(spacing: 4) {
+            Text(dateStr)
+                .font(.caption.weight(.semibold))
+            Spacer()
+            if !isActive {
+                Text(L("Future", "尚未到达"))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.bottom, isActive ? 6 : 0)
+    }
+
+    private func tooltipMetrics(tokens: Int, usd: Double) -> some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(L("Tokens", "Tokens"))
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                Text(formatNumber(tokens))
+                    .font(.caption.weight(.medium).monospacedDigit())
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(L("Cost", "费用"))
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                Text(formatCurrency(usd))
+                    .font(.caption.weight(.medium).monospacedDigit())
+            }
+        }
+    }
+
+    private func tooltipModelList(models: [(model: String, tokens: Int, usd: Double)]) -> some View {
+        let palette: [Color] = [.green, .blue, .orange, .purple, .pink, .teal, .yellow, .red]
+
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(L("Models", "模型"))
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
+
+            ForEach(Array(models.prefix(5).enumerated()), id: \.offset) { idx, entry in
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(palette[idx % palette.count].opacity(0.8))
+                        .frame(width: 5, height: 5)
+                    Text(entry.model)
+                        .font(.system(size: 10))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 4)
+                    HStack(spacing: 6) {
+                        Text(formatCompactNumber(Double(entry.tokens)))
+                        Text(formatCurrency(entry.usd))
+                    }
+                    .font(.system(size: 10).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                }
+            }
+
+            if models.count > 5 {
+                Text(L("+\(models.count - 5) more", "+\(models.count - 5) 更多"))
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+            }
+        }
     }
 
     // MARK: - Footer
@@ -309,4 +487,26 @@ struct ClaudeCodeUsageHeatmap: View {
         .padding(.vertical, 24)
         .frame(maxWidth: .infinity)
     }
+
+    // MARK: - Helpers
+
+    private func peakSummaryText(for peak: (date: Date, tokens: Int)) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: appState.language == "zh" ? "zh_CN" : "en_US_POSIX")
+        formatter.dateFormat = appState.language == "zh" ? "M月d日" : "MMM d"
+        let peakDate = formatter.string(from: peak.date)
+        let peakValue = formatCompactNumber(Double(peak.tokens))
+        return L(
+            "\(activeDayCount) active days · peak \(peakValue) on \(peakDate)",
+            "活跃 \(activeDayCount) 天 · 最高 \(peakValue) 于 \(peakDate)"
+        )
+    }
 }
+
+// MARK: - Supporting Types
+
+private struct HeatmapCellID: Equatable {
+    let week: Int
+    let day: Int
+}
+

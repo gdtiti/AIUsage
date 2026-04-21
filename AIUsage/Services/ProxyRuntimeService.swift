@@ -95,6 +95,59 @@ final class ProxyRuntimeService {
         self.settingsManager = settingsManager ?? ClaudeSettingsManager.shared
     }
 
+    /// Activate using full settings.json replacement (new profile-based flow).
+    func activateRuntime(
+        for config: ProxyConfiguration,
+        settings: [String: Any]
+    ) async throws {
+        if config.needsProxyProcess {
+            try await startProxy(config)
+        }
+
+        do {
+            try settingsManager.writeFullSettings(settings)
+            try writePricingOverrides(config)
+        } catch {
+            if config.needsProxyProcess {
+                stopProxy(config)
+            }
+            do {
+                try settingsManager.restoreFromBackup()
+            } catch {
+                proxyRuntimeLog.error("Failed to restore settings while rolling back node \(config.name, privacy: .public): \(String(describing: error), privacy: .public)")
+            }
+            do {
+                try clearPricingOverrides()
+            } catch {
+                proxyRuntimeLog.error("Failed to clear pricing overrides while rolling back node \(config.name, privacy: .public): \(String(describing: error), privacy: .public)")
+            }
+            throw error
+        }
+    }
+
+    /// Deactivate using backup restoration (new profile-based flow).
+    func deactivateRuntime(
+        for config: ProxyConfiguration,
+        settings: [String: Any]
+    ) async throws {
+        if config.needsProxyProcess {
+            stopProxy(config)
+        }
+
+        do {
+            try settingsManager.restoreFromBackup()
+            try clearPricingOverrides()
+        } catch {
+            do {
+                try await activateRuntime(for: config, settings: settings)
+            } catch {
+                proxyRuntimeLog.error("Failed to restore runtime for node \(config.name, privacy: .public) after deactivation rollback: \(String(describing: error), privacy: .public)")
+            }
+            throw error
+        }
+    }
+
+    /// Legacy activation using partial env write (kept for backward compat).
     func activateRuntime(
         for config: ProxyConfiguration,
         envConfig: ClaudeSettingsManager.EnvConfig
@@ -124,6 +177,7 @@ final class ProxyRuntimeService {
         }
     }
 
+    /// Legacy deactivation using env clear (kept for backward compat).
     func deactivateRuntime(
         for config: ProxyConfiguration,
         envConfig: ClaudeSettingsManager.EnvConfig
@@ -146,7 +200,7 @@ final class ProxyRuntimeService {
     }
 
     func clearRuntime() throws {
-        try settingsManager.clearEnv()
+        try settingsManager.restoreFromBackup()
         try clearPricingOverrides()
     }
 

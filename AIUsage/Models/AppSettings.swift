@@ -115,6 +115,7 @@ enum DefaultsKey {
     static let menuBarCostSourceConfigs = "menuBarCostSourceConfigs"
     static let menuBarSummaryStatsSource = "menuBarSummaryStatsSource"
     static let proxyActivatedConfigId = "proxyActivatedConfigId"
+    static let proxyAutoRestoreOnLaunch = "proxyAutoRestoreOnLaunch"
     static let proxyConfigurations = "proxyConfigurations"
     static let proxyLogRetentionDays = "proxyLogRetentionDays"
     static let proxyLogs = "proxyLogs"
@@ -225,6 +226,8 @@ final class AppSettings: ObservableObject {
     @Published var remoteHost: String = UserDefaults.standard.string(forKey: DefaultsKey.remoteHost) ?? "127.0.0.1"
     @Published var remotePort: Int = UserDefaults.standard.integer(forKey: DefaultsKey.remotePort) == 0 ? 4318 : UserDefaults.standard.integer(forKey: DefaultsKey.remotePort)
 
+    @Published var proxyAutoRestoreOnLaunch: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.proxyAutoRestoreOnLaunch)
+
     private var cancellables = Set<AnyCancellable>()
 
     func pruneMenuBarPinnedIds(validQuotaIds: Set<String>, validCostIds: Set<String>) {
@@ -283,6 +286,7 @@ final class AppSettings: ObservableObject {
             guard let self else { return }
             self.onRemoteSettingsChanged?("http://\(self.remoteHost):\(port)")
         }.store(in: &cancellables)
+        $proxyAutoRestoreOnLaunch.dropFirst().sink { defaults.set($0, forKey: DefaultsKey.proxyAutoRestoreOnLaunch) }.store(in: &cancellables)
     }
 
     static func normalizedAutoRefreshInterval(_ value: Int) -> Int {

@@ -9,10 +9,16 @@ struct ProxyManagementView: View {
     @EnvironmentObject var viewModel: ProxyViewModel
     @State private var showingNewConfigEditor = false
     @State private var editingConfig: ProxyConfiguration?
+    @State private var editingProfile: NodeProfile?
     @State private var selectedConfigId: String?
     @State private var pendingDeletionConfig: ProxyConfiguration?
     @State private var draggingConfigId: String?
     @State private var dropTargetIndex: Int?
+    @State private var showingImporter = false
+    @State private var showingExporter = false
+    @State private var importResult: NodeProfileStore.ImportResult?
+    @State private var showImportResult = false
+    @State private var exportSelectedIds: Set<String> = []
     var body: some View {
         VStack(spacing: 0) {
             if viewModel.configurations.isEmpty {
@@ -30,16 +36,76 @@ struct ProxyManagementView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .toolbar {
             ToolbarItem(placement: .automatic) {
-                Button(action: { showingNewConfigEditor = true }) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "plus.circle.fill")
-                        Text(L("New Node", "新建节点"))
+                HStack(spacing: 8) {
+                    Menu {
+                        Button {
+                            showingImporter = true
+                        } label: {
+                            Label(L("Import Profiles...", "导入配置..."), systemImage: "square.and.arrow.down")
+                        }
+                        Button {
+                            exportSelectedIds = Set(viewModel.configurations.map(\.id))
+                            showingExporter = true
+                        } label: {
+                            Label(L("Export All...", "导出全部..."), systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(viewModel.configurations.isEmpty)
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+
+                    Button(action: { showingNewConfigEditor = true }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "plus.circle.fill")
+                            Text(L("New Node", "新建节点"))
+                        }
                     }
                 }
             }
         }
+        .fileImporter(
+            isPresented: $showingImporter,
+            allowedContentTypes: [.json, .folder],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                let accessingURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
+                let importResult = viewModel.profileStore.importProfiles(from: urls)
+                for url in accessingURLs { url.stopAccessingSecurityScopedResource() }
+                self.importResult = importResult
+                self.showImportResult = true
+                viewModel.loadConfigurations()
+            case .failure:
+                break
+            }
+        }
+        .sheet(isPresented: $showingExporter) {
+            ProfileExportView(
+                profiles: viewModel.profileStore.profiles,
+                selectedIds: $exportSelectedIds
+            )
+            .environmentObject(viewModel)
+        }
+        .alert(
+            L("Import Result", "导入结果"),
+            isPresented: $showImportResult,
+            presenting: importResult
+        ) { _ in
+            Button("OK") { importResult = nil }
+        } message: { result in
+            Text(L(
+                "\(result.succeeded) imported, \(result.failed) failed, \(result.skipped) skipped",
+                "\(result.succeeded) 个导入成功，\(result.failed) 个失败，\(result.skipped) 个跳过"
+            ))
+        }
         .sheet(isPresented: $showingNewConfigEditor) {
             ProxyConfigEditorView()
+                .environmentObject(viewModel)
+                .environmentObject(appState)
+        }
+        .sheet(item: $editingProfile) { profile in
+            ProxyConfigEditorView(profile: profile)
                 .environmentObject(viewModel)
                 .environmentObject(appState)
         }
@@ -99,7 +165,7 @@ struct ProxyManagementView: View {
 
     private var summaryStrip: some View {
         let agg = aggregatedStats
-        return HStack(spacing: 12) {
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], spacing: 12) {
             summaryCell(
                 icon: "point.3.connected.trianglepath.dotted",
                 title: L("Nodes", "节点数"),
@@ -196,7 +262,13 @@ struct ProxyManagementView: View {
                             lastRequestAt: stats.lastRequestAt,
                             onDragStart: { draggingConfigId = config.id },
                             onToggleActivation: { Task { await viewModel.toggleActivation(config.id) } },
-                            onEdit: { editingConfig = config },
+                            onEdit: {
+                                if let profile = viewModel.profileStore.profile(for: config.id) {
+                                    editingProfile = profile
+                                } else {
+                                    editingConfig = config
+                                }
+                            },
                             onDelete: { pendingDeletionConfig = config },
                             onDuplicate: { duplicateConfig(config) },
                             onToggleSelection: {
@@ -519,32 +591,46 @@ struct ProxyManagementView: View {
     // MARK: - Actions
 
     private func editConfig(_ config: ProxyConfiguration) {
-        editingConfig = config
+        if let profile = viewModel.profileStore.profile(for: config.id) {
+            editingProfile = profile
+        } else {
+            editingConfig = config
+        }
     }
 
     private func duplicateConfig(_ config: ProxyConfiguration) {
-        let usedPorts = Set(viewModel.configurations.map(\.port))
-        var newPort = config.port + 1
-        while usedPorts.contains(newPort) && newPort < 65535 { newPort += 1 }
+        if let duplicated = viewModel.profileStore.duplicate(config.id) {
+            let newConfig = duplicated.metadata.proxy.toProxyConfiguration(metadata: duplicated.metadata)
+            viewModel.configurations.append(newConfig)
+            if newConfig.nodeType == .openaiProxy {
+                viewModel.statistics[newConfig.id] = .empty
+                viewModel.recentLogs[newConfig.id] = []
+            }
+            viewModel.flushLogsRefresh()
+        } else {
+            let usedPorts = Set(viewModel.configurations.map(\.port))
+            var newPort = config.port + 1
+            while usedPorts.contains(newPort) && newPort < 65535 { newPort += 1 }
 
-        let copy = ProxyConfiguration(
-            name: config.name + " " + L("(Copy)", "(副本)"),
-            nodeType: config.nodeType,
-            anthropicBaseURL: config.anthropicBaseURL,
-            anthropicAPIKey: config.anthropicAPIKey,
-            usePassthroughProxy: config.usePassthroughProxy,
-            host: config.host,
-            port: newPort,
-            allowLAN: config.allowLAN,
-            upstreamBaseURL: config.upstreamBaseURL,
-            openAIUpstreamAPI: config.openAIUpstreamAPI,
-            upstreamAPIKey: config.upstreamAPIKey,
-            expectedClientKey: config.expectedClientKey,
-            defaultModel: config.defaultModel,
-            modelMapping: config.modelMapping,
-            maxOutputTokens: config.maxOutputTokens
-        )
-        viewModel.addConfiguration(copy)
+            let copy = ProxyConfiguration(
+                name: config.name + " " + L("(Copy)", "(副本)"),
+                nodeType: config.nodeType,
+                anthropicBaseURL: config.anthropicBaseURL,
+                anthropicAPIKey: config.anthropicAPIKey,
+                usePassthroughProxy: config.usePassthroughProxy,
+                host: config.host,
+                port: newPort,
+                allowLAN: config.allowLAN,
+                upstreamBaseURL: config.upstreamBaseURL,
+                openAIUpstreamAPI: config.openAIUpstreamAPI,
+                upstreamAPIKey: config.upstreamAPIKey,
+                expectedClientKey: config.expectedClientKey,
+                defaultModel: config.defaultModel,
+                modelMapping: config.modelMapping,
+                maxOutputTokens: config.maxOutputTokens
+            )
+            viewModel.addConfiguration(copy)
+        }
     }
 
     private func deleteConfig(_ config: ProxyConfiguration) async {

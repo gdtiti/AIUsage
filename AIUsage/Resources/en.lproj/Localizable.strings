@@ -1302,3 +1302,32 @@
 
 /* Views/ProvidersView.swift */
 "providers.search.placeholder" = "Search accounts...";
+
+/* Views/ProxyConfigEditorView.swift - Tab labels */
+"Proxy" = "Proxy";
+"Settings" = "Settings";
+"JSON" = "JSON";
+"Import Profiles..." = "Import Profiles...";
+"Export All..." = "Export All...";
+"Import Result" = "Import Result";
+"Export Profiles" = "Export Profiles";
+"Select All" = "Select All";
+"Deselect All" = "Deselect All";
+"Export..." = "Export...";
+"Export Here" = "Export Here";
+
+/* Views/SettingsVisualEditorView.swift */
+"General" = "General";
+"Environment Variables" = "Environment Variables";
+"Permissions" = "Permissions";
+"Hooks" = "Hooks";
+"Advanced" = "Advanced";
+"Add Variable" = "Add Variable";
+"Variable name" = "Variable name";
+"Allow Rules" = "Allow Rules";
+"Deny Rules" = "Deny Rules";
+"Additional Directories" = "Additional Directories";
+
+/* Views/JSONRawEditorView.swift */
+"Format" = "Format";
+"Validate" = "Validate";

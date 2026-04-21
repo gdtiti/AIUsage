@@ -13,14 +13,12 @@ struct DashboardView: View {
                     errorView(error)
                 } else if let overview = refreshCoordinator.overview {
                     overviewSection(overview)
+                    if !costTrackingProviders.isEmpty {
+                        ClaudeCodeUsageHeatmap(providers: costTrackingProviders)
+                    }
+                    unifiedStatsSection
                     if !serviceProviders.isEmpty {
                         providersGrid(serviceProviders)
-                    }
-                    if !costTrackingProviders.isEmpty {
-                        costTrackingGrid(costTrackingProviders)
-                    }
-                    if !proxyVM.configurations.isEmpty {
-                        proxyStatsSection
                     }
                 } else {
                     emptyView
@@ -100,7 +98,6 @@ struct DashboardView: View {
     }
 
     private func overviewCards(for overview: DashboardOverview) -> [DashboardSummaryCard] {
-        let watchCount = max(0, overview.attentionProviders - overview.criticalProviders)
         let servicesNote: String
         if selectedOfficialProviderCount > 0 {
             servicesNote = L(
@@ -131,26 +128,6 @@ struct DashboardView: View {
             ) + " · " + L(
                 "\(formatInt(overview.localWeekTokens)) tokens logged",
                 "本周记录 \(formatInt(overview.localWeekTokens)) 个 tokens"
-            )
-        }
-
-        let statusNote: String
-        if overview.attentionProviders == 0 {
-            statusNote = L("Everything is within a healthy range", "目前都在正常范围内")
-        } else if overview.criticalProviders > 0 && watchCount > 0 {
-            statusNote = L(
-                "\(overview.criticalProviders) critical, \(watchCount) getting tight",
-                "\(overview.criticalProviders) 个告急，\(watchCount) 个余额偏低"
-            )
-        } else if overview.criticalProviders > 0 {
-            statusNote = L(
-                "\(overview.criticalProviders) critical right now",
-                "当前有 \(overview.criticalProviders) 个告急"
-            )
-        } else {
-            statusNote = L(
-                "\(watchCount) windows are getting tight",
-                "当前有 \(watchCount) 个额度偏低"
             )
         }
 
@@ -195,14 +172,7 @@ struct DashboardView: View {
                     icon: "server.rack",
                     color: .teal
                 )
-            }(),
-            DashboardSummaryCard(
-                title: L("Status Alerts", "状态提醒", key: "dashboard.summary.status_alerts"),
-                value: formatInt(overview.attentionProviders),
-                note: statusNote,
-                icon: "bell.badge.fill",
-                color: overview.criticalProviders > 0 ? .red : .orange
-            )
+            }()
         ]
     }
 
@@ -245,83 +215,31 @@ struct DashboardView: View {
         }
     }
 
-    private var proxyStatsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text(L("Proxy Stats", "代理统计"))
-                    .font(.title2)
-                    .bold()
-                Spacer()
-                Button {
-                    appState.selectedSection = .proxyStats
-                } label: {
-                    Text(L("View Details", "查看详情"))
-                        .font(.caption.weight(.medium))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
-            }
-
-            let stats = proxyVM.overallStats(nodeFilter: nil, modelFilter: nil)
-            let models = proxyVM.modelAggregates(nodeFilter: nil, modelFilter: nil)
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
-                proxyMiniCard(title: L("Cost", "费用"), value: AIUsage.formatCurrency(stats.cost), icon: "dollarsign.circle.fill", tint: .orange)
-                proxyMiniCard(title: "Tokens", value: formatCompactNumber(Double(stats.tokens)), icon: "bolt.fill", tint: .purple)
-                proxyMiniCard(title: L("Requests", "请求"), value: "\(stats.requests)", icon: "arrow.up.arrow.down", tint: .blue)
-                proxyMiniCard(title: L("Success", "成功率"), value: String(format: "%.0f%%", stats.successRate), icon: "checkmark.seal.fill", tint: .green)
-            }
-
-            if !models.isEmpty {
-                HStack(spacing: 6) {
-                    ForEach(models.prefix(4)) { m in
-                        HStack(spacing: 4) {
-                            Circle().fill(Color.blue.opacity(0.6)).frame(width: 6, height: 6)
-                            Text(m.model).font(.caption2).lineLimit(1)
-                            Text(AIUsage.formatCurrency(m.cost)).font(.caption2.weight(.medium).monospacedDigit())
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.primary.opacity(0.04)))
+    @ViewBuilder
+    private var unifiedStatsSection: some View {
+        let showCC = !costTrackingProviders.isEmpty
+        let showProxy = !proxyVM.configurations.isEmpty
+        if showCC || showProxy {
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
+                spacing: 16
+            ) {
+                if showCC {
+                    ClaudeCodeAggregateCard(providers: costTrackingProviders) {
+                        appState.selectedSection = .costTracking
                     }
-                    Spacer()
+                }
+                if showProxy {
+                    ProxyStatsAggregateCard(proxyVM: proxyVM) {
+                        appState.selectedSection = .proxyStats
+                    }
                 }
             }
         }
     }
 
-    private func proxyMiniCard(title: String, value: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(tint)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
-                Text(value).font(.system(size: 14, weight: .bold, design: .rounded))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.05)))
-    }
-
-    private func costTrackingGrid(_ providers: [ProviderData]) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(L("Claude Code Stats", "Claude Code 统计"))
-                .font(.title2)
-                .bold()
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 16)], spacing: 16) {
-                ForEach(providers) { provider in
-                    CostTrackingCard(provider: provider)
-                }
-            }
-        }
-    }
-    
     // MARK: - State Views
-    
+
     private var loadingView: some View {
         VStack(spacing: 20) {
             SmallProgressView()
@@ -441,6 +359,196 @@ private struct StatCard: View {
         .background(stat.color.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(stat.color.opacity(0.2), lineWidth: 1))
+    }
+}
+
+// MARK: - Aggregate Stats Cards (Claude Code / Proxy)
+
+private struct AggregateStatsCard<Footer: View>: View {
+    let tint: Color
+    let icon: String
+    let title: String
+    let subtitle: String
+    let primaryValue: String
+    let primaryLabel: String
+    let metrics: [(title: String, value: String)]
+    let onTap: () -> Void
+    @ViewBuilder let footer: () -> Footer
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(tint.opacity(colorScheme == .dark ? 0.20 : 0.12))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: icon)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(.headline.weight(.bold))
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.forward.square")
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(primaryValue)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text(primaryLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                ForEach(Array(metrics.enumerated()), id: \.offset) { _, metric in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(metric.title)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(metric.value)
+                            .font(.caption.weight(.bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(tint.opacity(colorScheme == .dark ? 0.14 : 0.09))
+                    )
+                }
+            }
+
+            footer()
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 22)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22)
+                .stroke(tint.opacity(colorScheme == .dark ? 0.24 : 0.14), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 22))
+        .onTapGesture { onTap() }
+    }
+}
+
+private struct ClaudeCodeAggregateCard: View {
+    let providers: [ProviderData]
+    let onTap: () -> Void
+
+    private var monthUsd: Double { providers.reduce(0) { $0 + ($1.costSummary?.month?.usd ?? 0) } }
+    private var todayUsd: Double { providers.reduce(0) { $0 + ($1.costSummary?.today?.usd ?? 0) } }
+    private var weekUsd: Double { providers.reduce(0) { $0 + ($1.costSummary?.week?.usd ?? 0) } }
+    private var monthTokens: Int { providers.reduce(0) { $0 + ($1.costSummary?.month?.tokens ?? 0) } }
+
+    var body: some View {
+        let top = providers
+            .sorted { ($0.costSummary?.month?.usd ?? 0) > ($1.costSummary?.month?.usd ?? 0) }
+            .prefix(3)
+
+        AggregateStatsCard(
+            tint: .orange,
+            icon: "chart.line.uptrend.xyaxis",
+            title: L("Claude Code Stats", "Claude Code 统计"),
+            subtitle: L("\(providers.count) accounts · monthly view",
+                        "\(providers.count) 个账号 · 本月视图"),
+            primaryValue: formatCurrency(monthUsd),
+            primaryLabel: L("This month", "本月费用"),
+            metrics: [
+                (L("Today", "今日"), formatCurrency(todayUsd)),
+                (L("Week", "本周"), formatCurrency(weekUsd)),
+                (L("Tokens", "Tokens"), formatCompactNumber(Double(monthTokens)))
+            ],
+            onTap: onTap,
+            footer: {
+                if top.isEmpty {
+                    EmptyView()
+                } else {
+                    HStack(spacing: 6) {
+                        ForEach(Array(top), id: \.id) { provider in
+                            HStack(spacing: 4) {
+                                Circle().fill(Color.orange.opacity(0.7)).frame(width: 6, height: 6)
+                                Text(provider.label).font(.caption2).lineLimit(1)
+                                Text(formatCurrency(provider.costSummary?.month?.usd ?? 0))
+                                    .font(.caption2.weight(.medium).monospacedDigit())
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Color.primary.opacity(0.05)))
+                        }
+                        Spacer()
+                    }
+                }
+            }
+        )
+    }
+
+    private func formatCurrency(_ value: Double) -> String {
+        AIUsage.formatCurrency(value)
+    }
+}
+
+private struct ProxyStatsAggregateCard: View {
+    let proxyVM: ProxyViewModel
+    let onTap: () -> Void
+
+    var body: some View {
+        let stats = proxyVM.overallStats(nodeFilter: nil, modelFilter: nil)
+        let models = proxyVM.modelAggregates(nodeFilter: nil, modelFilter: nil)
+        let range = proxyVM.dataDateRange(nodeFilter: nil, modelFilter: nil)
+        let nodeCount = proxyVM.configurations.count
+
+        AggregateStatsCard(
+            tint: .teal,
+            icon: "server.rack",
+            title: L("Proxy Stats", "代理统计"),
+            subtitle: L("\(nodeCount) nodes · \(range.days) days",
+                        "\(nodeCount) 个节点 · 近 \(range.days) 天"),
+            primaryValue: AIUsage.formatCurrency(stats.cost),
+            primaryLabel: L("Total cost", "累计费用"),
+            metrics: [
+                (L("Tokens", "Tokens"), formatCompactNumber(Double(stats.tokens))),
+                (L("Requests", "请求"), "\(stats.requests)"),
+                (L("Success", "成功率"), String(format: "%.0f%%", stats.successRate))
+            ],
+            onTap: onTap,
+            footer: {
+                if models.isEmpty {
+                    EmptyView()
+                } else {
+                    HStack(spacing: 6) {
+                        ForEach(Array(models.prefix(3))) { m in
+                            HStack(spacing: 4) {
+                                Circle().fill(Color.teal.opacity(0.7)).frame(width: 6, height: 6)
+                                Text(m.model).font(.caption2).lineLimit(1)
+                                Text(AIUsage.formatCurrency(m.cost))
+                                    .font(.caption2.weight(.medium).monospacedDigit())
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Color.primary.opacity(0.05)))
+                        }
+                        Spacer()
+                    }
+                }
+            }
+        )
     }
 }
 

@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C1NP00012F9C000100A15674 /* NodeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1NP00002F9C000100A15674 /* NodeProfile.swift */; };
+		C1NP00032F9C000200A15674 /* NodeProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1NP00022F9C000200A15674 /* NodeProfileStore.swift */; };
+		C1NP00052F9C000300A15674 /* JSONRawEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1NP00042F9C000300A15674 /* JSONRawEditorView.swift */; };
+		C1NP00072F9C000400A15674 /* SettingsVisualEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1NP00062F9C000400A15674 /* SettingsVisualEditorView.swift */; };
+		C1NP00092F9C000500A15674 /* ProfileExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1NP00082F9C000500A15674 /* ProfileExportView.swift */; };
 			5EF87F012F8D0E9E002FE291 /* ProxyConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F002F8D0E9E002FE291 /* ProxyConfiguration.swift */; };
 			5EF87F042F8D0ED3002FE291 /* ProxyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF87F022F8D0ED3002FE291 /* ProxyViewModel.swift */; };
 			A3F510012F97000100A15674 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A3F510042F97000100A15674 /* Localizable.strings */; };
@@ -40,6 +45,7 @@
 		5EFAD7702F87AFE700A15674 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5EFAD7422F87AC7100A15674 /* Assets.xcassets */; };
 		5EFAD7712F87AFE700A15674 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5EFAD7402F87AC7100A15674 /* Preview Assets.xcassets */; };
 		5EFAD7732F87AFE700A15674 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7472F87AC7100A15674 /* DashboardView.swift */; };
+		5EFHMP012F99002100A15674 /* DashboardView+Heatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFHMP002F99002100A15674 /* DashboardView+Heatmap.swift */; };
 		5EFAD7742F87AFE700A15674 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7442F87AC7100A15674 /* APIService.swift */; };
 		B1REFA012F97002000A15674 /* ProxyRuntimeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1REFA002F97002000A15674 /* ProxyRuntimeService.swift */; };
 		5EFAD7752F87AFE700A15674 /* ProviderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFAD7492F87AC7100A15674 /* ProviderCard.swift */; };
@@ -134,6 +140,7 @@
 		B1REFA002F97002000A15674 /* ProxyRuntimeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyRuntimeService.swift; sourceTree = "<group>"; };
 		5EFAD7462F87AC7100A15674 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5EFAD7472F87AC7100A15674 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		5EFHMP002F99002100A15674 /* DashboardView+Heatmap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardView+Heatmap.swift"; sourceTree = "<group>"; };
 		5EFAD7482F87AC7100A15674 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		5EFAD7492F87AC7100A15674 /* ProviderCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCard.swift; sourceTree = "<group>"; };
 		5EF0C0D12F95000100A15674 /* ProviderCard+MultiWindowQuota.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderCard+MultiWindowQuota.swift"; sourceTree = "<group>"; };
@@ -170,6 +177,11 @@
 		5EFAD78C2F87B10400A15674 /* SavedAccountViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedAccountViews.swift; sourceTree = "<group>"; };
 		5EFAD78E2F87B10500A15674 /* AccountNoteEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountNoteEditorView.swift; sourceTree = "<group>"; };
 		5EFAD7902F87B10600A15674 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
+		C1NP00002F9C000100A15674 /* NodeProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeProfile.swift; sourceTree = "<group>"; };
+		C1NP00022F9C000200A15674 /* NodeProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeProfileStore.swift; sourceTree = "<group>"; };
+		C1NP00042F9C000300A15674 /* JSONRawEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRawEditorView.swift; sourceTree = "<group>"; };
+		C1NP00062F9C000400A15674 /* SettingsVisualEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsVisualEditorView.swift; sourceTree = "<group>"; };
+		C1NP00082F9C000500A15674 /* ProfileExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileExportView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -189,6 +201,7 @@
 			isa = PBXGroup;
 			children = (
 				A2B3C4D12F96001000A15674 /* ClaudeSettingsManager.swift */,
+				C1NP00022F9C000200A15674 /* NodeProfileStore.swift */,
 				5EF87F022F8D0ED3002FE291 /* ProxyViewModel.swift */,
 				A2B3C4D32F96001000A15674 /* ProxyViewModel+LogManagement.swift */,
 				A2B3C4D52F96001000A15674 /* ProxyViewModel+ProxyServer.swift */,
@@ -222,6 +235,7 @@
 			isa = PBXGroup;
 			children = (
 				5EF87F002F8D0E9E002FE291 /* ProxyConfiguration.swift */,
+				C1NP00002F9C000100A15674 /* NodeProfile.swift */,
 				7EFAD0012F87AC7100A15674 /* AppSettings.swift */,
 				5EFAD73D2F87AC7100A15674 /* AppState.swift */,
 				A1ACCS012F92000000A15674 /* AccountStore.swift */,
@@ -287,6 +301,7 @@
 				F9DC4A1479C740ED996962FC /* ProxyStatsView.swift */,
 				5EFAD7462F87AC7100A15674 /* ContentView.swift */,
 				5EFAD7472F87AC7100A15674 /* DashboardView.swift */,
+				5EFHMP002F99002100A15674 /* DashboardView+Heatmap.swift */,
 				5EFAD7482F87AC7100A15674 /* MenuBarView.swift */,
 				B1C2D3E4F5A60002 /* StatusBarItemView.swift */,
 				5EFAD7492F87AC7100A15674 /* ProviderCard.swift */,
@@ -315,6 +330,9 @@
 				5EFAD78C2F87B10400A15674 /* SavedAccountViews.swift */,
 				5EFAD78E2F87B10500A15674 /* AccountNoteEditorView.swift */,
 				B1BAT0022F98000300A15674 /* BatchImportView.swift */,
+				C1NP00042F9C000300A15674 /* JSONRawEditorView.swift */,
+				C1NP00062F9C000400A15674 /* SettingsVisualEditorView.swift */,
+				C1NP00082F9C000500A15674 /* ProfileExportView.swift */,
 				5EFAD7902F87B10600A15674 /* Utilities.swift */,
 				5EFAD74B2F87AC7100A15674 /* SettingsView.swift */,
 				A2B3C4ED2F96001000A15674 /* SettingsView+Cards.swift */,
@@ -461,6 +479,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5EFAD7732F87AFE700A15674 /* DashboardView.swift in Sources */,
+				5EFHMP012F99002100A15674 /* DashboardView+Heatmap.swift in Sources */,
 				5EFAD7742F87AFE700A15674 /* APIService.swift in Sources */,
 				B1REFA012F97002000A15674 /* ProxyRuntimeService.swift in Sources */,
 				5EFAD7752F87AFE700A15674 /* ProviderCard.swift in Sources */,
@@ -479,6 +498,11 @@
 				5EFAD77B2F87AFE700A15674 /* MenuBarView.swift in Sources */,
 				B1C2D3E4F5A60001 /* StatusBarItemView.swift in Sources */,
 				5EF87F012F8D0E9E002FE291 /* ProxyConfiguration.swift in Sources */,
+				C1NP00012F9C000100A15674 /* NodeProfile.swift in Sources */,
+				C1NP00032F9C000200A15674 /* NodeProfileStore.swift in Sources */,
+				C1NP00052F9C000300A15674 /* JSONRawEditorView.swift in Sources */,
+				C1NP00072F9C000400A15674 /* SettingsVisualEditorView.swift in Sources */,
+				C1NP00092F9C000500A15674 /* ProfileExportView.swift in Sources */,
 				5EFAD77C2F87AFE700A15674 /* ProviderModels.swift in Sources */,
 				5EFAD77D2F87AFE700A15674 /* ProviderDetailView.swift in Sources */,
 				5EFAD77E2F87AFE700A15674 /* ProviderIconView.swift in Sources */,
@@ -677,7 +701,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.33;
+				MARKETING_VERSION = 0.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -709,7 +733,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.33;
+				MARKETING_VERSION = 0.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

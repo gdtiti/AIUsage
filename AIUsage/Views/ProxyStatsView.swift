@@ -157,7 +157,7 @@ struct ProxyStatsView: View {
         let s = stats
         let range = dateRange
         return VStack(spacing: 8) {
-            HStack(spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], spacing: 12) {
                 summaryCell(icon: "dollarsign.circle.fill",
                             title: L("Cost (\(range.days)d)", "费用（\(range.days)天）"),
                             value: formatCurrency(s.cost), tint: .orange)

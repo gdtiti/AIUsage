@@ -152,6 +152,17 @@ extension SettingsView {
 
             Divider()
 
+            settingsToggleRow(
+                title: L("Auto-start last proxy on launch", "启动时自动恢复上次代理"),
+                subtitle: L(
+                    "If enabled, AIUsage re-activates the last-used Claude Code proxy when the app launches.",
+                    "开启后，启动 AIUsage 时会自动激活上次使用的 Claude Code 代理。"
+                ),
+                isOn: $settings.proxyAutoRestoreOnLaunch
+            )
+
+            Divider()
+
             settingsBlock(
                 title: L("Proxy Log Retention", "代理日志保留"),
                 subtitle: L("Automatically delete proxy request logs older than the specified number of days.", "自动删除超过指定天数的代理请求日志。")

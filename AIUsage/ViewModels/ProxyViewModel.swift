@@ -148,34 +148,36 @@ class ProxyViewModel: ObservableObject {
         _upstreamModelsCache.removeAll()
     }
 
+    // MARK: - Profile Store Bridge
+
+    /// Reference to the file-based profile store (injected or shared singleton).
+    var profileStore: NodeProfileStore { NodeProfileStore.shared }
+
     // MARK: - Configuration Management
 
     func loadConfigurations() {
-        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.proxyConfigurations) else {
-            return
-        }
-
-        do {
-            configurations = try JSONDecoder().decode([ProxyConfiguration].self, from: data)
-        } catch {
-            logPersistenceError("load proxy configurations", error: error)
-        }
+        configurations = profileStore.profiles.map { $0.metadata.proxy.toProxyConfiguration(metadata: $0.metadata) }
     }
 
     @discardableResult
     func saveConfigurations() -> Bool {
-        do {
-            let data = try JSONEncoder().encode(configurations)
-            UserDefaults.standard.set(data, forKey: DefaultsKey.proxyConfigurations)
-            return true
-        } catch {
-            logPersistenceError("save proxy configurations", error: error)
-            return false
-        }
+        return true
+    }
+
+    /// Persist a single profile to its JSON file via the store.
+    @discardableResult
+    func saveProfile(_ profile: NodeProfile) -> Bool {
+        profileStore.save(profile)
     }
 
     func saveActivatedId() {
-        UserDefaults.standard.set(activatedConfigId, forKey: DefaultsKey.proxyActivatedConfigId)
+        if let id = activatedConfigId {
+            UserDefaults.standard.set(id, forKey: DefaultsKey.proxyActivatedConfigId)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.proxyActivatedConfigId)
+        }
+        profileStore.activatedProfileId = activatedConfigId
+        profileStore.saveActivatedId()
     }
 
     func moveConfiguration(fromId: String, toIndex: Int) {
@@ -185,19 +187,61 @@ class ProxyViewModel: ObservableObject {
         let item = configurations.remove(at: fromIndex)
         let insertAt = clampedTarget > fromIndex ? clampedTarget - 1 : clampedTarget
         configurations.insert(item, at: insertAt)
-        saveConfigurations()
+        profileStore.move(fromId: fromId, toIndex: toIndex)
     }
 
     func addConfiguration(_ config: ProxyConfiguration) {
+        let profile = NodeProfile.fromLegacyConfiguration(config)
+        profileStore.save(profile)
         configurations.append(config)
         if config.nodeType == .openaiProxy {
             statistics[config.id] = .empty
             recentLogs[config.id] = []
         }
-        saveConfigurations()
         saveStatistics()
         saveLogs()
         flushLogsRefresh()
+    }
+
+    func addProfile(_ profile: NodeProfile) {
+        profileStore.save(profile)
+        let config = profile.metadata.proxy.toProxyConfiguration(metadata: profile.metadata)
+        configurations.append(config)
+        if profile.metadata.nodeType == .openaiProxy {
+            statistics[profile.id] = .empty
+            recentLogs[profile.id] = []
+        }
+        saveStatistics()
+        saveLogs()
+        flushLogsRefresh()
+    }
+
+    func updateProfile(_ profile: NodeProfile) async {
+        let config = profile.metadata.proxy.toProxyConfiguration(metadata: profile.metadata)
+        profileStore.save(profile)
+
+        if let index = configurations.firstIndex(where: { $0.id == profile.id }) {
+            let wasActivated = activatedConfigId == profile.id
+            let busyIds: Set<String> = [profile.id]
+            setOperationInProgress(busyIds, isActive: true)
+            defer { setOperationInProgress(busyIds, isActive: false) }
+            if wasActivated {
+                do {
+                    try await performDeactivationTransaction(profile.id)
+                } catch {
+                    reportOperationError(error)
+                    return
+                }
+            }
+            configurations[index] = config
+            if wasActivated {
+                do {
+                    try await performActivationTransaction(profile.id)
+                } catch {
+                    reportOperationError(error)
+                }
+            }
+        }
     }
 
     func updateConfiguration(_ config: ProxyConfiguration) async {
@@ -215,7 +259,8 @@ class ProxyViewModel: ObservableObject {
                 }
             }
             configurations[index] = config
-            saveConfigurations()
+            let profile = NodeProfile.fromLegacyConfiguration(config)
+            profileStore.save(profile)
             if wasActivated {
                 do {
                     try await performActivationTransaction(config.id)
@@ -243,7 +288,7 @@ class ProxyViewModel: ObservableObject {
         configurations.removeAll { $0.id == id }
         statistics.removeValue(forKey: id)
         recentLogs.removeValue(forKey: id)
-        saveConfigurations()
+        profileStore.delete(id)
         saveStatistics()
         saveLogs()
         flushLogsRefresh()
@@ -398,13 +443,10 @@ class ProxyViewModel: ObservableObject {
             }
         }
 
-        guard saveConfigurations() else {
-            configurations = previousConfigurations
-            activatedConfigId = previousActivatedConfigId
-            if activeId == nil {
-                throw ProxyRuntimeError.deactivationStatePersistFailed
-            }
-            throw ProxyRuntimeError.activationStatePersistFailed
+        if let activeId, touchLastUsedAt, let now,
+           var profile = profileStore.profile(for: activeId) {
+            profile.metadata.lastUsedAt = now
+            profileStore.save(profile)
         }
 
         saveActivatedId()

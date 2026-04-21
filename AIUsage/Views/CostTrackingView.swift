@@ -40,7 +40,7 @@ struct CostTrackingView: View {
                 emptyState
             } else {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    LazyVStack(spacing: 16) {
                         summaryStrip
                         chartSection
                         insightPanels
@@ -60,7 +60,12 @@ struct CostTrackingView: View {
             ProviderDetailView(provider: provider)
         }
         .onPreferenceChange(CostTrackingContentWidthPreferenceKey.self) { newWidth in
-            contentWidth = newWidth
+            // Threshold avoids rebuilding the whole body on sub-pixel width jitter
+            // during scroll or expand/collapse. 8pt is well below the 1080pt
+            // breakpoint used by usesStackedInsightsLayout.
+            if abs(newWidth - contentWidth) > 8 {
+                contentWidth = newWidth
+            }
         }
     }
 

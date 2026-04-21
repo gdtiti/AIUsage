@@ -36,7 +36,7 @@ extension CostTrackingView {
 
     var summaryStrip: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], spacing: 12) {
                 summaryCell(
                     icon: "chart.bar.fill",
                     title: L("Overall", "总计"),

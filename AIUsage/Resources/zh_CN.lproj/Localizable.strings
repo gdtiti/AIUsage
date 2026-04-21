@@ -1302,3 +1302,32 @@
 
 /* Views/ProvidersView.swift */
 "providers.search.placeholder" = "搜索账号...";
+
+/* Views/ProxyConfigEditorView.swift - Tab labels */
+"Proxy" = "代理设置";
+"Settings" = "可视化配置";
+"JSON" = "JSON 编辑";
+"Import Profiles..." = "导入配置...";
+"Export All..." = "导出全部...";
+"Import Result" = "导入结果";
+"Export Profiles" = "导出配置";
+"Select All" = "全选";
+"Deselect All" = "取消全选";
+"Export..." = "导出...";
+"Export Here" = "导出到此处";
+
+/* Views/SettingsVisualEditorView.swift */
+"General" = "通用";
+"Environment Variables" = "环境变量";
+"Permissions" = "权限";
+"Hooks" = "钩子";
+"Advanced" = "高级";
+"Add Variable" = "添加变量";
+"Variable name" = "变量名";
+"Allow Rules" = "允许规则";
+"Deny Rules" = "拒绝规则";
+"Additional Directories" = "附加目录";
+
+/* Views/JSONRawEditorView.swift */
+"Format" = "格式化";
+"Validate" = "校验";

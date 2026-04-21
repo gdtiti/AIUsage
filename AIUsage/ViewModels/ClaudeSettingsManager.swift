@@ -36,6 +36,11 @@ class ClaudeSettingsManager {
         return (home as NSString).appendingPathComponent(".claude/settings.json")
     }
 
+    private var backupPath: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return (home as NSString).appendingPathComponent(".claude/settings.backup.json")
+    }
+
     func readSettings() throws -> [String: Any] {
         guard let data = FileManager.default.contents(atPath: settingsPath) else {
             return [:]
@@ -73,6 +78,7 @@ class ClaudeSettingsManager {
         var haikuModel: String?
     }
 
+    /// Legacy partial write: only updates managed env keys + model (kept for backward compat).
     func writeEnv(_ config: EnvConfig) throws {
         var settings = try readSettings()
         var env = settings["env"] as? [String: Any] ?? [:]
@@ -103,6 +109,13 @@ class ClaudeSettingsManager {
         try writeSettings(settings)
     }
 
+    /// Full replacement write: backs up current file, then writes the entire settings dict.
+    func writeFullSettings(_ settings: [String: Any]) throws {
+        backupCurrentSettings()
+        try writeSettings(settings)
+        claudeSettingsLog.info("Full settings.json replacement written successfully")
+    }
+
     func clearEnv() throws {
         var settings = try readSettings()
         var env = settings["env"] as? [String: Any] ?? [:]
@@ -112,6 +125,36 @@ class ClaudeSettingsManager {
         settings["env"] = env
         settings.removeValue(forKey: "model")
         try writeSettings(settings)
+    }
+
+    /// Restore settings.json from the backup created before the last full write.
+    func restoreFromBackup() throws {
+        guard let data = FileManager.default.contents(atPath: backupPath) else {
+            claudeSettingsLog.info("No backup file to restore from, clearing managed keys instead")
+            try clearEnv()
+            return
+        }
+        do {
+            try data.write(to: URL(fileURLWithPath: settingsPath), options: .atomic)
+            claudeSettingsLog.info("Restored settings.json from backup")
+        } catch {
+            claudeSettingsLog.error("Failed to restore settings.json from backup: \(String(describing: error), privacy: .public)")
+            try clearEnv()
+        }
+    }
+
+    // MARK: - Internal
+
+    private func backupCurrentSettings() {
+        guard FileManager.default.fileExists(atPath: settingsPath) else { return }
+        do {
+            if FileManager.default.fileExists(atPath: backupPath) {
+                try FileManager.default.removeItem(atPath: backupPath)
+            }
+            try FileManager.default.copyItem(atPath: settingsPath, toPath: backupPath)
+        } catch {
+            claudeSettingsLog.error("Failed to backup settings.json: \(String(describing: error), privacy: .public)")
+        }
     }
 
     private func writeSettings(_ settings: [String: Any]) throws {

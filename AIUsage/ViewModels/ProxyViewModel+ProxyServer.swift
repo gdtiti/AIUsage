@@ -11,7 +11,14 @@ extension ProxyViewModel {
     }
 
     private func restoreActivatedNodeAsync() async {
-        activatedConfigId = UserDefaults.standard.string(forKey: DefaultsKey.proxyActivatedConfigId)
+        let shouldAutoRestore = AppSettings.shared.proxyAutoRestoreOnLaunch
+
+        // When auto-restore is disabled, ignore the stored last-activated id on launch but
+        // leave DefaultsKey.proxyActivatedConfigId untouched so the user can flip the setting
+        // back on later and pick up where they left off.
+        activatedConfigId = shouldAutoRestore
+            ? UserDefaults.standard.string(forKey: DefaultsKey.proxyActivatedConfigId)
+            : nil
 
         if activatedConfigId == nil {
             var migrated = false
@@ -83,17 +90,31 @@ extension ProxyViewModel {
     }
 
     func activateRuntime(for config: ProxyConfiguration) async throws {
-        try await runtimeService.activateRuntime(
-            for: config,
-            envConfig: envConfig(for: config)
-        )
+        if let profile = profileStore.profile(for: config.id) {
+            try await runtimeService.activateRuntime(
+                for: config,
+                settings: profile.settings
+            )
+        } else {
+            try await runtimeService.activateRuntime(
+                for: config,
+                envConfig: envConfig(for: config)
+            )
+        }
     }
 
     func deactivateRuntime(for config: ProxyConfiguration) async throws {
-        try await runtimeService.deactivateRuntime(
-            for: config,
-            envConfig: envConfig(for: config)
-        )
+        if let profile = profileStore.profile(for: config.id) {
+            try await runtimeService.deactivateRuntime(
+                for: config,
+                settings: profile.settings
+            )
+        } else {
+            try await runtimeService.deactivateRuntime(
+                for: config,
+                envConfig: envConfig(for: config)
+            )
+        }
     }
 
     func isProxyRunning(_ configId: String) -> Bool {

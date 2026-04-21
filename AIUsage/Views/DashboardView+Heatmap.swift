@@ -128,6 +128,7 @@ struct ClaudeCodeUsageHeatmap: View {
                 emptyState
             } else {
                 gridSection
+                    .zIndex(1)
                 footer
             }
         }

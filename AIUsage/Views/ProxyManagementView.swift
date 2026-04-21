@@ -26,6 +26,7 @@ struct ProxyManagementView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 16) {
+                        actionBar
                         summaryStrip
                         configurationsList
                     }
@@ -34,35 +35,6 @@ struct ProxyManagementView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                HStack(spacing: 8) {
-                    Menu {
-                        Button {
-                            showingImporter = true
-                        } label: {
-                            Label(L("Import Profiles...", "导入配置..."), systemImage: "square.and.arrow.down")
-                        }
-                        Button {
-                            exportSelectedIds = Set(viewModel.configurations.map(\.id))
-                            showingExporter = true
-                        } label: {
-                            Label(L("Export All...", "导出全部..."), systemImage: "square.and.arrow.up")
-                        }
-                        .disabled(viewModel.configurations.isEmpty)
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-
-                    Button(action: { showingNewConfigEditor = true }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "plus.circle.fill")
-                            Text(L("New Node", "新建节点"))
-                        }
-                    }
-                }
-            }
-        }
         .fileImporter(
             isPresented: $showingImporter,
             allowedContentTypes: [.json, .folder],
@@ -159,6 +131,77 @@ struct ProxyManagementView: View {
                 )
             )
         }
+    }
+
+    // MARK: - Action Bar
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var actionBar: some View {
+        HStack(spacing: 10) {
+            Spacer()
+
+            actionBarButton(
+                title: L("Import", "导入"),
+                icon: "square.and.arrow.down",
+                tint: .secondary
+            ) {
+                showingImporter = true
+            }
+
+            actionBarButton(
+                title: L("Export", "导出"),
+                icon: "square.and.arrow.up",
+                tint: .secondary
+            ) {
+                exportSelectedIds = Set(viewModel.configurations.map(\.id))
+                showingExporter = true
+            }
+            .disabled(viewModel.configurations.isEmpty)
+
+            actionBarButton(
+                title: L("New Node", "新建节点"),
+                icon: "plus.circle.fill",
+                tint: .accentColor,
+                prominent: true
+            ) {
+                showingNewConfigEditor = true
+            }
+        }
+    }
+
+    private func actionBarButton(
+        title: String,
+        icon: String,
+        tint: Color,
+        prominent: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(prominent ? .white : tint)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule().fill(
+                    prominent
+                        ? AnyShapeStyle(Color.accentColor)
+                        : AnyShapeStyle(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05))
+                )
+            )
+            .overlay(
+                Capsule().stroke(
+                    prominent ? Color.clear : Color.primary.opacity(0.08),
+                    lineWidth: 0.5
+                )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Summary Strip
@@ -796,13 +839,27 @@ private struct ConfigurationCardView: View, Equatable {
         .contentShape(Rectangle())
         .onTapGesture(perform: onToggleSelection)
         .contextMenu {
+            Button {
+                onToggleActivation()
+            } label: {
+                Label(
+                    isActive ? L("Deactivate", "停用") : L("Activate", "激活"),
+                    systemImage: isActive ? "stop.circle" : "power.circle"
+                )
+            }
+            .disabled(isBusy)
+
+            Divider()
+
             Button { onEdit() } label: {
                 Label(L("Edit", "编辑"), systemImage: "pencil")
             }
             Button { onDuplicate() } label: {
                 Label(L("Duplicate", "复制节点"), systemImage: "doc.on.doc")
             }
+
             Divider()
+
             Button(role: .destructive) { onDelete() } label: {
                 Label(L("Delete", "删除"), systemImage: "trash")
             }

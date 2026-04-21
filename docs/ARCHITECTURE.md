@@ -14,7 +14,8 @@ AIUsage/
 │   ├── AppSettings.swift         # UserDefaults-backed preferences (ObservableObject)
 │   ├── AccountStore.swift        # Account registry & credential management
 │   ├── ProviderModels.swift      # App-side ProviderData, alerts, etc.
-│   └── ProxyConfiguration.swift  # Proxy node config model
+│   ├── ProxyConfiguration.swift  # Proxy node config model (legacy, kept for compat)
+│   └── NodeProfile.swift         # File-based node profile (_metadata + full settings.json)
 ├── Services/
 │   ├── APIService.swift          # HTTP client for remote QuotaServer
 │   ├── SecureAccountVault.swift  # Keychain read/write for account metadata
@@ -30,7 +31,9 @@ AIUsage/
 ├── ViewModels/
 │   ├── ProviderRefreshCoordinator.swift  # Refresh engine, timers, data pipeline
 │   ├── ProviderActivationManager.swift   # CLI active account detection
-│   └── ProxyViewModel.swift              # Proxy node lifecycle & process management
+│   ├── ProxyViewModel.swift              # Proxy node lifecycle & process management
+│   ├── NodeProfileStore.swift            # File-based profile CRUD (~/.config/aiusage/profiles/)
+│   └── ClaudeSettingsManager.swift       # ~/.claude/settings.json full write + backup/restore
 └── Views/
     ├── ContentView.swift           # NavigationSplitView shell
     ├── DashboardView.swift         # Main dashboard
@@ -38,7 +41,10 @@ AIUsage/
     ├── CostTrackingView.swift      # Claude Code cost charts
     ├── ProxyManagementView.swift   # Proxy node list
     ├── ProxyStatsView.swift        # Proxy usage statistics
-    ├── SettingsView.swift          # Preferences UI
+    ├── SettingsView.swift          # Preferences UI (sidebar navigation, 7 categories)
+    ├── JSONRawEditorView.swift     # Raw JSON editor for node profiles
+    ├── SettingsVisualEditorView.swift # Visual settings.json editor
+    ├── ProfileExportView.swift     # Batch profile export UI
     └── ...
 
 QuotaBackend/Sources/
@@ -138,12 +144,13 @@ sequenceDiagram
 
 1. User activates a proxy node in the UI
 2. `ProxyViewModel` executes transactional activation:
-   - Writes `~/.claude/settings.json` (via `ClaudeSettingsManager`)
+   - Loads full settings from `NodeProfileStore` profile (v0.5.0+) or legacy `ProxyConfiguration`
+   - Writes complete `~/.claude/settings.json` via `ClaudeSettingsManager.writeFullSettings()` (with automatic backup to `settings.backup.json`)
    - Spawns `QuotaServer` process (via `ProxyRuntimeService`)
    - Writes pricing override
    - Persists `activatedConfigId` only after all steps succeed
 3. Pipes stdout/stderr, parses `PROXY_LOG:` JSON lines for stats
-4. On deactivation: kills process, restores settings.json, rolls back state
+4. On deactivation: kills process, restores `settings.json` from backup, rolls back state
 
 **Proxy modes**:
 - **OpenAI Convert**: Claude API → Canonical Middle Layer → OpenAI `chat/completions` or `responses` → upstream
@@ -155,10 +162,12 @@ sequenceDiagram
 
 | Location | Content |
 |----------|---------|
-| **UserDefaults** | App preferences, selected providers, proxy configurations, stats |
+| **UserDefaults** | App preferences, selected providers, stats |
 | **Keychain** (`SecureAccountVault`) | Account registry metadata (emails, notes, IDs) |
 | **Keychain** (`AccountCredentialStore`) | Provider credentials (cookies, tokens, API keys) |
-| `~/.claude/settings.json` | Claude Code configuration (managed env vars + model) |
+| `~/.config/aiusage/profiles/*.json` | Node profile files (`_metadata` + full `settings.json` content) |
+| `~/.claude/settings.json` | Claude Code configuration (full replacement on activation) |
+| `~/.claude/settings.backup.json` | Backup of `settings.json` before activation |
 | `~/.config/aiusage/proxy-logs.json` | Proxy request logs (with day-based retention) |
 | `~/.config/aiusage/proxy-pricing.json` | Model pricing overrides |
 | `~/.config/claude/projects/**/*.jsonl` | Claude Code usage logs (read-only by ClaudeProvider) |
@@ -185,3 +194,19 @@ Single GitHub Actions workflow (`.github/workflows/release.yml`):
 - **Steps**: checkout → validate version consistency (Info.plist + project.pbxproj + tag) → SPM resolve → build release → sign with Sparkle → upload DMG/ZIP → publish GitHub Release → update appcast.xml
 
 **Version must match in three places**: `Info.plist` (CFBundleShortVersionString + CFBundleVersion), `project.pbxproj` (MARKETING_VERSION), and Git tag.
+
+## Settings UI Architecture (v0.5.1+)
+
+The `SettingsView` uses a **sidebar navigation + content area** two-column layout with 7 categories:
+
+| Category | Content |
+|----------|---------|
+| **General** | Language, theme, display currency, launch at login, hide dock icon |
+| **Data & Refresh** | Backend mode (local/remote), remote server config, provider/CC auto-refresh intervals |
+| **Menu Bar** | Quota account pinning, cost source pinning + per-source config |
+| **Card Appearance** | Quota card style (bar/ring/segments), progress meaning (remaining/used), preview |
+| **Proxy** | Auto-start proxy on launch, proxy log retention |
+| **Notifications** | Enable notifications, low quota alert threshold, Claude Code daily cost alert |
+| **About** | Version, automatic updates, check for updates, GitHub link |
+
+Menu bar display is hardcoded to `iconAndMetric` mode with `both` (quota% + cost) metric type. The settings sidebar navigation state is managed by a `SettingsCategory` enum.

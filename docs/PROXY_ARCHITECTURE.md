@@ -104,12 +104,16 @@ App 侧集成：
 
 ```
 AIUsage/
+├── Models/
+│   ├── ProxyConfiguration.swift               # 代理节点配置模型（旧格式，保留兼容）
+│   └── NodeProfile.swift                      # 文件化节点配置（_metadata + 完整 settings.json）
 ├── ViewModels/
-│   ├── ProxyViewModel.swift                   # UI 状态、激活事务、持久化
+│   ├── ProxyViewModel.swift                   # UI 状态、激活事务、桥接 NodeProfileStore
 │   ├── ProxyViewModel+ProxyServer.swift       # QuotaServer 进程管理桥接
 │   ├── ProxyViewModel+Aggregation.swift       # 代理统计聚合
 │   ├── ProxyViewModel+LogManagement.swift     # 日志管理
-│   └── ClaudeSettingsManager.swift            # ~/.claude/settings.json 读写
+│   ├── NodeProfileStore.swift                 # 文件存储层（~/.config/aiusage/profiles/）
+│   └── ClaudeSettingsManager.swift            # ~/.claude/settings.json 全量写入 + 备份/恢复
 └── Services/
     └── ProxyRuntimeService.swift              # 进程启停、端口清理、可执行文件发现
 ```
@@ -427,11 +431,20 @@ UI 状态管理和激活事务：
 
 1. 用户在 UI 选择一个代理节点并点击激活
 2. `ProxyViewModel` 执行事务式激活：
-   - 写入 `~/.claude/settings.json`（通过 `ClaudeSettingsManager`）
+   - 从 `NodeProfileStore` 加载 `NodeProfile`（v0.5.0+），获取完整 `settings.json` 内容
+   - 通过 `ClaudeSettingsManager.writeFullSettings()` 全量替换 `~/.claude/settings.json`（自动备份到 `settings.backup.json`）
    - 启动 `QuotaServer` 进程（通过 `ProxyRuntimeService`）
    - 写入 pricing override
    - 全部成功后才持久化 `activatedConfigId`
-3. 如果中途失败，回滚所有已完成的副作用
+3. 如果中途失败，回滚所有已完成的副作用（从备份恢复 `settings.json`）
+
+### NodeProfileStore
+
+文件化节点配置持久化层（v0.5.0+）：
+
+- 存储路径：`~/.config/aiusage/profiles/*.json`
+- 每个 JSON 文件包含 `_metadata`（节点名称、ID、代理配置）和完整的 `settings` 字典
+- 支持 CRUD、批量导入/导出、自动从旧版 UserDefaults 迁移
 
 ### ProxyRuntimeService
 
@@ -446,9 +459,9 @@ UI 状态管理和激活事务：
 
 管理 `~/.claude/settings.json` 的读写：
 
-- 写入代理端点 URL
-- 写入模型环境变量映射
-- 停用时清理相关配置项
+- `writeFullSettings(_:)` — 全量替换 `settings.json`（自动备份当前文件到 `settings.backup.json`）
+- `restoreFromBackup()` — 从备份恢复 `settings.json`（停用时调用）
+- 旧方法 `writeEnv()` / `clearEnv()` 保留用于向后兼容
 
 ---
 

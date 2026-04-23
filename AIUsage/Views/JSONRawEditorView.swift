@@ -152,7 +152,7 @@ private struct JSONTextEditor: NSViewRepresentable {
             context.coordinator.isUpdating = true
             textView.string = text
             context.coordinator.isUpdating = false
-            textView.setSelectedRange(NSRange(location: min(range.location, text.count), length: 0))
+            textView.setSelectedRange(NSRange(location: min(range.location, (text as NSString).length), length: 0))
             JSONSyntaxHighlighter.highlight(textView.textStorage!)
             DispatchQueue.main.async {
                 lineCount = text.components(separatedBy: "\n").count

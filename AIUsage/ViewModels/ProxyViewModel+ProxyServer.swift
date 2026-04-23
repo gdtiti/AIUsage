@@ -91,9 +91,18 @@ extension ProxyViewModel {
 
     func activateRuntime(for config: ProxyConfiguration) async throws {
         if let profile = profileStore.profile(for: config.id) {
+            let finalSettings: [String: Any]
+            if profileStore.globalConfig.enabled {
+                finalSettings = GlobalConfig.deepMerge(
+                    base: profileStore.globalConfig.settings,
+                    override: profile.settings
+                )
+            } else {
+                finalSettings = profile.settings
+            }
             try await runtimeService.activateRuntime(
                 for: config,
-                settings: profile.settings
+                settings: finalSettings
             )
         } else {
             try await runtimeService.activateRuntime(

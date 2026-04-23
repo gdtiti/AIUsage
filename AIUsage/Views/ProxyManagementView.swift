@@ -19,6 +19,7 @@ struct ProxyManagementView: View {
     @State private var importResult: NodeProfileStore.ImportResult?
     @State private var showImportResult = false
     @State private var exportSelectedIds: Set<String> = []
+    @State private var showingSettingsEditor = false
     var body: some View {
         VStack(spacing: 0) {
             if viewModel.configurations.isEmpty {
@@ -28,6 +29,7 @@ struct ProxyManagementView: View {
                     LazyVStack(spacing: 16) {
                         actionBar
                         summaryStrip
+                        GlobalConfigSection()
                         configurationsList
                     }
                     .padding(20)
@@ -66,10 +68,16 @@ struct ProxyManagementView: View {
         ) { _ in
             Button("OK") { importResult = nil }
         } message: { result in
+            let gcNote = result.importedGlobalConfig
+                ? "\n" + L("Global config imported.", "通用配置已导入。")
+                : ""
             Text(L(
                 "\(result.succeeded) imported, \(result.failed) failed, \(result.skipped) skipped",
                 "\(result.succeeded) 个导入成功，\(result.failed) 个失败，\(result.skipped) 个跳过"
-            ))
+            ) + gcNote)
+        }
+        .sheet(isPresented: $showingSettingsEditor) {
+            LocalSettingsEditorView()
         }
         .sheet(isPresented: $showingNewConfigEditor) {
             ProxyConfigEditorView()
@@ -140,6 +148,14 @@ struct ProxyManagementView: View {
     private var actionBar: some View {
         HStack(spacing: 10) {
             Spacer()
+
+            actionBarButton(
+                title: L("settings.json", "settings.json"),
+                icon: "doc.text.fill",
+                tint: .secondary
+            ) {
+                showingSettingsEditor = true
+            }
 
             actionBarButton(
                 title: L("Import", "导入"),

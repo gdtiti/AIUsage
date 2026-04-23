@@ -74,6 +74,21 @@ struct ProfileExportView: View {
                 .padding(20)
             }
 
+            if !viewModel.profileStore.globalConfig.settings.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "gearshape.2.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text(L("Global config will be included in export.",
+                           "通用配置将一并导出。"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 6)
+            }
+
             if let exportError {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)

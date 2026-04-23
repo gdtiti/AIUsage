@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C1GC00012FA0000100B26789 /* GlobalConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1GC00002FA0000100B26789 /* GlobalConfig.swift */; };
+		C1GC00032FA0000200B26789 /* GlobalConfigSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1GC00022FA0000200B26789 /* GlobalConfigSection.swift */; };
+		C1GC00052FA0000300B26789 /* LocalSettingsEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1GC00042FA0000300B26789 /* LocalSettingsEditorView.swift */; };
 		C1NP00012F9C000100A15674 /* NodeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1NP00002F9C000100A15674 /* NodeProfile.swift */; };
 		C1NP00032F9C000200A15674 /* NodeProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1NP00022F9C000200A15674 /* NodeProfileStore.swift */; };
 		C1NP00052F9C000300A15674 /* JSONRawEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1NP00042F9C000300A15674 /* JSONRawEditorView.swift */; };
@@ -177,6 +180,9 @@
 		5EFAD78C2F87B10400A15674 /* SavedAccountViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedAccountViews.swift; sourceTree = "<group>"; };
 		5EFAD78E2F87B10500A15674 /* AccountNoteEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountNoteEditorView.swift; sourceTree = "<group>"; };
 		5EFAD7902F87B10600A15674 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
+		C1GC00002FA0000100B26789 /* GlobalConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalConfig.swift; sourceTree = "<group>"; };
+		C1GC00022FA0000200B26789 /* GlobalConfigSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalConfigSection.swift; sourceTree = "<group>"; };
+		C1GC00042FA0000300B26789 /* LocalSettingsEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSettingsEditorView.swift; sourceTree = "<group>"; };
 		C1NP00002F9C000100A15674 /* NodeProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeProfile.swift; sourceTree = "<group>"; };
 		C1NP00022F9C000200A15674 /* NodeProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeProfileStore.swift; sourceTree = "<group>"; };
 		C1NP00042F9C000300A15674 /* JSONRawEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRawEditorView.swift; sourceTree = "<group>"; };
@@ -235,6 +241,7 @@
 			isa = PBXGroup;
 			children = (
 				5EF87F002F8D0E9E002FE291 /* ProxyConfiguration.swift */,
+				C1GC00002FA0000100B26789 /* GlobalConfig.swift */,
 				C1NP00002F9C000100A15674 /* NodeProfile.swift */,
 				7EFAD0012F87AC7100A15674 /* AppSettings.swift */,
 				5EFAD73D2F87AC7100A15674 /* AppState.swift */,
@@ -330,6 +337,8 @@
 				5EFAD78C2F87B10400A15674 /* SavedAccountViews.swift */,
 				5EFAD78E2F87B10500A15674 /* AccountNoteEditorView.swift */,
 				B1BAT0022F98000300A15674 /* BatchImportView.swift */,
+				C1GC00022FA0000200B26789 /* GlobalConfigSection.swift */,
+				C1GC00042FA0000300B26789 /* LocalSettingsEditorView.swift */,
 				C1NP00042F9C000300A15674 /* JSONRawEditorView.swift */,
 				C1NP00062F9C000400A15674 /* SettingsVisualEditorView.swift */,
 				C1NP00082F9C000500A15674 /* ProfileExportView.swift */,
@@ -498,6 +507,9 @@
 				5EFAD77B2F87AFE700A15674 /* MenuBarView.swift in Sources */,
 				B1C2D3E4F5A60001 /* StatusBarItemView.swift in Sources */,
 				5EF87F012F8D0E9E002FE291 /* ProxyConfiguration.swift in Sources */,
+				C1GC00012FA0000100B26789 /* GlobalConfig.swift in Sources */,
+				C1GC00032FA0000200B26789 /* GlobalConfigSection.swift in Sources */,
+				C1GC00052FA0000300B26789 /* LocalSettingsEditorView.swift in Sources */,
 				C1NP00012F9C000100A15674 /* NodeProfile.swift in Sources */,
 				C1NP00032F9C000200A15674 /* NodeProfileStore.swift in Sources */,
 				C1NP00052F9C000300A15674 /* JSONRawEditorView.swift in Sources */,
@@ -701,7 +713,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.5.5;
+				MARKETING_VERSION = 0.5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -733,7 +745,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.5.5;
+				MARKETING_VERSION = 0.5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aiusage.desktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

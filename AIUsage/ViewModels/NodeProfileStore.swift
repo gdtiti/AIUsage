@@ -16,6 +16,7 @@ class NodeProfileStore: ObservableObject {
 
     @Published var profiles: [NodeProfile] = []
     @Published var activatedProfileId: String?
+    @Published var globalConfig: GlobalConfig = .empty
 
     private let fileManager = FileManager.default
 
@@ -24,12 +25,18 @@ class NodeProfileStore: ObservableObject {
         return (home as NSString).appendingPathComponent(".config/aiusage/profiles")
     }
 
+    static var globalConfigPath: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return (home as NSString).appendingPathComponent(".config/aiusage/global-config.json")
+    }
+
     // MARK: - Lifecycle
 
     init() {
         ensureDirectoryExists()
         migrateFromUserDefaultsIfNeeded()
         loadAll()
+        loadGlobalConfig()
         restoreActivatedId()
     }
 
@@ -153,8 +160,11 @@ class NodeProfileStore: ObservableObject {
         var succeeded: Int = 0
         var failed: Int = 0
         var skipped: Int = 0
+        var importedGlobalConfig = false
         var errors: [String] = []
     }
+
+    private static let globalConfigFileName = "global-config.json"
 
     func importProfiles(from urls: [URL]) -> ImportResult {
         var result = ImportResult()
@@ -174,6 +184,16 @@ class NodeProfileStore: ObservableObject {
         }
 
         for fileURL in filesToImport {
+            if fileURL.lastPathComponent == Self.globalConfigFileName {
+                if let data = try? Data(contentsOf: fileURL),
+                   let imported = try? GlobalConfig.fromFileData(data) {
+                    globalConfig = imported
+                    saveGlobalConfig()
+                    result.importedGlobalConfig = true
+                }
+                continue
+            }
+
             guard let data = try? Data(contentsOf: fileURL) else {
                 result.failed += 1
                 result.errors.append("\(fileURL.lastPathComponent): unreadable")
@@ -216,6 +236,13 @@ class NodeProfileStore: ObservableObject {
             try data.write(to: fileURL, options: .atomic)
             exported += 1
         }
+
+        if !globalConfig.settings.isEmpty {
+            let gcData = try globalConfig.toFileData()
+            let gcURL = directory.appendingPathComponent(Self.globalConfigFileName)
+            try gcData.write(to: gcURL, options: .atomic)
+        }
+
         return exported
     }
 
@@ -241,6 +268,38 @@ class NodeProfileStore: ObservableObject {
             storeLog.info("Migration completed: \(configs.count, privacy: .public) profiles migrated")
         } catch {
             storeLog.error("Migration failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    // MARK: - Global Config
+
+    func loadGlobalConfig() {
+        let path = Self.globalConfigPath
+        guard let data = fileManager.contents(atPath: path) else {
+            globalConfig = .empty
+            return
+        }
+        do {
+            globalConfig = try GlobalConfig.fromFileData(data)
+        } catch {
+            storeLog.error("Failed to load global config: \(String(describing: error), privacy: .public)")
+            globalConfig = .empty
+        }
+    }
+
+    @discardableResult
+    func saveGlobalConfig(_ config: GlobalConfig? = nil) -> Bool {
+        if let config { globalConfig = config }
+        let path = Self.globalConfigPath
+        do {
+            let data = try globalConfig.toFileData()
+            let dir = (path as NSString).deletingLastPathComponent
+            try fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            return true
+        } catch {
+            storeLog.error("Failed to save global config: \(String(describing: error), privacy: .public)")
+            return false
         }
     }
 

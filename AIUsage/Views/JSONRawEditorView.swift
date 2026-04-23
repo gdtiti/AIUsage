@@ -10,6 +10,7 @@ struct JSONRawEditorView: View {
     @Binding var jsonText: String
     @Binding var error: String?
     @State private var lineCount: Int = 1
+    @State private var showValidationSuccess = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,6 +46,16 @@ struct JSONRawEditorView: View {
                     .font(.caption.weight(.medium))
                 }
                 .buttonStyle(.borderless)
+
+                if showValidationSuccess {
+                    HStack(spacing: 3) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text(L("Valid JSON", "JSON 有效"))
+                    }
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.green)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -71,6 +82,7 @@ struct JSONRawEditorView: View {
     }
 
     private func formatJSON() {
+        showValidationSuccess = false
         guard let data = jsonText.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data),
               let formatted = try? JSONSerialization.data(
@@ -88,17 +100,24 @@ struct JSONRawEditorView: View {
     private func validateJSON() {
         guard let data = jsonText.data(using: .utf8) else {
             error = L("Invalid encoding", "编码无效")
+            showValidationSuccess = false
             return
         }
         do {
             let obj = try JSONSerialization.jsonObject(with: data)
             guard obj is [String: Any] else {
                 error = L("Root must be a JSON object", "根节点必须是 JSON 对象")
+                showValidationSuccess = false
                 return
             }
             error = nil
+            withAnimation(.easeInOut(duration: 0.25)) { showValidationSuccess = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                withAnimation(.easeOut(duration: 0.3)) { showValidationSuccess = false }
+            }
         } catch {
             self.error = error.localizedDescription
+            showValidationSuccess = false
         }
     }
 }

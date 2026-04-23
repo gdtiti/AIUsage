@@ -168,6 +168,24 @@ struct NodeProfile: Identifiable, Equatable {
 
     // MARK: - Sync helpers
 
+    /// Reverse-syncs model names from the settings dictionary into metadata.proxy.
+    /// Called after applying JSON edits so that metadata stays consistent with settings content.
+    mutating func syncProxyFromSettings() {
+        if let model = settings["model"] as? String, !model.isEmpty {
+            metadata.proxy.defaultModel = model
+        }
+        guard let env = settings["env"] as? [String: Any] else { return }
+        if let opus = env["ANTHROPIC_DEFAULT_OPUS_MODEL"] as? String, !opus.isEmpty {
+            metadata.proxy.modelMapping.bigModel.name = opus
+        }
+        if let sonnet = env["ANTHROPIC_DEFAULT_SONNET_MODEL"] as? String, !sonnet.isEmpty {
+            metadata.proxy.modelMapping.middleModel.name = sonnet
+        }
+        if let haiku = env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] as? String, !haiku.isEmpty {
+            metadata.proxy.modelMapping.smallModel.name = haiku
+        }
+    }
+
     /// Rebuilds the `env` keys managed by the proxy from the current proxy settings,
     /// preserving any user-added env keys.
     mutating func syncEnvFromProxy() {

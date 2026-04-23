@@ -208,6 +208,29 @@ struct ProxyConfigEditorView: View {
             return
         }
         profile.settings = obj
+        profile.syncProxyFromSettings()
+    }
+
+    /// Validate JSON, apply to profile, and reverse-sync metadata. Returns false on invalid JSON.
+    private func validateAndApplyJSON() -> Bool {
+        guard let data = jsonText.data(using: .utf8) else {
+            jsonError = L("Invalid text encoding", "文本编码无效")
+            return false
+        }
+        do {
+            let obj = try JSONSerialization.jsonObject(with: data)
+            guard let dict = obj as? [String: Any] else {
+                jsonError = L("Root must be a JSON object", "根节点必须是 JSON 对象")
+                return false
+            }
+            profile.settings = dict
+            profile.syncProxyFromSettings()
+            jsonError = nil
+            return true
+        } catch {
+            jsonError = error.localizedDescription
+            return false
+        }
     }
 
     // MARK: - Node Type Section
@@ -752,10 +775,13 @@ struct ProxyConfigEditorView: View {
     // MARK: - Save
 
     private func saveProfile() {
-        Task {
-            if selectedTab == .json { syncFromJSON() }
+        if selectedTab == .json {
+            guard validateAndApplyJSON() else { return }
+        } else {
             profile.syncEnvFromProxy()
+        }
 
+        Task {
             if isNew {
                 viewModel.addProfile(profile)
             } else {

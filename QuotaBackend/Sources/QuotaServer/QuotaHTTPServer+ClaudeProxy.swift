@@ -116,15 +116,26 @@ extension QuotaHTTPServer {
         } catch {
             let elapsed = Date().timeIntervalSince(startTime) * 1000
             let upstreamModel = await proxy.mapModel(claudeRequest.model)
+            let errorResult = await proxy.buildErrorResult(error: error)
             emitRequestLog(
                 claudeModel: claudeRequest.model,
                 upstreamModel: upstreamModel,
                 success: false,
                 responseTimeMs: elapsed,
-                errorMessage: error.localizedDescription
+                errorMessage: errorResult.response.error.message,
+                errorType: errorResult.response.error.type,
+                statusCode: errorResult.statusCode
             )
             httpLog.error("  ✗ Proxy error: \(error.localizedDescription)")
-            return await proxyErrorHTTPResponse(proxy: proxy, error: error, headers: headers)
+            var responseHeaders = headers
+            if let requestID = errorResult.response.requestID, !requestID.isEmpty {
+                responseHeaders["request-id"] = requestID
+            }
+            return jsonResponse(
+                encodable: errorResult.response,
+                status: errorResult.statusCode,
+                headers: responseHeaders
+            )
         }
     }
 
@@ -655,7 +666,9 @@ extension QuotaHTTPServer {
                 upstreamModel: errUpstreamModel,
                 success: false,
                 responseTimeMs: elapsed,
-                errorMessage: error.localizedDescription
+                errorMessage: errorResult.response.error.message,
+                errorType: errorResult.response.error.type,
+                statusCode: errorResult.statusCode
             )
         }
 
@@ -671,7 +684,9 @@ extension QuotaHTTPServer {
         outputTokens: Int = 0,
         cacheCreationTokens: Int = 0,
         cacheReadTokens: Int = 0,
-        errorMessage: String? = nil
+        errorMessage: String? = nil,
+        errorType: String? = nil,
+        statusCode: Int? = nil
     ) {
         var parts = [
             "\"type\":\"proxy_request_log\"",
@@ -687,6 +702,12 @@ extension QuotaHTTPServer {
         ]
         if let err = errorMessage {
             parts.append("\"error\":\(escapeJSON(err))")
+        }
+        if let errType = errorType {
+            parts.append("\"error_type\":\(escapeJSON(errType))")
+        }
+        if let code = statusCode {
+            parts.append("\"status_code\":\(code)")
         }
         // stdout is parsed by the macOS host app for structured log ingestion
         print("PROXY_LOG:{\(parts.joined(separator: ","))}")

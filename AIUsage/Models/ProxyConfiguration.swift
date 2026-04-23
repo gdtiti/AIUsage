@@ -450,6 +450,8 @@ struct ProxyRequestLog: Codable, Identifiable {
     let tokensCacheCreation: Int
     let estimatedCostUSD: Double
     let errorMessage: String?
+    let errorType: String?
+    let statusCode: Int?
 
     /// Combined cache total (read + creation). Retained for display and aggregation convenience.
     var tokensCache: Int { tokensCacheRead + tokensCacheCreation }
@@ -469,7 +471,9 @@ struct ProxyRequestLog: Codable, Identifiable {
         tokensCacheRead: Int = 0,
         tokensCacheCreation: Int = 0,
         estimatedCostUSD: Double = 0,
-        errorMessage: String? = nil
+        errorMessage: String? = nil,
+        errorType: String? = nil,
+        statusCode: Int? = nil
     ) {
         self.id = id
         self.configId = configId
@@ -486,6 +490,8 @@ struct ProxyRequestLog: Codable, Identifiable {
         self.tokensCacheCreation = tokensCacheCreation
         self.estimatedCostUSD = estimatedCostUSD
         self.errorMessage = errorMessage
+        self.errorType = errorType
+        self.statusCode = statusCode
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -505,6 +511,8 @@ struct ProxyRequestLog: Codable, Identifiable {
         case tokensCacheCreation
         case estimatedCostUSD
         case errorMessage
+        case errorType
+        case statusCode
     }
 
     init(from decoder: Decoder) throws {
@@ -528,13 +536,14 @@ struct ProxyRequestLog: Codable, Identifiable {
             tokensCacheRead = splitRead ?? 0
             tokensCacheCreation = splitCreate ?? 0
         } else {
-            // Legacy migration: historical records have no split — attribute to cache-read.
             tokensCacheRead = legacyCache ?? 0
             tokensCacheCreation = 0
         }
 
         estimatedCostUSD = try c.decode(Double.self, forKey: .estimatedCostUSD)
         errorMessage = try c.decodeIfPresent(String.self, forKey: .errorMessage)
+        errorType = try c.decodeIfPresent(String.self, forKey: .errorType)
+        statusCode = try c.decodeIfPresent(Int.self, forKey: .statusCode)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -555,5 +564,7 @@ struct ProxyRequestLog: Codable, Identifiable {
         try c.encode(tokensCacheRead + tokensCacheCreation, forKey: .tokensCache)
         try c.encode(estimatedCostUSD, forKey: .estimatedCostUSD)
         try c.encodeIfPresent(errorMessage, forKey: .errorMessage)
+        try c.encodeIfPresent(errorType, forKey: .errorType)
+        try c.encodeIfPresent(statusCode, forKey: .statusCode)
     }
 }

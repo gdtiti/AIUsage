@@ -100,15 +100,49 @@ extension QuotaHTTPServer {
             }
 
             let elapsed = Date().timeIntervalSince(startTime) * 1000
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let usage = json["usage"] as? [String: Any] {
-                emitPassthroughLog(model: requestModel, usage: usage, responseTimeMs: Int(elapsed), success: statusCode < 400)
+            let isSuccess = statusCode < 400
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let usage = json?["usage"] as? [String: Any] ?? [:]
+
+            var errorType: String?
+            var errorMessage: String?
+            if !isSuccess {
+                if let errorObj = json?["error"] as? [String: Any] {
+                    errorType = errorObj["type"] as? String
+                    errorMessage = errorObj["message"] as? String
+                }
+                if errorType == nil {
+                    errorType = passthroughErrorType(forHTTPStatus: statusCode)
+                }
+                if errorMessage == nil {
+                    errorMessage = json?["message"] as? String ?? "HTTP \(statusCode)"
+                }
             }
+
+            emitPassthroughLog(
+                model: requestModel,
+                usage: usage,
+                responseTimeMs: Int(elapsed),
+                success: isSuccess,
+                errorType: errorType,
+                errorMessage: errorMessage,
+                statusCode: !isSuccess ? statusCode : nil
+            )
 
             let resp = HTTPResponse(status: statusCode, headers: respHeaders, bodyData: data)
             await sendResponse(connection, response: resp)
             connection.cancel()
         } catch {
+            let elapsed = Date().timeIntervalSince(startTime) * 1000
+            emitPassthroughLog(
+                model: requestModel,
+                usage: [:],
+                responseTimeMs: Int(elapsed),
+                success: false,
+                errorType: "network_error",
+                errorMessage: error.localizedDescription,
+                statusCode: nil
+            )
             let escaped = escapeJSON("Upstream error: \(error.localizedDescription)")
             let resp = HTTPResponse(status: 502, headers: ["Content-Type": "application/json"], body: "{\"error\":\(escaped)}")
             await sendResponse(connection, response: resp)
@@ -185,16 +219,35 @@ extension QuotaHTTPServer {
             }
 
             let elapsed = Date().timeIntervalSince(startTime) * 1000
+            let isSuccess = statusCode < 400
             let usageDict: [String: Any] = [
                 "input_tokens": totalInputTokens,
                 "output_tokens": totalOutputTokens,
                 "cache_creation_input_tokens": cacheCreationTokens,
                 "cache_read_input_tokens": cacheReadTokens
             ]
-            emitPassthroughLog(model: requestModel, usage: usageDict, responseTimeMs: Int(elapsed), success: statusCode < 400)
+            emitPassthroughLog(
+                model: requestModel,
+                usage: usageDict,
+                responseTimeMs: Int(elapsed),
+                success: isSuccess,
+                errorType: !isSuccess ? passthroughErrorType(forHTTPStatus: statusCode) : nil,
+                errorMessage: !isSuccess ? "HTTP \(statusCode)" : nil,
+                statusCode: !isSuccess ? statusCode : nil
+            )
 
             await streamer.finish()
         } catch {
+            let elapsed = Date().timeIntervalSince(startTime) * 1000
+            emitPassthroughLog(
+                model: requestModel,
+                usage: [:],
+                responseTimeMs: Int(elapsed),
+                success: false,
+                errorType: "network_error",
+                errorMessage: error.localizedDescription,
+                statusCode: nil
+            )
             let escaped = escapeJSON(error.localizedDescription)
             await streamer.sendChunk("event: error\ndata: {\"error\":\(escaped)}\n\n")
             await streamer.finish()
@@ -240,13 +293,21 @@ extension QuotaHTTPServer {
         }
     }
 
-    func emitPassthroughLog(model: String, usage: [String: Any], responseTimeMs: Int, success: Bool) {
+    func emitPassthroughLog(
+        model: String,
+        usage: [String: Any],
+        responseTimeMs: Int,
+        success: Bool,
+        errorType: String? = nil,
+        errorMessage: String? = nil,
+        statusCode: Int? = nil
+    ) {
         let inputTokens = usage["input_tokens"] as? Int ?? 0
         let outputTokens = usage["output_tokens"] as? Int ?? 0
         let cacheCreation = usage["cache_creation_input_tokens"] as? Int ?? 0
         let cacheRead = usage["cache_read_input_tokens"] as? Int ?? 0
 
-        let log: [String: Any] = [
+        var log: [String: Any] = [
             "type": "proxy_request_log",
             "claude_model": model,
             "upstream_model": model,
@@ -258,11 +319,30 @@ extension QuotaHTTPServer {
             "cache_read_tokens": cacheRead,
             "cache_tokens": cacheCreation + cacheRead,
         ]
+        if let errorType { log["error_type"] = errorType }
+        if let errorMessage { log["error"] = errorMessage }
+        if let statusCode { log["status_code"] = statusCode }
 
         if let data = try? JSONSerialization.data(withJSONObject: log),
            let jsonStr = String(data: data, encoding: .utf8) {
             // stdout is parsed by the macOS host app for structured log ingestion
             print("PROXY_LOG:\(jsonStr)")
+        }
+    }
+
+    func passthroughErrorType(forHTTPStatus statusCode: Int) -> String {
+        switch statusCode {
+        case 400: return "invalid_request_error"
+        case 401: return "authentication_error"
+        case 402: return "billing_error"
+        case 403: return "permission_error"
+        case 404: return "not_found_error"
+        case 413: return "request_too_large"
+        case 429: return "rate_limit_error"
+        case 504: return "timeout_error"
+        case 529: return "overloaded_error"
+        case 400..<500: return "invalid_request_error"
+        default: return "api_error"
         }
     }
 }

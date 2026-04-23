@@ -185,7 +185,9 @@ extension ProxyViewModel {
             tokensCacheRead: tokensCacheRead,
             tokensCacheCreation: tokensCacheCreation,
             estimatedCostUSD: estimatedCost,
-            errorMessage: json["error"] as? String
+            errorMessage: json["error"] as? String,
+            errorType: json["error_type"] as? String,
+            statusCode: json["status_code"] as? Int
         )
 
         DispatchQueue.main.async { [weak self] in

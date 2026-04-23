@@ -356,6 +356,20 @@ struct ProxyConfigEditorView: View {
                     }
                 }
 
+                Toggle(L("Allow LAN Access (0.0.0.0)", "允许局域网访问 (0.0.0.0)"), isOn: $profile.metadata.proxy.allowLAN)
+                    .font(.caption.weight(.medium))
+
+                if profile.metadata.proxy.allowLAN {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                        Text(L("Warning: This will expose the proxy to your local network",
+                               "警告：这将把代理暴露到你的局域网"))
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.1)))
+                }
+
                 HStack(spacing: 6) {
                     Image(systemName: "info.circle.fill").foregroundStyle(.teal)
                     Text(L("ANTHROPIC_BASE_URL will point to the local proxy. Requests are forwarded to the upstream API as-is.",

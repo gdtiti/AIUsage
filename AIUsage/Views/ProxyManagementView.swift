@@ -556,9 +556,20 @@ struct ProxyManagementView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(log.method) \(log.path)")
                     .font(.caption.weight(.semibold))
-                Text(log.upstreamModel)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Text(log.upstreamModel)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    if !log.success, let errorType = log.errorType {
+                        errorTypeBadge(errorType)
+                    }
+                }
+                if !log.success, let errorMsg = log.errorMessage, !errorMsg.isEmpty {
+                    Text(errorMsg)
+                        .font(.caption2)
+                        .foregroundStyle(.red.opacity(0.8))
+                        .lineLimit(1)
+                }
             }
 
             Spacer()
@@ -568,13 +579,19 @@ struct ProxyManagementView: View {
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(.secondary)
 
-                Text(formatCompactNumber(Double(log.tokensInput + log.tokensOutput)))
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.blue)
+                if log.success {
+                    Text(formatCompactNumber(Double(log.tokensInput + log.tokensOutput)))
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.blue)
 
-                Text(formatProxyCurrency(log.estimatedCostUSD))
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.orange)
+                    Text(formatProxyCurrency(log.estimatedCostUSD))
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.orange)
+                } else if let code = log.statusCode {
+                    Text("HTTP \(code)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.red.opacity(0.7))
+                }
             }
 
             Text(formatRelativeTime(log.timestamp))
@@ -584,6 +601,48 @@ struct ProxyManagementView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .background(log.success ? Color.clear : Color.red.opacity(0.04))
+        .help(log.success ? "" : (log.errorMessage ?? ""))
+    }
+
+    // MARK: - Error Type Display
+
+    private func errorTypeBadge(_ type: String) -> some View {
+        Text(errorTypeLabel(type))
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(errorTypeColor(type))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(errorTypeColor(type).opacity(0.12)))
+    }
+
+    private func errorTypeLabel(_ type: String) -> String {
+        switch type {
+        case "rate_limit_error": return L("Rate Limited", "限流")
+        case "authentication_error": return L("Auth Error", "认证错误")
+        case "billing_error": return L("Billing", "计费错误")
+        case "permission_error": return L("Permission", "权限错误")
+        case "not_found_error": return L("Not Found", "未找到")
+        case "request_too_large": return L("Too Large", "请求过大")
+        case "timeout_error": return L("Timeout", "超时")
+        case "overloaded_error": return L("Overloaded", "过载")
+        case "invalid_request_error": return L("Bad Request", "请求无效")
+        case "network_error": return L("Network", "网络错误")
+        case "api_error": return L("API Error", "API 错误")
+        default: return type
+        }
+    }
+
+    private func errorTypeColor(_ type: String) -> Color {
+        switch type {
+        case "rate_limit_error": return .orange
+        case "authentication_error": return .purple
+        case "billing_error": return .red
+        case "timeout_error": return .yellow
+        case "overloaded_error": return .orange
+        case "network_error": return .gray
+        default: return .red
+        }
     }
 
     // MARK: - Empty State
@@ -935,6 +994,7 @@ private struct ConfigurationCardView: View, Equatable {
                 detailItem(label: "Base URL", value: config.anthropicBaseURL)
                 if config.usePassthroughProxy {
                     detailItem(label: L("Local Proxy", "本地代理"), value: "http://\(config.host):\(config.port)")
+                    detailItem(label: L("LAN Access", "局域网访问"), value: config.allowLAN ? L("Enabled", "已启用") : L("Disabled", "已禁用"))
                 }
             case .openaiProxy:
                 detailItem(label: L("Upstream", "上游"), value: config.normalizedUpstreamBaseURL)

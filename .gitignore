@@ -61,6 +61,9 @@ docs/PROVIDER_AUDIT_PLAN.md
 docs/CODEX_IDENTITY_FLOW.md
 docs/PROVIDER_DISCOVERY_AND_CREDENTIAL_DEEP_DIVE.md
 
+# === Tools (local dev scripts, not shipped) ===
+tools/
+
 # === Misc ===
 *.log
 *.tmp

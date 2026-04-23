@@ -247,6 +247,11 @@ final class ProxyRuntimeService {
             if !config.expectedClientKey.isEmpty {
                 environment["ANTHROPIC_API_KEY"] = config.expectedClientKey
             }
+            let upstreamLower = config.anthropicBaseURL.lowercased()
+            if upstreamLower.contains("anyrouter.top")
+                || upstreamLower.contains("a-ocnfniawgw.cn-shanghai.fcapp.run") {
+                environment["ENABLE_THINKING_REWRITE"] = "1"
+            }
         } else {
             environment["OPENAI_API_KEY"] = config.upstreamAPIKey
             environment["OPENAI_BASE_URL"] = config.normalizedUpstreamBaseURL

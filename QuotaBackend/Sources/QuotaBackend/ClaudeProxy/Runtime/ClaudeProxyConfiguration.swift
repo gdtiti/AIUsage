@@ -36,6 +36,7 @@ public struct ClaudeProxyConfiguration: Sendable {
     public let maxOutputTokens: Int?
     public let requestTimeout: TimeInterval
     public let customHeaders: [String: String]
+    public let interceptor: (any PassthroughInterceptor)?
 
     public init(
         enabled: Bool,
@@ -50,7 +51,8 @@ public struct ClaudeProxyConfiguration: Sendable {
         smallModel: String = "gpt-3.5-turbo",
         maxOutputTokens: Int? = nil,
         requestTimeout: TimeInterval = 60,
-        customHeaders: [String: String] = [:]
+        customHeaders: [String: String] = [:],
+        interceptor: (any PassthroughInterceptor)? = nil
     ) {
         self.enabled = enabled
         self.bindPort = bindPort
@@ -67,6 +69,7 @@ public struct ClaudeProxyConfiguration: Sendable {
         self.maxOutputTokens = maxOutputTokens
         self.requestTimeout = requestTimeout
         self.customHeaders = customHeaders
+        self.interceptor = interceptor
     }
 
     /// Reduces a Claude-style model id to a coarse family label (`haiku`, `sonnet`, `opus`) when detectable.
@@ -158,12 +161,16 @@ public struct ClaudeProxyConfiguration: Sendable {
             let apiKey = ProcessInfo.processInfo.environment["ANTHROPIC_UPSTREAM_KEY"] ?? ""
             let clientKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]
 
+            let enableRewrite = ProcessInfo.processInfo
+                .environment["ENABLE_THINKING_REWRITE"] == "1"
+
             return ClaudeProxyConfiguration(
                 enabled: true,
                 mode: .anthropicPassthrough,
                 upstreamBaseURL: baseURL,
                 upstreamAPIKey: apiKey,
-                expectedClientKey: clientKey
+                expectedClientKey: clientKey,
+                interceptor: enableRewrite ? AnyRouterInterceptor() : nil
             )
         }
 

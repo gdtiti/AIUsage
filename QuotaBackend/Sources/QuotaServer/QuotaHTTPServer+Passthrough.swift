@@ -40,11 +40,21 @@ extension QuotaHTTPServer {
             return
         }
 
+        var mutableBody = request.body
+        var mutableHeaders = request.headers
+        if let interceptor = config.interceptor {
+            let _ = interceptor.intercept(
+                path: cleanPath,
+                headers: &mutableHeaders,
+                body: &mutableBody
+            )
+        }
+
         var upstreamReq = URLRequest(url: url)
         upstreamReq.httpMethod = request.method
-        upstreamReq.httpBody = request.body
+        upstreamReq.httpBody = mutableBody
 
-        for (key, value) in request.headers {
+        for (key, value) in mutableHeaders {
             let lk = key.lowercased()
             if lk == "host" || lk == "content-length" { continue }
             upstreamReq.setValue(value, forHTTPHeaderField: key)
@@ -52,13 +62,13 @@ extension QuotaHTTPServer {
         if !config.upstreamAPIKey.isEmpty {
             upstreamReq.setValue(config.upstreamAPIKey, forHTTPHeaderField: "x-api-key")
         }
-        if request.headers["content-type"] == nil {
+        if mutableHeaders["content-type"] == nil {
             upstreamReq.setValue("application/json", forHTTPHeaderField: "content-type")
         }
 
         let isStreaming: Bool
         let requestModel: String
-        if let json = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any] {
+        if let json = try? JSONSerialization.jsonObject(with: mutableBody) as? [String: Any] {
             isStreaming = json["stream"] as? Bool ?? false
             requestModel = json["model"] as? String ?? "unknown"
         } else {

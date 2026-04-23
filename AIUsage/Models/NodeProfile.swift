@@ -30,6 +30,7 @@ struct NodeProfile: Identifiable, Equatable {
         var nodeType: NodeType
         var createdAt: Date
         var lastUsedAt: Date?
+        var sortOrder: Int
         var proxy: ProxySettings
 
         init(
@@ -38,6 +39,7 @@ struct NodeProfile: Identifiable, Equatable {
             nodeType: NodeType = .openaiProxy,
             createdAt: Date = Date(),
             lastUsedAt: Date? = nil,
+            sortOrder: Int = Int.max,
             proxy: ProxySettings = .defaultOpenAI
         ) {
             self.id = id
@@ -45,7 +47,19 @@ struct NodeProfile: Identifiable, Equatable {
             self.nodeType = nodeType
             self.createdAt = createdAt
             self.lastUsedAt = lastUsedAt
+            self.sortOrder = sortOrder
             self.proxy = proxy
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(String.self, forKey: .id)
+            name = try container.decode(String.self, forKey: .name)
+            nodeType = try container.decode(NodeType.self, forKey: .nodeType)
+            createdAt = try container.decode(Date.self, forKey: .createdAt)
+            lastUsedAt = try container.decodeIfPresent(Date.self, forKey: .lastUsedAt)
+            sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? Int.max
+            proxy = try container.decode(ProxySettings.self, forKey: .proxy)
         }
     }
 

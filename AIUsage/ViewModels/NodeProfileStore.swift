@@ -74,7 +74,12 @@ class NodeProfileStore: ObservableObject {
             }
         }
 
-        loaded.sort { $0.metadata.createdAt < $1.metadata.createdAt }
+        loaded.sort {
+            if $0.metadata.sortOrder != $1.metadata.sortOrder {
+                return $0.metadata.sortOrder < $1.metadata.sortOrder
+            }
+            return $0.metadata.createdAt < $1.metadata.createdAt
+        }
         profiles = loaded
     }
 
@@ -83,14 +88,19 @@ class NodeProfileStore: ObservableObject {
     @discardableResult
     func save(_ profile: NodeProfile) -> Bool {
         ensureDirectoryExists()
-        let path = filePath(for: profile.id)
+        var p = profile
+        let isNew = !profiles.contains(where: { $0.id == p.id })
+        if isNew && p.metadata.sortOrder == Int.max {
+            p.metadata.sortOrder = profiles.count
+        }
+        let path = filePath(for: p.id)
         do {
-            let data = try profile.toFileData()
+            let data = try p.toFileData()
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
-            if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
-                profiles[index] = profile
+            if let index = profiles.firstIndex(where: { $0.id == p.id }) {
+                profiles[index] = p
             } else {
-                profiles.append(profile)
+                profiles.append(p)
             }
             return true
         } catch {
@@ -120,6 +130,7 @@ class NodeProfileStore: ObservableObject {
         copy.metadata.name = source.metadata.name + " (Copy)"
         copy.metadata.createdAt = Date()
         copy.metadata.lastUsedAt = nil
+        copy.metadata.sortOrder = Int.max
 
         if copy.metadata.proxy.needsProxyProcess(nodeType: copy.metadata.nodeType) {
             copy.metadata.proxy.port = nextAvailablePort()
@@ -137,6 +148,16 @@ class NodeProfileStore: ObservableObject {
         let item = profiles.remove(at: fromIndex)
         let insertAt = clamped > fromIndex ? clamped - 1 : clamped
         profiles.insert(item, at: insertAt)
+        persistSortOrder()
+    }
+
+    private func persistSortOrder() {
+        for (index, _) in profiles.enumerated() {
+            profiles[index].metadata.sortOrder = index
+        }
+        for profile in profiles {
+            save(profile)
+        }
     }
 
     // MARK: - Activation State

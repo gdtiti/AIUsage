@@ -153,6 +153,14 @@ public struct CanonicalOpenAIRequestBuilder {
             }
         }
 
+        if let trailingReasoning = pendingReasoningText {
+            messages.append(OpenAIChatMessage(
+                role: "assistant",
+                reasoningContent: trailingReasoning
+            ))
+            pendingReasoningText = nil
+        }
+
         let payload = OpenAIChatCompletionRequest(
             model: modelOverride ?? request.modelHint,
             messages: messages,

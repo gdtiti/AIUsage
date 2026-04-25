@@ -485,6 +485,11 @@ private func mapOpenAIChatMessages(
             continue
         }
 
+        if case .assistant = role,
+           let reasoning = message.reasoningContent, !reasoning.isEmpty {
+            items.append(.reasoning(CanonicalReasoningItem(fullText: reasoning)))
+        }
+
         let parts = mapOpenAIMessageContent(message.content)
         if !parts.isEmpty {
             items.append(.message(CanonicalMessage(role: role, parts: parts, name: message.name)))

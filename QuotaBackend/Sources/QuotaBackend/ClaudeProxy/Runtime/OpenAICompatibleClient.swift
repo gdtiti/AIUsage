@@ -298,6 +298,10 @@ public actor OpenAICompatibleClient {
 
             guard let choice = chunk.choices.first else { return }
 
+            if let reasoning = choice.delta.reasoningContent, !reasoning.isEmpty {
+                try await onEvent(.reasoningSummaryDelta(reasoning))
+            }
+
             if let content = choice.delta.content, !content.isEmpty {
                 try await onEvent(.textDelta(content))
             }
@@ -838,6 +842,7 @@ public actor OpenAICompatibleClient {
     private func assembleChatCompletionFromSSE(body: String) throws -> OpenAIChatCompletionResponse {
         let decoder = Self.jsonDecoder
         var assembledContent = ""
+        var assembledReasoning = ""
         var finishReason: String?
         var responseId = ""
         var model = ""
@@ -858,6 +863,10 @@ public actor OpenAICompatibleClient {
             if responseId.isEmpty { responseId = chunk.id }
             if model.isEmpty { model = chunk.model }
             if created == 0 { created = chunk.created }
+
+            if let reasoning = choice.delta.reasoningContent {
+                assembledReasoning += reasoning
+            }
 
             if let content = choice.delta.content {
                 assembledContent += content
@@ -898,7 +907,8 @@ public actor OpenAICompatibleClient {
                     message: OpenAIChatMessage(
                         role: "assistant",
                         content: assembledContent.isEmpty ? nil : .text(assembledContent),
-                        toolCalls: toolCalls.isEmpty ? nil : toolCalls
+                        toolCalls: toolCalls.isEmpty ? nil : toolCalls,
+                        reasoningContent: assembledReasoning.isEmpty ? nil : assembledReasoning
                     ),
                     finishReason: finishReason
                 )

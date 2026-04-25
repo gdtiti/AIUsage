@@ -63,11 +63,14 @@ public struct OpenAIChatMessage: Codable, Sendable {
     public let name: String?
     public let toolCalls: [OpenAIToolCall]?
     public let toolCallId: String?
+    /// DeepSeek reasoning_content field (chain-of-thought output)
+    public let reasoningContent: String?
 
     enum CodingKeys: String, CodingKey {
         case role, content, name
         case toolCalls = "tool_calls"
         case toolCallId = "tool_call_id"
+        case reasoningContent = "reasoning_content"
     }
 
     public init(
@@ -75,13 +78,15 @@ public struct OpenAIChatMessage: Codable, Sendable {
         content: OpenAIMessageContent? = nil,
         name: String? = nil,
         toolCalls: [OpenAIToolCall]? = nil,
-        toolCallId: String? = nil
+        toolCallId: String? = nil,
+        reasoningContent: String? = nil
     ) {
         self.role = role
         self.content = content
         self.name = name
         self.toolCalls = toolCalls
         self.toolCallId = toolCallId
+        self.reasoningContent = reasoningContent
     }
 }
 
@@ -585,6 +590,10 @@ public struct OpenAIStreamChunk: Codable, Sendable {
     public let choices: [OpenAIStreamChoice]
     public let usage: OpenAIUsage?
 
+    enum CodingKeys: String, CodingKey {
+        case id, object, created, model, choices, usage
+    }
+
     public init(id: String, object: String = "chat.completion.chunk", created: Int, model: String, choices: [OpenAIStreamChoice], usage: OpenAIUsage? = nil) {
         self.id = id
         self.object = object
@@ -592,6 +601,19 @@ public struct OpenAIStreamChunk: Codable, Sendable {
         self.model = model
         self.choices = choices
         self.usage = usage
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        object = try container.decode(String.self, forKey: .object)
+        created = try container.decode(Int.self, forKey: .created)
+        model = try container.decode(String.self, forKey: .model)
+        choices = try container.decode([OpenAIStreamChoice].self, forKey: .choices)
+        // DeepSeek-v4 sends "usage": {} in intermediate chunks which cannot
+        // be decoded into OpenAIUsage (required Int fields missing). Treat
+        // any decode failure as nil so the chunk itself is not discarded.
+        usage = try? container.decode(OpenAIUsage.self, forKey: .usage)
     }
 }
 
@@ -616,16 +638,20 @@ public struct OpenAIDelta: Codable, Sendable {
     public let role: String?
     public let content: String?
     public let toolCalls: [OpenAIToolCallDelta]?
+    /// DeepSeek reasoning_content field (chain-of-thought / thinking output)
+    public let reasoningContent: String?
 
     enum CodingKeys: String, CodingKey {
         case role, content
         case toolCalls = "tool_calls"
+        case reasoningContent = "reasoning_content"
     }
 
-    public init(role: String? = nil, content: String? = nil, toolCalls: [OpenAIToolCallDelta]? = nil) {
+    public init(role: String? = nil, content: String? = nil, toolCalls: [OpenAIToolCallDelta]? = nil, reasoningContent: String? = nil) {
         self.role = role
         self.content = content
         self.toolCalls = toolCalls
+        self.reasoningContent = reasoningContent
     }
 }
 

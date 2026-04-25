@@ -19,6 +19,7 @@ public struct CanonicalOpenAIRequestBuilder {
             messages.append(OpenAIChatMessage(role: "system", content: systemContent))
         }
 
+        var pendingReasoningText: String?
         var index = 0
         while index < request.items.count {
             switch request.items[index] {
@@ -36,12 +37,15 @@ public struct CanonicalOpenAIRequestBuilder {
                         path: "items[\(currentIndex)].message.parts",
                         lossyNotes: &lossyNotes
                     )
-                    if content != nil || !toolCalls.isEmpty {
+                    let reasoning = pendingReasoningText
+                    pendingReasoningText = nil
+                    if content != nil || !toolCalls.isEmpty || reasoning != nil {
                         messages.append(OpenAIChatMessage(
                             role: message.role.value,
                             content: content,
                             name: message.name,
-                            toolCalls: toolCalls.isEmpty ? nil : toolCalls
+                            toolCalls: toolCalls.isEmpty ? nil : toolCalls,
+                            reasoningContent: reasoning
                         ))
                     }
                     index = nextIndex
@@ -83,23 +87,26 @@ public struct CanonicalOpenAIRequestBuilder {
                 }
                 index += 1
 
-            case .reasoning:
+            case .reasoning(let reasoning):
+                let reasoningText = reasoning.fullText ?? reasoning.summaryText
+                if let text = reasoningText, !text.isEmpty {
+                    pendingReasoningText = text
+                }
                 let (nextIndex, toolCalls) = try collectFollowingAssistantToolCalls(
                     in: request.items,
-                    start: index,
+                    start: index + 1,
                     lossyNotes: &lossyNotes
                 )
                 if !toolCalls.isEmpty {
-                    messages.append(OpenAIChatMessage(role: "assistant", content: nil, toolCalls: toolCalls))
+                    messages.append(OpenAIChatMessage(
+                        role: "assistant",
+                        content: nil,
+                        toolCalls: toolCalls,
+                        reasoningContent: pendingReasoningText
+                    ))
+                    pendingReasoningText = nil
                     index = nextIndex
                 } else {
-                    appendLossyNote(
-                        to: &lossyNotes,
-                        code: "chat_reasoning_item_skipped",
-                        message: "Canonical reasoning items cannot be directly represented in chat/completions input and were skipped.",
-                        itemIndex: index,
-                        path: "items[\(index)]"
-                    )
                     index += 1
                 }
 

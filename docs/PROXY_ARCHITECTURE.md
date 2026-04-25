@@ -247,7 +247,7 @@ Canonical → OpenAI 的出站请求构建：
 
 关键映射逻辑：
 - Claude `system` → OpenAI `messages[0].role=system` / `instructions`
-- Claude `thinking` → OpenAI `reasoning` (responses) / 忽略 (chat)
+- Claude `thinking` → OpenAI `reasoning` (responses) / `reasoning_content` (chat, DeepSeek 等)
 - Claude `document.file_id` → OpenAI `input_file` (responses) / `type: "file"` (chat)
 - Claude `tool_result` → OpenAI `role: tool` (chat) / `function_call_output` (responses)
 - 角色区分 `input_text` vs `output_text`（assistant 消息使用 `output_text`）
@@ -355,10 +355,11 @@ let claudeResponse = CanonicalClaudeResponseBuilder().build(...)         // Cano
 OpenAI Chat Completions API 类型定义：
 
 - `OpenAIChatCompletionRequest` / `OpenAIChatCompletionResponse`
-- `OpenAIChatMessage` — 支持 string / array content
+- `OpenAIChatMessage` — 支持 string / array content + `reasoning_content`（DeepSeek 等）
 - `OpenAIContentPart` — text / image_url / input_audio / file / unknown
 - `OpenAIToolCall` / `OpenAIFunctionCall`
-- `OpenAIStreamChunk` / `OpenAIStreamDelta`
+- `OpenAIStreamChunk` — 含自定义解码器，容错 `usage: {}` 空对象（DeepSeek 兼容）
+- `OpenAIDelta` — content + `reasoning_content`
 
 #### OpenAIResponsesModels.swift（1945 行）
 

@@ -258,10 +258,10 @@ extension SettingsView {
             subtitle: L("Claude Code proxy behavior and logging.", "Claude Code 代理行为和日志管理。")
         ) {
             settingsToggleRow(
-                title: L("Auto-start last proxy on launch", "启动时自动恢复上次代理"),
+                title: L("Auto-restore proxies on launch", "启动时自动恢复代理"),
                 subtitle: L(
-                    "If enabled, AIUsage re-activates the last-used Claude Code proxy when the app launches.",
-                    "开启后，启动 AIUsage 时会自动激活上次使用的 Claude Code 代理。"
+                    "If enabled, AIUsage restores the last activated node and all proxy-only nodes when the app launches.",
+                    "开启后，启动 AIUsage 时会自动恢复上次接入 Claude 的节点以及所有仅代理运行的节点。"
                 ),
                 isOn: $settings.proxyAutoRestoreOnLaunch
             )

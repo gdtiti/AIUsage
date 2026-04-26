@@ -22,6 +22,7 @@
 			A2B3C4D42F96001000A15674 /* ProxyViewModel+LogManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D32F96001000A15674 /* ProxyViewModel+LogManagement.swift */; };
 			A2B3C4D62F96001000A15674 /* ProxyViewModel+ProxyServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D52F96001000A15674 /* ProxyViewModel+ProxyServer.swift */; };
 		A2B3C4D82F96001000A15674 /* ProxyViewModel+Aggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D72F96001000A15674 /* ProxyViewModel+Aggregation.swift */; };
+		A2B3C4F02F9C001000A15674 /* ProxyViewModel+ProxyOnlyMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4EF2F9C001000A15674 /* ProxyViewModel+ProxyOnlyMode.swift */; };
 		A2B3C4DA2F96001000A15674 /* ProviderAccountEditorView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D92F96001000A15674 /* ProviderAccountEditorView+Sections.swift */; };
 		A2B3C4DC2F96001000A15674 /* ProviderAccountEditorView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4DB2F96001000A15674 /* ProviderAccountEditorView+Actions.swift */; };
 		A2B3C4DE2F96001000A15674 /* ProviderAccountEditorView+CodexOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4DD2F96001000A15674 /* ProviderAccountEditorView+CodexOAuth.swift */; };
@@ -106,6 +107,7 @@
 			A2B3C4D32F96001000A15674 /* ProxyViewModel+LogManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProxyViewModel+LogManagement.swift"; sourceTree = "<group>"; };
 			A2B3C4D52F96001000A15674 /* ProxyViewModel+ProxyServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProxyViewModel+ProxyServer.swift"; sourceTree = "<group>"; };
 		A2B3C4D72F96001000A15674 /* ProxyViewModel+Aggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProxyViewModel+Aggregation.swift"; sourceTree = "<group>"; };
+		A2B3C4EF2F9C001000A15674 /* ProxyViewModel+ProxyOnlyMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProxyViewModel+ProxyOnlyMode.swift"; sourceTree = "<group>"; };
 		A2B3C4D92F96001000A15674 /* ProviderAccountEditorView+Sections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderAccountEditorView+Sections.swift"; sourceTree = "<group>"; };
 		A2B3C4DB2F96001000A15674 /* ProviderAccountEditorView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderAccountEditorView+Actions.swift"; sourceTree = "<group>"; };
 		A2B3C4DD2F96001000A15674 /* ProviderAccountEditorView+CodexOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderAccountEditorView+CodexOAuth.swift"; sourceTree = "<group>"; };
@@ -212,6 +214,7 @@
 				A2B3C4D32F96001000A15674 /* ProxyViewModel+LogManagement.swift */,
 				A2B3C4D52F96001000A15674 /* ProxyViewModel+ProxyServer.swift */,
 				A2B3C4D72F96001000A15674 /* ProxyViewModel+Aggregation.swift */,
+				A2B3C4EF2F9C001000A15674 /* ProxyViewModel+ProxyOnlyMode.swift */,
 				5EFREF002F93000100A15674 /* ProviderRefreshCoordinator.swift */,
 				5EFREF212F93000100A15674 /* ProviderRefreshCoordinator+FetchPipeline.swift */,
 				5EFREF312F93000100A15674 /* ProviderRefreshCoordinator+Conversion.swift */,
@@ -550,6 +553,7 @@
 				A2B3C4D42F96001000A15674 /* ProxyViewModel+LogManagement.swift in Sources */,
 				A2B3C4D62F96001000A15674 /* ProxyViewModel+ProxyServer.swift in Sources */,
 				A2B3C4D82F96001000A15674 /* ProxyViewModel+Aggregation.swift in Sources */,
+				A2B3C4F02F9C001000A15674 /* ProxyViewModel+ProxyOnlyMode.swift in Sources */,
 				A2B3C4DA2F96001000A15674 /* ProviderAccountEditorView+Sections.swift in Sources */,
 				A2B3C4DC2F96001000A15674 /* ProviderAccountEditorView+Actions.swift in Sources */,
 				A2B3C4DE2F96001000A15674 /* ProviderAccountEditorView+CodexOAuth.swift in Sources */,

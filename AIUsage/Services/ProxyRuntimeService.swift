@@ -76,6 +76,7 @@ private actor QuotaServerBuilder {
 @MainActor
 protocol ProxyRuntimeServiceDelegate: AnyObject {
     func proxyRuntimeService(_ service: ProxyRuntimeService, didReceiveProxyLog json: String, configId: String)
+    func proxyRuntimeService(_ service: ProxyRuntimeService, processDidTerminateFor configId: String)
 }
 
 @MainActor
@@ -204,6 +205,28 @@ final class ProxyRuntimeService {
         try clearPricingOverrides()
     }
 
+    // MARK: - Proxy-Only Mode
+
+    /// Start the proxy process without writing to settings.json.
+    /// Used for "proxy only" mode where the node serves other tools via its port.
+    func startProxyOnly(for config: ProxyConfiguration) async throws {
+        try await startProxy(config)
+    }
+
+    /// Stop a proxy-only process without touching settings.json or backup.
+    func stopProxyOnly(for config: ProxyConfiguration) {
+        stopProxy(config)
+    }
+
+    /// Returns the set of ports currently occupied by running proxy processes.
+    func runningPorts(from configurations: [ProxyConfiguration]) -> [String: Int] {
+        var result: [String: Int] = [:]
+        for config in configurations where isProxyRunning(config.id) {
+            result[config.id] = config.port
+        }
+        return result
+    }
+
     func isProxyRunning(_ configId: String) -> Bool {
         guard let process = runningProcesses[configId] else { return false }
         if !process.isRunning {
@@ -324,7 +347,9 @@ final class ProxyRuntimeService {
                     "Proxy process exited for node \(config.name, privacy: .public) code=\(proc.terminationStatus, privacy: .public)"
                 )
                 Task { @MainActor [weak self] in
-                    self?.runningProcesses.removeValue(forKey: config.id)
+                    guard let self else { return }
+                    self.runningProcesses.removeValue(forKey: config.id)
+                    self.delegate?.proxyRuntimeService(self, processDidTerminateFor: config.id)
                 }
             }
         } catch {

@@ -314,6 +314,7 @@ struct ProxyManagementView: View {
                         ConfigurationCardView(
                             config: config,
                             isActive: viewModel.activatedConfigId == config.id,
+                            isProxyOnlyRunning: viewModel.proxyOnlyRunningIds.contains(config.id),
                             isBusy: viewModel.isOperationInProgress(config.id),
                             isSelected: isSelected,
                             statsRequests: stats.totalRequests,
@@ -321,6 +322,8 @@ struct ProxyManagementView: View {
                             lastRequestAt: stats.lastRequestAt,
                             onDragStart: { draggingConfigId = config.id },
                             onToggleActivation: { Task { await viewModel.toggleActivation(config.id) } },
+                            onToggleProxyOnly: { Task { await viewModel.toggleProxyOnly(config.id) } },
+                            onCopyLaunchCommand: { viewModel.copyLaunchCommand(for: config.id) },
                             onEdit: {
                                 if let profile = viewModel.profileStore.profile(for: config.id) {
                                     editingProfile = profile
@@ -778,6 +781,7 @@ struct ProxyManagementView: View {
 private struct ConfigurationCardView: View, Equatable {
     let config: ProxyConfiguration
     let isActive: Bool
+    let isProxyOnlyRunning: Bool
     let isBusy: Bool
     let isSelected: Bool
     let statsRequests: Int
@@ -786,6 +790,8 @@ private struct ConfigurationCardView: View, Equatable {
 
     var onDragStart: () -> Void = {}
     var onToggleActivation: () -> Void = {}
+    var onToggleProxyOnly: () -> Void = {}
+    var onCopyLaunchCommand: () -> Void = {}
     var onEdit: () -> Void = {}
     var onDelete: () -> Void = {}
     var onDuplicate: () -> Void = {}
@@ -794,6 +800,7 @@ private struct ConfigurationCardView: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.config == rhs.config &&
         lhs.isActive == rhs.isActive &&
+        lhs.isProxyOnlyRunning == rhs.isProxyOnlyRunning &&
         lhs.isBusy == rhs.isBusy &&
         lhs.isSelected == rhs.isSelected &&
         lhs.statsRequests == rhs.statsRequests &&
@@ -826,7 +833,7 @@ private struct ConfigurationCardView: View, Equatable {
                     }
 
                 Circle()
-                    .fill(isActive ? brandColor : Color.gray.opacity(0.4))
+                    .fill(isActive ? brandColor : isProxyOnlyRunning ? .purple : Color.gray.opacity(0.4))
                     .frame(width: 10, height: 10)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -844,13 +851,13 @@ private struct ConfigurationCardView: View, Equatable {
                 Spacer()
 
                 if config.needsProxyProcess {
-                    HStack(spacing: 16) {
+                    VStack(alignment: .trailing, spacing: 4) {
                         statPill(icon: "arrow.up.arrow.down", value: "\(statsRequests)", color: .blue)
                         statPill(icon: "checkmark.circle", value: String(format: "%.0f%%", statsSuccessRate), color: .green)
                     }
                 }
 
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Button(action: onToggleActivation) {
                         Group {
                             if isBusy {
@@ -866,7 +873,32 @@ private struct ConfigurationCardView: View, Equatable {
                     }
                     .buttonStyle(.plain)
                     .disabled(isBusy)
-                    .help(isActive ? L("Deactivate", "停用") : L("Activate", "激活"))
+                    .help(isActive
+                          ? L("Disconnect Claude", "断开 Claude")
+                          : L("Apply to Claude", "接入 Claude"))
+
+                    if config.needsProxyProcess && !isActive {
+                        Button(action: onToggleProxyOnly) {
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                                .font(.system(size: 14))
+                                .foregroundStyle(isProxyOnlyRunning ? .orange : .purple)
+                                .frame(width: 20, height: 20)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isBusy)
+                        .help(isProxyOnlyRunning
+                              ? L("Stop Proxy", "停止代理")
+                              : L("Start Proxy", "启动代理"))
+                    }
+
+                    Button(action: onCopyLaunchCommand) {
+                        Image(systemName: "doc.on.clipboard")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.blue)
+                            .frame(width: 20, height: 20)
+                    }
+                    .buttonStyle(.plain)
+                    .help(L("Copy Launch Command", "复制启动命令"))
 
                     Button(action: onEdit) {
                         Image(systemName: "pencil.circle.fill")
@@ -896,48 +928,72 @@ private struct ConfigurationCardView: View, Equatable {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(isActive
-                      ? brandColor.opacity(0.06)
-                      : isSelected
-                        ? brandColor.opacity(0.04)
-                        : Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                .fill(cardBackgroundColor)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(isActive
-                        ? brandColor.opacity(0.5)
-                        : isSelected
-                          ? brandColor.opacity(0.25)
-                          : Color.primary.opacity(0.06),
-                        lineWidth: isActive ? 1.5 : 1)
+                .stroke(cardBorderColor, lineWidth: (isActive || isProxyOnlyRunning) ? 1.5 : 1)
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onToggleSelection)
-        .contextMenu {
-            Button {
-                onToggleActivation()
-            } label: {
+        .contextMenu { cardContextMenu }
+    }
+
+    // MARK: - Card Styling
+
+    private var cardBackgroundColor: Color {
+        if isActive { return brandColor.opacity(0.06) }
+        if isProxyOnlyRunning { return Color.purple.opacity(0.04) }
+        if isSelected { return brandColor.opacity(0.04) }
+        return Color(nsColor: .controlBackgroundColor).opacity(0.5)
+    }
+
+    private var cardBorderColor: Color {
+        if isActive { return brandColor.opacity(0.5) }
+        if isProxyOnlyRunning { return Color.purple.opacity(0.35) }
+        if isSelected { return brandColor.opacity(0.25) }
+        return Color.primary.opacity(0.06)
+    }
+
+    // MARK: - Context Menu
+
+    @ViewBuilder
+    private var cardContextMenu: some View {
+        Button { onToggleActivation() } label: {
+            Label(
+                isActive ? L("Disconnect Claude", "断开 Claude") : L("Apply to Claude", "接入 Claude"),
+                systemImage: isActive ? "stop.circle" : "power.circle"
+            )
+        }
+        .disabled(isBusy)
+
+        if config.needsProxyProcess && !isActive {
+            Button { onToggleProxyOnly() } label: {
                 Label(
-                    isActive ? L("Deactivate", "停用") : L("Activate", "激活"),
-                    systemImage: isActive ? "stop.circle" : "power.circle"
+                    isProxyOnlyRunning ? L("Stop Proxy", "停止代理") : L("Start Proxy", "启动代理"),
+                    systemImage: "antenna.radiowaves.left.and.right"
                 )
             }
             .disabled(isBusy)
+        }
 
-            Divider()
+        Button { onCopyLaunchCommand() } label: {
+            Label(L("Copy Launch Command", "复制启动命令"), systemImage: "doc.on.clipboard")
+        }
 
-            Button { onEdit() } label: {
-                Label(L("Edit", "编辑"), systemImage: "pencil")
-            }
-            Button { onDuplicate() } label: {
-                Label(L("Duplicate", "复制节点"), systemImage: "doc.on.doc")
-            }
+        Divider()
 
-            Divider()
+        Button { onEdit() } label: {
+            Label(L("Edit", "编辑"), systemImage: "pencil")
+        }
+        Button { onDuplicate() } label: {
+            Label(L("Duplicate", "复制节点"), systemImage: "doc.on.doc")
+        }
 
-            Button(role: .destructive) { onDelete() } label: {
-                Label(L("Delete", "删除"), systemImage: "trash")
-            }
+        Divider()
+
+        Button(role: .destructive) { onDelete() } label: {
+            Label(L("Delete", "删除"), systemImage: "trash")
         }
     }
 

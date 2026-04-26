@@ -7,15 +7,13 @@ extension ProxyViewModel {
     func restoreActivatedNode() {
         Task {
             await restoreActivatedNodeAsync()
+            await restoreProxyOnlyNodes()
         }
     }
 
     private func restoreActivatedNodeAsync() async {
         let shouldAutoRestore = AppSettings.shared.proxyAutoRestoreOnLaunch
 
-        // When auto-restore is disabled, ignore the stored last-activated id on launch but
-        // leave DefaultsKey.proxyActivatedConfigId untouched so the user can flip the setting
-        // back on later and pick up where they left off.
         activatedConfigId = shouldAutoRestore
             ? UserDefaults.standard.string(forKey: DefaultsKey.proxyActivatedConfigId)
             : nil
@@ -134,6 +132,13 @@ extension ProxyViewModel {
 extension ProxyViewModel: ProxyRuntimeServiceDelegate {
     func proxyRuntimeService(_ service: ProxyRuntimeService, didReceiveProxyLog json: String, configId: String) {
         parseProxyLog(json, configId: configId)
+    }
+
+    func proxyRuntimeService(_ service: ProxyRuntimeService, processDidTerminateFor configId: String) {
+        if proxyOnlyRunningIds.remove(configId) != nil {
+            saveProxyOnlyIds()
+            proxyRuntimeLog.notice("Proxy-only process terminated unexpectedly for node \(configId, privacy: .public), removed from running set")
+        }
     }
 }
 

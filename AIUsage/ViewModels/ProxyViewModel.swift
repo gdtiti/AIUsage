@@ -47,6 +47,7 @@ class ProxyViewModel: ObservableObject {
 
     @Published var configurations: [ProxyConfiguration] = []
     @Published var activatedConfigId: String?
+    @Published var proxyOnlyRunningIds: Set<String> = []
     // `statistics` and `recentLogs` are intentionally NOT @Published: writes happen on every
     // proxied request (potentially many per second during streaming) and each publish would
     // force every observing view to rebuild body + re-aggregate on the main thread. Instead,
@@ -222,6 +223,7 @@ class ProxyViewModel: ObservableObject {
 
         if let index = configurations.firstIndex(where: { $0.id == profile.id }) {
             let wasActivated = activatedConfigId == profile.id
+            let wasProxyOnly = proxyOnlyRunningIds.contains(profile.id)
             let busyIds: Set<String> = [profile.id]
             setOperationInProgress(busyIds, isActive: true)
             defer { setOperationInProgress(busyIds, isActive: false) }
@@ -232,6 +234,9 @@ class ProxyViewModel: ObservableObject {
                     reportOperationError(error)
                     return
                 }
+            } else if wasProxyOnly {
+                runtimeService.stopProxyOnly(for: configurations[index])
+                proxyOnlyRunningIds.remove(profile.id)
             }
             configurations[index] = config
             if wasActivated {
@@ -240,6 +245,14 @@ class ProxyViewModel: ObservableObject {
                 } catch {
                     reportOperationError(error)
                 }
+            } else if wasProxyOnly {
+                do {
+                    try await runtimeService.startProxyOnly(for: config)
+                    proxyOnlyRunningIds.insert(profile.id)
+                } catch {
+                    proxyRuntimeLog.error("Failed to restart proxy-only after profile update for \(config.name, privacy: .public): \(String(describing: error), privacy: .public)")
+                }
+                saveProxyOnlyIds()
             }
         }
     }
@@ -247,6 +260,7 @@ class ProxyViewModel: ObservableObject {
     func updateConfiguration(_ config: ProxyConfiguration) async {
         if let index = configurations.firstIndex(where: { $0.id == config.id }) {
             let wasActivated = activatedConfigId == config.id
+            let wasProxyOnly = proxyOnlyRunningIds.contains(config.id)
             let busyIds: Set<String> = [config.id]
             setOperationInProgress(busyIds, isActive: true)
             defer { setOperationInProgress(busyIds, isActive: false) }
@@ -257,6 +271,9 @@ class ProxyViewModel: ObservableObject {
                     reportOperationError(error)
                     return
                 }
+            } else if wasProxyOnly {
+                runtimeService.stopProxyOnly(for: configurations[index])
+                proxyOnlyRunningIds.remove(config.id)
             }
             configurations[index] = config
             let profile = NodeProfile.fromLegacyConfiguration(config)
@@ -267,6 +284,14 @@ class ProxyViewModel: ObservableObject {
                 } catch {
                     reportOperationError(error)
                 }
+            } else if wasProxyOnly {
+                do {
+                    try await runtimeService.startProxyOnly(for: config)
+                    proxyOnlyRunningIds.insert(config.id)
+                } catch {
+                    proxyRuntimeLog.error("Failed to restart proxy-only after config update for \(config.name, privacy: .public): \(String(describing: error), privacy: .public)")
+                }
+                saveProxyOnlyIds()
             }
         }
     }
@@ -283,6 +308,13 @@ class ProxyViewModel: ObservableObject {
                 reportOperationError(error)
                 return
             }
+        }
+
+        if proxyOnlyRunningIds.contains(id),
+           let config = configurations.first(where: { $0.id == id }) {
+            runtimeService.stopProxyOnly(for: config)
+            proxyOnlyRunningIds.remove(id)
+            saveProxyOnlyIds()
         }
 
         configurations.removeAll { $0.id == id }
@@ -366,6 +398,8 @@ class ProxyViewModel: ObservableObject {
             return
         }
 
+        let wasProxyOnly = proxyOnlyRunningIds.contains(id)
+
         let previousActiveConfig = activatedConfigId.flatMap { currentId in
             configurations.first(where: { $0.id == currentId })
         }
@@ -376,6 +410,8 @@ class ProxyViewModel: ObservableObject {
 
         do {
             try await activateRuntime(for: config)
+            proxyOnlyRunningIds.remove(id)
+            saveProxyOnlyIds()
             do {
                 try persistActivationSelection(config.id, touchLastUsedAt: true)
             } catch {
@@ -383,6 +419,10 @@ class ProxyViewModel: ObservableObject {
                     try await deactivateRuntime(for: config)
                 } catch {
                     proxyRuntimeLog.error("Failed to roll back runtime for newly activated node \(config.name, privacy: .public): \(String(describing: error), privacy: .public)")
+                }
+                if wasProxyOnly {
+                    proxyOnlyRunningIds.insert(id)
+                    saveProxyOnlyIds()
                 }
                 if let previousActiveConfig {
                     do {
@@ -394,6 +434,10 @@ class ProxyViewModel: ObservableObject {
                 throw error
             }
         } catch {
+            if wasProxyOnly {
+                proxyOnlyRunningIds.insert(id)
+                saveProxyOnlyIds()
+            }
             if let previousActiveConfig {
                 do {
                     try await activateRuntime(for: previousActiveConfig)

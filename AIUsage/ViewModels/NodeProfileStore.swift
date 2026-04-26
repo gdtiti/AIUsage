@@ -324,6 +324,46 @@ class NodeProfileStore: ObservableObject {
         }
     }
 
+    // MARK: - Clean Settings Export
+
+    private static var cleanSettingsDirectory: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return (home as NSString).appendingPathComponent(".config/aiusage/claude-settings")
+    }
+
+    /// Writes a clean settings file (without `_metadata`) for use with `claude --settings <path>`.
+    /// Returns the file path on success, nil on failure.
+    @discardableResult
+    static func exportCleanSettings(for profile: NodeProfile, settings: [String: Any]) -> String? {
+        let dir = cleanSettingsDirectory
+        let fm = FileManager.default
+        do {
+            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        } catch {
+            storeLog.error("Failed to create claude-settings directory: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+
+        let allowedChars = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        let sanitizedName = profile.metadata.name.unicodeScalars
+            .map { allowedChars.contains($0) ? String($0) : "_" }
+            .joined()
+        let fileName = "\(sanitizedName).json"
+        let filePath = (dir as NSString).appendingPathComponent(fileName)
+
+        do {
+            let data = try JSONSerialization.data(
+                withJSONObject: settings,
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+            )
+            try data.write(to: URL(fileURLWithPath: filePath), options: .atomic)
+            return filePath
+        } catch {
+            storeLog.error("Failed to export clean settings for \(profile.metadata.name, privacy: .public): \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
     // MARK: - Helpers
 
     private func filePath(for id: String) -> String {
